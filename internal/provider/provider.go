@@ -134,6 +134,12 @@ func truncateUTF8(s string, max int) string {
 	return s[:cut]
 }
 
+// TruncateMessage trims s and caps it at 512 bytes on a rune boundary. Adapters
+// use it for upstream-controlled text that ends up in Error.Message.
+func TruncateMessage(s string) string {
+	return truncateUTF8(strings.TrimSpace(s), maxErrorMessageBytes)
+}
+
 // NewTransport returns an HTTP transport tuned for many concurrent requests to
 // a few upstream hosts. It starts from a clone of http.DefaultTransport so the
 // proxy, dial timeout and TLS handshake timeout defaults are kept.
@@ -173,7 +179,7 @@ func ErrorFromResponse(resp *http.Response, now time.Time) *Error {
 	}
 	msg := ""
 	if json.Unmarshal(body, &env) == nil {
-		msg = truncateUTF8(strings.TrimSpace(env.Error.Message), maxErrorMessageBytes)
+		msg = TruncateMessage(env.Error.Message)
 	}
 	if msg == "" {
 		msg = http.StatusText(resp.StatusCode)

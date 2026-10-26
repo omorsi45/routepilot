@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/openai"
@@ -610,3 +611,109 @@ func TestNilClientDoesNotFollowRedirects(t *testing.T) {
 }
 
 func errOnly[T any](_ T, err error) error { return err }
+
+func TestStreamInBandErrorIsProtocolError(t *testing.T) {
+	long := strings.Repeat("é", 400) // 800 bytes, must be capped on a rune boundary
+	cases := []struct {
+		name    string
+		payload string
+		wantMsg string
+	}{
+		{"error object", `{"error":{"message":"engine died","type":"server_error"}}`, "engine died"},
+		{"error string", `{"error":"engine died"}`, "engine died"},
+		{"object error", `{"object":"error","message":"engine died","type":"InternalServerError","code":500}`, "engine died"},
+		{"error without message", `{"error":{"type":"server_error"}}`, ""},
+		{"long message", `{"error":{"message":"` + long + `"}}`, "cap"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				writeSSE(w, chunkJSON("partial"))
+				writeSSE(w, tc.payload)
+				writeSSE(w, "[DONE]")
+			}))
+			defer srv.Close()
+			st, err := newClient(srv.URL, "k").Stream(context.Background(), newReq("m"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer st.Close()
+
+			ch, err := st.Recv()
+			if err != nil || ch.Choices[0].Delta.Content == nil || *ch.Choices[0].Delta.Content != "partial" {
+				t.Fatalf("first Recv = %+v, %v; want the content chunk", ch, err)
+			}
+			ch, err = st.Recv()
+			if ch != nil {
+				t.Errorf("error event decoded as chunk %+v", ch)
+			}
+			pe := mustProviderErr(t, err)
+			if pe.Kind != provider.KindProtocol || pe.Retryable {
+				t.Errorf("error = %+v, want non-retryable KindProtocol", pe)
+			}
+			switch tc.wantMsg {
+			case "":
+				if pe.Message == "" {
+					t.Error("empty message, want a generic one")
+				}
+			case "cap":
+				if len(pe.Message) > 512 || !utf8.ValidString(pe.Message) {
+					t.Errorf("message len %d valid=%v, want <= 512 and valid UTF-8", len(pe.Message), utf8.ValidString(pe.Message))
+				}
+			default:
+				if pe.Message != tc.wantMsg {
+					t.Errorf("message = %q, want %q", pe.Message, tc.wantMsg)
+				}
+			}
+			// The error is sticky: the trailing [DONE] must not turn it into a clean end.
+			if _, err2 := st.Recv(); err2 == nil || errors.Is(err2, io.EOF) || err2 != err {
+				t.Errorf("second Recv = %v, want the same sticky error", err2)
+			}
+		})
+	}
+}
+
+func TestStreamNullErrorKeyIsAChunk(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		writeSSE(w, `{"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","error":null,"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":null}]}`)
+		writeSSE(w, "[DONE]")
+	}))
+	defer srv.Close()
+	st, err := newClient(srv.URL, "k").Stream(context.Background(), newReq("m"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, err := st.Recv(); err != nil {
+		t.Fatalf("Recv = %v, want a normal chunk", err)
+	}
+}
+
+func TestCompleteBadSuccessBodiesAreProtocolErrors(t *testing.T) {
+	cases := map[string]string{
+		"error object":    `{"error":{"message":"engine died"}}`,
+		"object error":    `{"object":"error","message":"engine died","code":500}`,
+		"missing choices": `{"id":"c1","object":"chat.completion","created":1,"model":"m"}`,
+		"null choices":    `{"id":"c1","object":"chat.completion","created":1,"model":"m","choices":null}`,
+		"empty choices":   `{"id":"c1","object":"chat.completion","created":1,"model":"m","choices":[]}`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, body)
+			}))
+			defer srv.Close()
+			resp, err := newClient(srv.URL, "k").Complete(context.Background(), newReq("m"))
+			if resp != nil {
+				t.Errorf("got response %+v, want nil", resp)
+			}
+			pe := mustProviderErr(t, err)
+			if pe.Kind != provider.KindProtocol || pe.Retryable {
+				t.Errorf("error = %+v, want non-retryable KindProtocol", pe)
+			}
+		})
+	}
+}

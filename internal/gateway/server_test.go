@@ -146,7 +146,16 @@ type env struct {
 func newMockEnv(t *testing.T, o cfgOpts) *env {
 	t.Helper()
 	m := mock.NewHandler(mock.Config{})
-	rec := &recorder{next: m}
+	e := newUpstreamEnv(t, o, m)
+	e.mock = m
+	return e
+}
+
+// newUpstreamEnv is newMockEnv with a caller-supplied upstream handler, for
+// tests that need an upstream the mock cannot imitate. env.mock is nil.
+func newUpstreamEnv(t *testing.T, o cfgOpts, h http.Handler) *env {
+	t.Helper()
+	rec := &recorder{next: h}
 	srv := httptest.NewServer(rec)
 	t.Cleanup(srv.Close)
 	o.baseURL = srv.URL + "/v1"
@@ -159,7 +168,7 @@ func newMockEnv(t *testing.T, o cfgOpts) *env {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	return &env{gw: gw, mock: m, upstream: rec, logs: logs}
+	return &env{gw: gw, upstream: rec, logs: logs}
 }
 
 // fakeProvider implements provider.Provider with a function.

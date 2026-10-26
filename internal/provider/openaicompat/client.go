@@ -60,9 +60,15 @@ func (c *Client) Complete(ctx context.Context, req *openai.ChatCompletionRequest
 	if len(body) > maxCompletionBytes {
 		return nil, &provider.Error{Kind: provider.KindProtocol, Message: "response body exceeds size limit"}
 	}
+	if perr := inBandError(body); perr != nil {
+		return nil, perr
+	}
 	var completion openai.ChatCompletion
 	if err := json.Unmarshal(body, &completion); err != nil {
 		return nil, &provider.Error{Kind: provider.KindProtocol, Message: "invalid completion JSON", Err: err}
+	}
+	if len(completion.Choices) == 0 {
+		return nil, &provider.Error{Kind: provider.KindProtocol, Message: "completion has no choices"}
 	}
 	return &completion, nil
 }
@@ -148,11 +154,53 @@ func (s *stream) Recv() (*openai.ChatCompletionChunk, error) {
 	if ev.IsDone() {
 		return nil, s.fail(io.EOF)
 	}
+	if perr := inBandError(ev.Data); perr != nil {
+		return nil, s.fail(perr)
+	}
 	var chunk openai.ChatCompletionChunk
 	if err := json.Unmarshal(ev.Data, &chunk); err != nil {
 		return nil, s.fail(&provider.Error{Kind: provider.KindProtocol, Message: "invalid chunk JSON", Err: err})
 	}
 	return &chunk, nil
+}
+
+// inBandError reports an error object delivered with a 2xx status. Some
+// OpenAI-compatible servers (vLLM among them) signal engine failures that way,
+// either as {"error":{...}} or as {"object":"error","message":...}. It returns
+// nil for any other body, including invalid JSON, which callers reject on
+// their own.
+func inBandError(data []byte) *provider.Error {
+	var probe struct {
+		Object  string          `json:"object"`
+		Error   json.RawMessage `json:"error"`
+		Message string          `json:"message"`
+	}
+	if json.Unmarshal(data, &probe) != nil {
+		return nil
+	}
+	hasError := len(probe.Error) > 0 && string(probe.Error) != "null"
+	if !hasError && probe.Object != "error" {
+		return nil
+	}
+	msg := probe.Message
+	if hasError {
+		var obj struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(probe.Error, &obj) == nil {
+			msg = obj.Message
+		} else {
+			var str string
+			if json.Unmarshal(probe.Error, &str) == nil {
+				msg = str
+			}
+		}
+	}
+	msg = provider.TruncateMessage(msg)
+	if msg == "" {
+		msg = "upstream reported an error in the response body"
+	}
+	return &provider.Error{Kind: provider.KindProtocol, Message: msg}
 }
 
 func errStreamClosed() *provider.Error {
