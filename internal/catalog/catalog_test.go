@@ -1,8 +1,10 @@
 package catalog
 
 import (
+	"fmt"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/omorsi45/routepilot/internal/config"
@@ -118,6 +120,24 @@ func TestNewRejectsBadConfig(t *testing.T) {
 	}
 }
 
+func TestNewRejectsDuplicates(t *testing.T) {
+	cfg := testConfig()
+	cfg.Models[1].ID = "small"
+	if _, err := New(cfg); err == nil || !strings.Contains(err.Error(), `duplicate model id "small"`) {
+		t.Errorf("duplicate model id: err = %v", err)
+	}
+	cfg = testConfig()
+	cfg.Models[1].Deployments[0].Name = "small-b" // clashes across models
+	if _, err := New(cfg); err == nil || !strings.Contains(err.Error(), `duplicate deployment name "small-b"`) {
+		t.Errorf("duplicate deployment across models: err = %v", err)
+	}
+	cfg = testConfig()
+	cfg.Models[0].Deployments[1].Name = "small-a" // clashes within a model
+	if _, err := New(cfg); err == nil || !strings.Contains(err.Error(), `duplicate deployment name "small-a"`) {
+		t.Errorf("duplicate deployment within model: err = %v", err)
+	}
+}
+
 func TestCapSetMissingAndString(t *testing.T) {
 	names := map[Capability]string{
 		CapTools: "tools", CapJSONObject: "json_object", CapJSONSchema: "json_schema",
@@ -214,6 +234,19 @@ func TestCheckReasons(t *testing.T) {
 	r = Requirements{InUpper: 10}
 	if got := m.Check(r, 5000); len(got) != 0 {
 		t.Errorf("defaulted k Check = %v, want empty", got)
+	}
+}
+
+func TestCheckHugeMaxTokensDoesNotOverflow(t *testing.T) {
+	m := &Model{ID: "m", ContextWindow: 1000, MaxOutputTokens: 200}
+	r := Requirements{InUpper: 10, MaxTokens: math.MaxInt, HasMaxTokens: true}
+	got := m.Check(r, 100)
+	want := []Reason{
+		Reason(fmt.Sprintf("context window 1000 below required %d", math.MaxInt)),
+		Reason(fmt.Sprintf("max_tokens %d above model limit 200", math.MaxInt)),
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Check = %v, want %v", got, want)
 	}
 }
 

@@ -118,8 +118,8 @@ func TestDeriveInUpper(t *testing.T) {
 	}
 	want := 13 + // PromptBytes
 		len("alice") +
+		len("c1") + len("function") + len("get_weather") + len(args) + // tool call id, type, name, arguments
 		len(toolsJSON) +
-		len("get_weather") + len(args) +
 		8*2 + 16
 	r := Derive(req)
 	if r.PromptBytes != 13 {
@@ -133,6 +133,75 @@ func TestDeriveInUpper(t *testing.T) {
 	plain := Derive(&openai.ChatCompletionRequest{Messages: []openai.Message{userMsg("abc"), userMsg("de")}})
 	if plain.InUpper != 5+16+16 {
 		t.Errorf("plain InUpper = %d, want %d", plain.InUpper, 5+16+16)
+	}
+}
+
+// TestDeriveInUpperCountsForwardedContent pins Ruling M2-R11: everything the
+// upstream receives is counted, not only message text.
+func TestDeriveInUpperCountsForwardedContent(t *testing.T) {
+	const base = 1 + 8 + 16 // one message "x", per-message and fixed overhead
+	user := `{"role":"user","content":"x"}`
+	cases := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"baseline", `{"model":"m","messages":[` + user + `]}`, base},
+		{"image part uses the per-image allowance, not the URL",
+			`{"model":"m","messages":[{"role":"user","content":[{"type":"text","text":"ab"},` +
+				`{"type":"image_url","image_url":{"url":"data:image/png;base64,` + strings.Repeat("A", 5000) + `"}}]}]}`,
+			2 + ImageTokenAllowance + 8 + 16},
+		{"two images",
+			`{"model":"m","messages":[{"role":"user","content":[` +
+				`{"type":"image_url","image_url":{"url":"http://a/1.png"}},{"type":"image_url","image_url":{"url":"http://a/2.png"}}]}]}`,
+			2*ImageTokenAllowance + 8 + 16},
+		{"json_schema response_format",
+			`{"model":"m","messages":[` + user + `],"response_format":{"type":"json_schema","json_schema":{"name":"out","strict":true}}}`,
+			base + len(`{"name":"out","strict":true}`)},
+		{"named tool_choice",
+			`{"model":"m","messages":[` + user + `],"tool_choice":{"type":"function","function":{"name":"lookup"}}}`,
+			base + len(`{"type":"function","function":{"name":"lookup"}}`)},
+		{"unknown top-level field counts key and raw value",
+			`{"model":"m","messages":[` + user + `],"logit_bias":{"50256":-100}}`,
+			base + len("logit_bias") + len(`{"50256":-100}`)},
+		{"unknown message field counts key and raw value",
+			`{"model":"m","messages":[{"role":"user","content":"x","cache_control":{"type":"ephemeral"}}]}`,
+			base + len("cache_control") + len(`{"type":"ephemeral"}`)},
+		{"input_audio part counts its whole JSON",
+			`{"model":"m","messages":[{"role":"user","content":[{"type":"input_audio","input_audio":{"data":"AAAA","format":"wav"}}]}]}`,
+			len(`{"input_audio":{"data":"AAAA","format":"wav"},"type":"input_audio"}`) + 8 + 16},
+		{"tool_call_id counts",
+			`{"model":"m","messages":[{"role":"tool","tool_call_id":"call_abc123","content":"x"}]}`,
+			base + len("call_abc123")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := Derive(parseReq(t, tc.body)).InUpper; got != tc.want {
+				t.Errorf("InUpper = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestDeriveInUpperToolsMarshalFallback covers a tool whose parameters are not
+// valid JSON, where json.Marshal fails: the count must stay conservative.
+func TestDeriveInUpperToolsMarshalFallback(t *testing.T) {
+	bad := json.RawMessage(`{"type":`)
+	req := &openai.ChatCompletionRequest{
+		Messages: []openai.Message{userMsg("x")},
+		Tools: []openai.Tool{
+			{Type: "function", Function: openai.FunctionDef{Name: "alpha", Description: "does a thing", Parameters: bad}},
+			{Type: "function", Function: openai.FunctionDef{Name: "beta"}},
+		},
+	}
+	if _, err := json.Marshal(req.Tools); err == nil {
+		t.Fatal("precondition: marshaling the tools should fail")
+	}
+	want := 1 + 8 + 16 +
+		(len("alpha") + len("does a thing") + len(bad) + 64) +
+		(len("beta") + 64)
+	if got := Derive(req).InUpper; got != want {
+		t.Errorf("InUpper = %d, want %d", got, want)
 	}
 }
 
@@ -165,40 +234,105 @@ func TestDeriveTextTruncatesOnRuneBoundary(t *testing.T) {
 	}
 }
 
-// TestInUpperBoundsMockPromptTokens checks the upper bound against the mock
-// provider's own prompt token count on generated requests.
+// stringBytes sums the byte length of every string value in a decoded JSON
+// tree. Object keys are not counted, and neither is a "role" value: roles are
+// framing that the per-message overhead covers.
+func stringBytes(v any) int {
+	switch x := v.(type) {
+	case string:
+		return len(x)
+	case []any:
+		n := 0
+		for _, e := range x {
+			n += stringBytes(e)
+		}
+		return n
+	case map[string]any:
+		n := 0
+		for k, e := range x {
+			if k == "role" {
+				continue
+			}
+			n += stringBytes(e)
+		}
+		return n
+	}
+	return 0
+}
+
+// TestInUpperBoundsMockPromptTokens checks the upper bound on generated
+// requests against two oracles: the mock provider's own prompt token count,
+// and the total bytes of every string value that is forwarded upstream
+// (messages, tools, tool_choice, response_format) plus request Extra.
 func TestInUpperBoundsMockPromptTokens(t *testing.T) {
 	h := mock.NewHandler(mock.Config{Seed: 1})
 	rng := rand.New(rand.NewPCG(7, 11))
 	snippets := []string{"", "a", "hello world", "héllo wörld", "日本語のテキスト", "emoji 😀😀", strings.Repeat("x", 301)}
+	snippet := func() string { return snippets[rng.IntN(len(snippets))] }
+	roles := []string{"system", "developer", "user", "assistant"}
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 40; i++ {
 		req := &openai.ChatCompletionRequest{Model: "m;tokens=3;ttft_ms=0;tpot_ms=0"}
-		for j, n := 0, 1+rng.IntN(5); j < n; j++ {
-			m := openai.Message{Role: "user"}
+		for j, n := 0, 1+rng.IntN(6); j < n; j++ {
+			m := openai.Message{Role: roles[rng.IntN(len(roles))]}
 			switch rng.IntN(3) {
 			case 0:
-				m.Content = strContent(snippets[rng.IntN(len(snippets))])
+				m.Content = strContent(snippet())
 			case 1:
 				m.Content = openai.Content{Parts: []openai.ContentPart{
-					{Type: "text", Text: snippets[rng.IntN(len(snippets))]},
+					{Type: "text", Text: snippet()},
 					{Type: "image_url", ImageURL: &openai.ImageURL{URL: "http://example.invalid/i.png"}},
-					{Type: "text", Text: snippets[rng.IntN(len(snippets))]},
+					{Type: "text", Text: snippet()},
 				}}
+				if rng.IntN(3) == 0 {
+					m.Content.Parts = append(m.Content.Parts, openai.ContentPart{
+						Type:  "input_audio",
+						Extra: map[string]json.RawMessage{"input_audio": json.RawMessage(`{"data":"` + snippet() + `","format":"wav"}`)},
+					})
+				}
 			}
 			if rng.IntN(2) == 0 {
 				m.Name = fmt.Sprintf("n%d", j)
 			}
+			switch {
+			case m.Role == "assistant" && rng.IntN(2) == 0:
+				m.ToolCalls = []openai.ToolCall{{
+					ID: fmt.Sprintf("call_%d", j), Type: "function",
+					Function: openai.FunctionCall{Name: "lookup", Arguments: `{"q":"` + snippet() + `"}`},
+				}}
+			case m.Role == "user" && rng.IntN(4) == 0:
+				m.Role = "tool"
+				m.ToolCallID = fmt.Sprintf("call_%d", j)
+			}
+			if rng.IntN(3) == 0 {
+				m.Extra = map[string]json.RawMessage{"annotations": json.RawMessage(`["` + snippet() + `"]`)}
+			}
 			req.Messages = append(req.Messages, m)
 		}
 		if rng.IntN(2) == 0 {
-			req.Tools = []openai.Tool{{Type: "function", Function: openai.FunctionDef{Name: "f", Parameters: json.RawMessage(`{}`)}}}
+			req.Tools = []openai.Tool{{Type: "function", Function: openai.FunctionDef{
+				Name: "f", Description: snippet(), Parameters: json.RawMessage(`{"type":"object"}`),
+			}}}
+		}
+		if rng.IntN(2) == 0 {
+			req.ToolChoice = json.RawMessage(`{"type":"function","function":{"name":"lookup"}}`)
+		}
+		if rng.IntN(2) == 0 {
+			req.ResponseFormat = &openai.ResponseFormat{
+				Type: "json_schema", JSONSchema: json.RawMessage(`{"name":"` + snippet() + `","schema":{"type":"object"}}`),
+			}
+		}
+		if rng.IntN(2) == 0 {
+			req.Extra = map[string]json.RawMessage{"metadata": json.RawMessage(`{"trace":"` + snippet() + `"}`)}
 		}
 
 		body, err := json.Marshal(req)
 		if err != nil {
 			t.Fatal(err)
 		}
+		inUpper := Derive(req).InUpper
+
+		// Oracle 1: the mock provider's prompt token count.
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(string(body))))
 		if rec.Code != http.StatusOK {
@@ -211,8 +345,24 @@ func TestInUpperBoundsMockPromptTokens(t *testing.T) {
 		if resp.Usage == nil {
 			t.Fatalf("request %d: no usage", i)
 		}
-		if got := Derive(req).InUpper; resp.Usage.PromptTokens > got {
-			t.Errorf("request %d: mock prompt_tokens %d > InUpper %d", i, resp.Usage.PromptTokens, got)
+		if resp.Usage.PromptTokens > inUpper {
+			t.Errorf("request %d: mock prompt_tokens %d > InUpper %d", i, resp.Usage.PromptTokens, inUpper)
+		}
+
+		// Oracle 2: every forwarded string byte, plus request Extra.
+		var tree map[string]any
+		if err := json.Unmarshal(body, &tree); err != nil {
+			t.Fatal(err)
+		}
+		forwarded := 0
+		for _, key := range []string{"messages", "tools", "tool_choice", "response_format"} {
+			forwarded += stringBytes(tree[key])
+		}
+		for k, v := range req.Extra {
+			forwarded += len(k) + len(v)
+		}
+		if forwarded > inUpper {
+			t.Errorf("request %d: forwarded string bytes %d > InUpper %d", i, forwarded, inUpper)
 		}
 	}
 }

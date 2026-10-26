@@ -3,12 +3,17 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/omorsi45/routepilot/internal/money"
 	"github.com/omorsi45/routepilot/internal/openai"
 )
+
+// ImageTokenAllowance is the input token allowance charged per image part.
+// It is a per-image allowance, not a proof of an upper bound.
+const ImageTokenAllowance = 2048
 
 const (
 	// textLimit caps Requirements.Text, which feeds the quality classifier.
@@ -23,8 +28,9 @@ const (
 type Requirements struct {
 	// Caps are the capabilities a model must have.
 	Caps CapSet
-	// InUpper is an upper bound on prompt tokens, derived from byte counts
-	// (a token is at least one byte of text).
+	// InUpper is an upper bound on prompt tokens, derived from the bytes of
+	// everything forwarded upstream (a token is at least one byte of text),
+	// plus ImageTokenAllowance per image part.
 	InUpper int
 	// MaxTokens is the explicit output cap; valid only when HasMaxTokens.
 	MaxTokens    int
@@ -63,10 +69,7 @@ func Derive(req *openai.ChatCompletionRequest) Requirements {
 			r.Caps = r.Caps.with(CapVision)
 		}
 		r.PromptBytes += textBytes(m.Content)
-		extra += len(m.Name)
-		for _, tc := range m.ToolCalls {
-			extra += len(tc.Function.Name) + len(tc.Function.Arguments)
-		}
+		extra += messageExtraBytes(m)
 		if text.Len() < textLimit {
 			if i > 0 {
 				text.WriteByte('\n')
@@ -76,14 +79,63 @@ func Derive(req *openai.ChatCompletionRequest) Requirements {
 	}
 	r.Text = truncateUTF8(text.String(), textLimit)
 
-	if len(req.Tools) > 0 {
-		// Tools came from a parsed request, so marshaling cannot fail.
-		if b, err := json.Marshal(req.Tools); err == nil {
-			extra += len(b)
-		}
+	extra += len(req.ToolChoice)
+	if rf := req.ResponseFormat; rf != nil {
+		extra += len(rf.JSONSchema)
 	}
+	extra += rawMapBytes(req.Extra)
+	extra += toolsBytes(req.Tools)
 	r.InUpper = r.PromptBytes + extra + perMessageOverhead*len(req.Messages) + fixedOverhead
 	return r
+}
+
+// messageExtraBytes counts the forwarded bytes of m that are not message text:
+// name, tool_call_id, tool calls, unknown fields, content parts that are
+// neither text nor image, and the allowance for each image part.
+func messageExtraBytes(m openai.Message) int {
+	n := len(m.Name) + len(m.ToolCallID) + rawMapBytes(m.Extra)
+	for _, tc := range m.ToolCalls {
+		n += len(tc.ID) + len(tc.Type) + len(tc.Function.Name) + len(tc.Function.Arguments)
+	}
+	for _, p := range m.Content.Parts {
+		if p.Type == "image_url" || p.ImageURL != nil {
+			n += ImageTokenAllowance
+		}
+		if p.Type != "text" && p.Type != "image_url" {
+			if b, err := json.Marshal(p); err == nil {
+				n += len(b)
+			} else {
+				// Fall back to the parts we can see.
+				n += len(p.Type) + len(p.Text) + rawMapBytes(p.Extra)
+			}
+		}
+	}
+	return n
+}
+
+// rawMapBytes counts every key plus raw value of an Extra map.
+func rawMapBytes(m map[string]json.RawMessage) int {
+	n := 0
+	for k, v := range m {
+		n += len(k) + len(v)
+	}
+	return n
+}
+
+// toolsBytes is the size of the tool definitions as sent upstream. If they
+// cannot be marshaled it falls back to a conservative per-tool count.
+func toolsBytes(tools []openai.Tool) int {
+	if len(tools) == 0 {
+		return 0
+	}
+	if b, err := json.Marshal(tools); err == nil {
+		return len(b)
+	}
+	n := 0
+	for _, t := range tools {
+		n += len(t.Function.Name) + len(t.Function.Description) + len(t.Function.Parameters) + 64
+	}
+	return n
 }
 
 // requiresTools reports whether the request needs tool support: tools are
@@ -148,7 +200,12 @@ func (m *Model) Check(r Requirements, tenantDefault int) []Reason {
 		reasons = append(reasons, Reason("missing capability "+c.String()))
 	}
 	k := m.EffectiveK(r, tenantDefault)
-	if need := r.InUpper + k; need > m.ContextWindow {
+	// Compare by subtraction so a huge explicit k cannot overflow the sum.
+	if k > m.ContextWindow-r.InUpper {
+		need := math.MaxInt
+		if k <= math.MaxInt-r.InUpper {
+			need = r.InUpper + k
+		}
 		reasons = append(reasons, Reason(fmt.Sprintf("context window %d below required %d", m.ContextWindow, need)))
 	}
 	if r.HasMaxTokens && r.MaxTokens > m.MaxOutputTokens {

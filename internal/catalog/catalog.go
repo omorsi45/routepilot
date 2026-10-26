@@ -24,6 +24,10 @@ const (
 	numCaps
 )
 
+// CapSet is a uint8 bitmask, so at most 8 capabilities fit. This fails to
+// compile when a ninth is added.
+const _ = CapSet(1 << (numCaps - 1))
+
 // capNames maps each Capability to its config name. It is the only place the
 // catalog spells those names; they come from the config package constants.
 var capNames = [numCaps]string{
@@ -129,6 +133,9 @@ func New(cfg *config.Config) (*Catalog, error) {
 		if err != nil {
 			return nil, fmt.Errorf("model %q: %w", mc.ID, err)
 		}
+		if _, dup := c.byID[mc.ID]; dup {
+			return nil, fmt.Errorf("duplicate model id %q", mc.ID)
+		}
 		m := &Model{
 			ID:              mc.ID,
 			ContextWindow:   mc.ContextWindow,
@@ -140,6 +147,9 @@ func New(cfg *config.Config) (*Catalog, error) {
 			Deployments:     make([]Deployment, 0, len(mc.Deployments)),
 		}
 		for _, dc := range mc.Deployments {
+			if _, dup := c.deployments[dc.Name]; dup {
+				return nil, fmt.Errorf("model %q: duplicate deployment name %q", mc.ID, dc.Name)
+			}
 			d := Deployment{Name: dc.Name, Provider: dc.Provider, UpstreamModel: dc.UpstreamModel}
 			m.Deployments = append(m.Deployments, d)
 			c.deployments[d.Name] = deploymentRef{model: m, dep: d}
