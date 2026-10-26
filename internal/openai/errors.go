@@ -77,6 +77,18 @@ func ErrModelNotFound(model string) *APIError {
 	return &APIError{Status: http.StatusNotFound, Type: "invalid_request_error", Code: "model_not_found", Message: fmt.Sprintf("model %q does not exist", model)}
 }
 
+// ErrCapabilityUnavailable is a 400 when no allowed model can serve the request
+// (or the pinned model cannot).
+func ErrCapabilityUnavailable(msg string) *APIError {
+	return &APIError{Status: http.StatusBadRequest, Type: "invalid_request_error", Code: "model_capability_unavailable", Message: msg, Param: "model"}
+}
+
+// ErrNoHealthyDeployment is a 503 when every deployment that could serve the
+// request is unavailable.
+func ErrNoHealthyDeployment() *APIError {
+	return &APIError{Status: http.StatusServiceUnavailable, Type: "server_error", Code: "no_healthy_deployment", Message: "no healthy deployment is available for this request"}
+}
+
 // ErrRequestTooLarge is a 413 when the body exceeds limit bytes.
 func ErrRequestTooLarge(limit int64) *APIError {
 	return &APIError{Status: http.StatusRequestEntityTooLarge, Type: "invalid_request_error", Code: "request_too_large", Message: fmt.Sprintf("request body exceeds the %d byte limit", limit)}

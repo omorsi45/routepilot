@@ -28,6 +28,8 @@ func TestErrorBodyShape(t *testing.T) {
 		{"upstream", ErrUpstream("boom"), 502, "upstream_error", "upstream_error", ""},
 		{"overloaded", ErrOverloaded(), 503, "server_error", "overloaded", ""},
 		{"upstream timeout", ErrUpstreamTimeout(), 504, "upstream_error", "upstream_timeout", ""},
+		{"capability unavailable", ErrCapabilityUnavailable("no model satisfies the request"), 400, "invalid_request_error", "model_capability_unavailable", "model"},
+		{"no healthy deployment", ErrNoHealthyDeployment(), 503, "server_error", "no_healthy_deployment", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

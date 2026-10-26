@@ -170,6 +170,12 @@ func TestDeriveInUpperCountsForwardedContent(t *testing.T) {
 		{"input_audio part counts its whole JSON",
 			`{"model":"m","messages":[{"role":"user","content":[{"type":"input_audio","input_audio":{"data":"AAAA","format":"wav"}}]}]}`,
 			len(`{"input_audio":{"data":"AAAA","format":"wav"},"type":"input_audio"}`) + 8 + 16},
+		{"unknown fields on text and image_url parts count key and raw value",
+			`{"model":"m","messages":[{"role":"user","content":[` +
+				`{"type":"text","text":"ab","cache_control":{"type":"ephemeral"}},` +
+				`{"type":"image_url","image_url":{"url":"u"},"detail_hint":"low"}]}]}`,
+			2 + len("cache_control") + len(`{"type":"ephemeral"}`) +
+				ImageTokenAllowance + len("detail_hint") + len(`"low"`) + 8 + 16},
 		{"tool_call_id counts",
 			`{"model":"m","messages":[{"role":"tool","tool_call_id":"call_abc123","content":"x"}]}`,
 			base + len("call_abc123")},

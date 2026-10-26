@@ -101,13 +101,15 @@ func messageExtraBytes(m openai.Message) int {
 		if p.Type == "image_url" || p.ImageURL != nil {
 			n += ImageTokenAllowance
 		}
-		if p.Type != "text" && p.Type != "image_url" {
-			if b, err := json.Marshal(p); err == nil {
-				n += len(b)
-			} else {
-				// Fall back to the parts we can see.
-				n += len(p.Type) + len(p.Text) + rawMapBytes(p.Extra)
-			}
+		if p.Type == "text" || p.Type == "image_url" {
+			// Text bytes and the image allowance are counted elsewhere, but
+			// unknown keys on these parts are forwarded upstream too.
+			n += rawMapBytes(p.Extra)
+		} else if b, err := json.Marshal(p); err == nil {
+			n += len(b)
+		} else {
+			// Fall back to the parts we can see.
+			n += len(p.Type) + len(p.Text) + rawMapBytes(p.Extra)
 		}
 	}
 	return n
