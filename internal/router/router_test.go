@@ -480,3 +480,35 @@ func TestUnavailableDeploymentsDropped(t *testing.T) {
 		}
 	})
 }
+
+// extraPolicy is a policy stub that returns every model it is given, plus one
+// model it was not given.
+type extraPolicy struct{ extra *catalog.Model }
+
+func (extraPolicy) Name() string { return "extra" }
+
+func (p extraPolicy) Order(models []*catalog.Model, _ Input) []*catalog.Model {
+	return append(slices.Clone(models), p.extra)
+}
+
+func TestAutoPolicyCannotEscapeFeasibleSet(t *testing.T) {
+	cat := fixtureCatalog(t)
+	big, _ := cat.Model("big")     // not allowed for the tenant below
+	small, _ := cat.Model("small") // allowed but cannot serve the tools request
+	for name, extra := range map[string]*catalog.Model{"tenant-disallowed": big, "infeasible": small} {
+		t.Run(name, func(t *testing.T) {
+			rt := New(cat, extraPolicy{extra: extra})
+			d, apiErr := rt.Decide(Input{
+				Tenant:    tenantOf("small", "mid"),
+				Requested: config.ReservedModelAuto,
+				Req:       reqWithCaps(catalog.CapTools),
+			})
+			if apiErr != nil {
+				t.Fatalf("Decide: %v", apiErr)
+			}
+			if got := candidateIDs(d); !reflect.DeepEqual(got, []string{"mid"}) {
+				t.Fatalf("candidates = %v, want [mid]", got)
+			}
+		})
+	}
+}

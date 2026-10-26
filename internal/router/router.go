@@ -118,10 +118,12 @@ func (r *Router) decideAuto(in Input) (Decision, *openai.APIError) {
 	// Check each allowed model once, in catalog order, so Rejected and the
 	// error message are stable whatever the policy order is.
 	infeasible := make(map[string]bool)
+	feasibleIDs := make(map[string]bool, len(allowed))
 	var rejectedText []string
 	for _, m := range allowed {
 		reasons := m.Check(in.Req, in.Tenant.DefaultMaxTokens)
 		if len(reasons) == 0 {
+			feasibleIDs[m.ID] = true
 			continue
 		}
 		infeasible[m.ID] = true
@@ -132,9 +134,12 @@ func (r *Router) decideAuto(in Input) (Decision, *openai.APIError) {
 		return d, openai.ErrCapabilityUnavailable("no model satisfies the request: " + strings.Join(rejectedText, "; "))
 	}
 
+	// Keep only models in the positive feasible set, each once, so a policy
+	// cannot return a model outside the tenant boundary or the check results.
 	var feasible []*catalog.Model
 	for _, m := range r.policy.Order(allowed, in) {
-		if !infeasible[m.ID] {
+		if feasibleIDs[m.ID] {
+			delete(feasibleIDs, m.ID)
 			feasible = append(feasible, m)
 		}
 	}

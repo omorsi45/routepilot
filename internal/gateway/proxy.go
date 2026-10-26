@@ -6,49 +6,96 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/provider"
+	"github.com/omorsi45/routepilot/internal/router"
 )
 
-// proxyComplete sends a non-streaming request to the model's first
-// deployment and writes the response or a mapped error.
-func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *reqState, r *http.Request, req *openai.ChatCompletionRequest, model config.ModelConfig) {
-	dep, up := s.prepareUpstream(rs, req, model)
+// proxyComplete sends a non-streaming request to the decision's deployments in
+// order until one answers, then writes the response or the mapped error of the
+// last attempt. One deadline, already on ctx, covers every attempt and wait.
+func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *reqState, r *http.Request, req *openai.ChatCompletionRequest, dec router.Decision) {
+	plan := s.newAttemptPlan(dec)
+	var (
+		lastErr  error
+		lastDep  catalog.Deployment
+		timedOut bool // a retry wait would have passed the deadline
+	)
+	for {
+		if rs.attempts > 0 {
+			if !plan.more() {
+				break
+			}
+			if err := s.waitBeforeRetry(ctx, rs.attempts-1, lastErr, lastDep.Name); err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					timedOut = true
+					break
+				}
+				rs.canceled = true // the client went away while we waited
+				return
+			}
+		}
+		model, dep, ok := plan.next()
+		if !ok {
+			break
+		}
+		rs.attempts++
+		up := s.prepareUpstream(rs, req, model.ID, dep)
 
-	resp, err := s.providers[dep.Provider].Complete(ctx, up)
-	if err == nil && resp == nil {
-		err = openai.ErrInternal()
+		resp, err := s.providers[dep.Provider].Complete(ctx, up)
+		if err == nil && resp == nil {
+			err = openai.ErrInternal()
+		}
+		switch {
+		case err == nil:
+			s.settle(dep.Name, nil)
+			resp.ID = "chatcmpl-" + rs.id
+			resp.Object = openai.ObjectChatCompletion
+			resp.Model = model.ID
+			if resp.Created == 0 {
+				resp.Created = s.now().Unix()
+			}
+			setRouteHeaders(w, model.ID, dep.Name)
+			writeJSON(w, http.StatusOK, resp)
+			return
+		case r.Context().Err() != nil:
+			s.health.Abort(dep.Name)
+			rs.canceled = true
+			return
+		}
+
+		s.settle(dep.Name, err)
+		lastErr, lastDep = err, dep
+		if !retryable(err, ctx) {
+			break
+		}
 	}
-	if err != nil {
-		if apiErr := mapUpstreamError(ctx, r.Context(), dep.Name, err); apiErr != nil {
+
+	switch {
+	case rs.attempts == 0:
+		s.fail(w, rs, openai.ErrNoHealthyDeployment())
+	case timedOut || errors.Is(ctx.Err(), context.DeadlineExceeded):
+		s.fail(w, rs, openai.ErrUpstreamTimeout())
+	default:
+		if apiErr := mapUpstreamError(ctx, r.Context(), lastDep.Name, lastErr); apiErr != nil {
 			s.fail(w, rs, apiErr)
 		} else {
 			rs.canceled = true
 		}
-		return
 	}
-
-	resp.ID = "chatcmpl-" + rs.id
-	resp.Object = openai.ObjectChatCompletion
-	resp.Model = model.ID
-	if resp.Created == 0 {
-		resp.Created = s.now().Unix()
-	}
-	setRouteHeaders(w, model.ID, dep.Name)
-	writeJSON(w, http.StatusOK, resp)
 }
 
-// prepareUpstream selects the model's deployment, records it for the request
-// log, and builds the request to send upstream.
-func (s *Server) prepareUpstream(rs *reqState, req *openai.ChatCompletionRequest, model config.ModelConfig) (config.DeploymentConfig, *openai.ChatCompletionRequest) {
-	dep := model.Deployments[0]
+// prepareUpstream records the attempt for the request log and builds the
+// request to send upstream. Both the streaming and non-streaming paths use it.
+func (s *Server) prepareUpstream(rs *reqState, req *openai.ChatCompletionRequest, modelID string, dep catalog.Deployment) *openai.ChatCompletionRequest {
+	rs.model = modelID
 	rs.deployment = dep.Name
 
 	up := req.Clone()
 	up.Model = dep.UpstreamModel
 	up.RoutePilot = nil
-	return dep, up
+	return up
 }
 
 // setRouteHeaders tells the client which model and deployment served it.

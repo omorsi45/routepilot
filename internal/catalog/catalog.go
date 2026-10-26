@@ -46,6 +46,17 @@ func (c Capability) String() string {
 	return fmt.Sprintf("capability(%d)", uint8(c))
 }
 
+// ParseCapability resolves a config capability name. It is the only lookup
+// from names to capabilities; callers must not keep their own table.
+func ParseCapability(name string) (Capability, bool) {
+	for c, n := range capNames {
+		if n == name {
+			return Capability(c), true
+		}
+	}
+	return 0, false
+}
+
 // CapSet is a set of capabilities.
 type CapSet uint8
 
@@ -164,14 +175,7 @@ func New(cfg *config.Config) (*Catalog, error) {
 // the nil-means-streaming default has a single implementation.
 func capSetFor(mc config.ModelConfig) (CapSet, error) {
 	for _, name := range mc.Capabilities {
-		known := false
-		for _, n := range capNames {
-			if n == name {
-				known = true
-				break
-			}
-		}
-		if !known {
+		if _, ok := ParseCapability(name); !ok {
 			return 0, fmt.Errorf("unknown capability %q", name)
 		}
 	}

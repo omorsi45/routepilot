@@ -266,3 +266,18 @@ func TestCostMaxSaturates(t *testing.T) {
 		t.Errorf("CostMax overflow = %d, want MaxInt64", got)
 	}
 }
+
+func TestParseCapability(t *testing.T) {
+	// Every capability round-trips through its config name.
+	for c := Capability(0); c < numCaps; c++ {
+		got, ok := ParseCapability(c.String())
+		if !ok || got != c {
+			t.Errorf("ParseCapability(%q) = %v, %v; want %v, true", c.String(), got, ok, c)
+		}
+	}
+	for _, name := range []string{"", "telepathy", "Tools", "tools "} {
+		if got, ok := ParseCapability(name); ok {
+			t.Errorf("ParseCapability(%q) = %v, true; want false", name, got)
+		}
+	}
+}

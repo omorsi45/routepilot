@@ -9,8 +9,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/openai"
+	"github.com/omorsi45/routepilot/internal/router"
 )
 
 // handleText serves the unauthenticated health routes.
@@ -81,28 +83,30 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	rs.model = truncateBytes(req.Model, maxLoggedModelBytes)
 	rs.promptBytes = promptBytes(req)
 
-	if req.Model == config.ReservedModelAuto {
-		s.fail(w, rs, openai.ErrInvalidRequest("routing policy not configured", "model"))
+	if m, ok := s.cat.Model(req.Model); ok {
+		rs.model = m.ID
+	}
+
+	dec, apiErr := s.router.Decide(router.Input{
+		Tenant:    tenant,
+		Requested: req.Model,
+		Req:       catalog.Derive(req),
+		Available: s.health.Available,
+	})
+	rs.policy = dec.Policy
+	if apiErr != nil {
+		s.fail(w, rs, apiErr)
 		return
 	}
-	model, ok := s.cfg.Model(req.Model)
-	if !ok {
-		s.fail(w, rs, openai.ErrModelNotFound(req.Model))
-		return
-	}
-	rs.model = model.ID
-	if !tenant.Allows(model.ID) {
-		s.fail(w, rs, openai.ErrModelNotAllowed(model.ID))
-		return
-	}
+	rs.model = dec.Candidates[0].Model.ID
 
 	ctx, cancel := context.WithTimeout(r.Context(), s.deadline(tenant, req))
 	defer cancel()
 	if req.Stream {
-		s.proxyStream(ctx, w, rs, r, req, model)
+		s.proxyStream(ctx, w, rs, r, req, dec)
 		return
 	}
-	s.proxyComplete(ctx, w, rs, r, req, model)
+	s.proxyComplete(ctx, w, rs, r, req, dec)
 }
 
 // maxLoggedModelBytes caps how much of an unresolved client model is logged.

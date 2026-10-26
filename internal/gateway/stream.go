@@ -9,8 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/openai"
+	"github.com/omorsi45/routepilot/internal/router"
 )
 
 // clientWriteTimeout bounds each write to the client, so a client that stops
@@ -33,8 +34,8 @@ type streamCall struct {
 	r     *http.Request
 	rc    *http.ResponseController
 	sse   *openai.SSEWriter
-	model config.ModelConfig
-	dep   config.DeploymentConfig
+	model string // catalog model ID served
+	dep   catalog.Deployment
 
 	// ctx is the request context with the deadline applied; attemptCtx is its
 	// child, canceled with a cause by the watchdogs and by write failures.
@@ -43,13 +44,16 @@ type streamCall struct {
 	cancel     context.CancelCauseFunc
 
 	started bool // the first committing chunk was written, so the status line is sent
+	settled bool // the attempt's health outcome was reported
 }
 
 // maxHeldChunks caps how many non-committing chunks (such as a role-only
 // opener) are kept back while waiting for the first content.
 const maxHeldChunks = 64
 
-// proxyStream forwards a streaming completion to the model's first deployment.
+// proxyStream forwards a streaming completion to the first deployment the
+// decision offers. It makes one attempt; failing over to the next deployment
+// is not done here yet.
 //
 // Exactly one chunk is in flight: read from the upstream, write and flush to
 // the client, then read again. A slow client therefore slows the upstream read
@@ -66,8 +70,14 @@ const maxHeldChunks = 64
 // Before the commit, failures produce a normal JSON error. After it, the
 // status line is already sent, so a failure becomes one SSE error event and
 // the stream ends without [DONE]. The upstream is never retried.
-func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *reqState, r *http.Request, req *openai.ChatCompletionRequest, model config.ModelConfig) {
-	dep, up := s.prepareUpstream(rs, req, model)
+func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *reqState, r *http.Request, req *openai.ChatCompletionRequest, dec router.Decision) {
+	model, dep, ok := s.newAttemptPlan(dec).next()
+	if !ok {
+		s.fail(w, rs, openai.ErrNoHealthyDeployment())
+		return
+	}
+	rs.attempts++
+	up := s.prepareUpstream(rs, req, model.ID, dep)
 	up.Stream = true
 	includeUsage := req.StreamOptions != nil && req.StreamOptions.IncludeUsage
 	pcfg := s.providerCfgs[dep.Provider]
@@ -75,7 +85,7 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 	attemptCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	c := &streamCall{
-		s: s, w: w, rs: rs, r: r, model: model, dep: dep,
+		s: s, w: w, rs: rs, r: r, model: model.ID, dep: dep,
 		ctx: ctx, attemptCtx: attemptCtx, cancel: cancel,
 		rc: http.NewResponseController(w),
 	}
@@ -150,6 +160,7 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 
 		if !c.started && !isCommitting(chunk) {
 			if len(held) >= maxHeldChunks {
+				c.settle(errors.New("too many chunks without content"))
 				s.fail(w, rs, openai.ErrUpstream("upstream "+dep.Name+" sent too many chunks without content"))
 				return
 			}
@@ -178,6 +189,7 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 
 	if !c.started {
 		// A clean end before any content: nothing useful was received.
+		c.settle(errors.New("stream ended without content"))
 		if c.timedOut() {
 			s.fail(w, rs, openai.ErrUpstreamTimeout())
 			return
@@ -185,6 +197,7 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 		s.fail(w, rs, openai.ErrUpstream("upstream "+dep.Name+" returned an empty stream"))
 		return
 	}
+	c.settle(nil) // the upstream finished cleanly, whatever the client does next
 	if err := c.send(c.sse.WriteDone); err != nil {
 		c.clientGone()
 	}
@@ -215,7 +228,7 @@ func (c *streamCall) startResponse() {
 	h.Set("Cache-Control", "no-cache")
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
-	setRouteHeaders(c.w, c.model.ID, c.dep.Name)
+	setRouteHeaders(c.w, c.model, c.dep.Name)
 	c.w.WriteHeader(http.StatusOK)
 	c.started = true
 }
@@ -233,6 +246,27 @@ func (c *streamCall) send(write func() error) error {
 func (c *streamCall) clientGone() {
 	c.cancel(errClientWrite)
 	c.rs.canceled = true
+	c.abort()
+}
+
+// settle reports the attempt's outcome to deployment health, once. A nil err
+// is a success.
+func (c *streamCall) settle(err error) {
+	if c.settled {
+		return
+	}
+	c.settled = true
+	c.s.settle(c.dep.Name, err)
+}
+
+// abort releases the attempt's claim without an outcome, once, because the
+// client went away.
+func (c *streamCall) abort() {
+	if c.settled {
+		return
+	}
+	c.settled = true
+	c.s.health.Abort(c.dep.Name)
 }
 
 // timedOut reports whether the attempt ended because a watchdog fired or the
@@ -251,8 +285,10 @@ func (c *streamCall) timedOut() bool {
 func (c *streamCall) fail(err error) {
 	if c.r.Context().Err() != nil {
 		c.rs.canceled = true
+		c.abort()
 		return
 	}
+	c.settle(err)
 	if !c.started {
 		if c.timedOut() {
 			c.s.fail(c.w, c.rs, openai.ErrUpstreamTimeout())

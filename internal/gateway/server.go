@@ -8,12 +8,17 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/provider"
+	"github.com/omorsi45/routepilot/internal/reliability"
+	"github.com/omorsi45/routepilot/internal/router"
 )
 
 // Options configures a Server.
@@ -22,6 +27,12 @@ type Options struct {
 	Logger *slog.Logger
 	// Now is the clock. Nil uses time.Now.
 	Now func() time.Time
+	// Rand returns a value in [0,1) for retry jitter. Nil uses a
+	// mutex-guarded math/rand/v2 source.
+	Rand func() float64
+	// Sleep waits d between attempts and returns ctx.Err() if ctx ends first.
+	// Nil sleeps on a timer.
+	Sleep func(ctx context.Context, d time.Duration) error
 }
 
 // Server is the gateway HTTP server.
@@ -32,6 +43,12 @@ type Server struct {
 	providerCfgs map[string]config.ProviderConfig
 	logger       *slog.Logger
 	now          func() time.Time
+
+	cat    *catalog.Catalog
+	router *router.Router
+	health *reliability.Health
+	rand   func() float64
+	sleep  func(ctx context.Context, d time.Duration) error
 }
 
 // New builds a Server. Every deployment's provider must exist in providers.
@@ -49,7 +66,26 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 			}
 		}
 	}
-	s := &Server{cfg: cfg, providers: providers, logger: opts.Logger, now: opts.Now}
+	for _, p := range cfg.Providers {
+		if p.TTFTTimeoutMs <= 0 {
+			return nil, fmt.Errorf("gateway: provider %q ttft_timeout_ms must be positive, got %d", p.Name, p.TTFTTimeoutMs)
+		}
+		if p.IdleTimeoutMs <= 0 {
+			return nil, fmt.Errorf("gateway: provider %q idle_timeout_ms must be positive, got %d", p.Name, p.IdleTimeoutMs)
+		}
+	}
+	cat, err := catalog.New(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("gateway: build catalog: %w", err)
+	}
+	policy, err := router.NewPolicy(cfg.Routing, cat)
+	if err != nil {
+		return nil, fmt.Errorf("gateway: build routing policy: %w", err)
+	}
+	s := &Server{
+		cfg: cfg, providers: providers, logger: opts.Logger, now: opts.Now,
+		cat: cat, router: router.New(cat, policy), rand: opts.Rand, sleep: opts.Sleep,
+	}
 	s.providerCfgs = make(map[string]config.ProviderConfig, len(cfg.Providers))
 	for _, p := range cfg.Providers {
 		s.providerCfgs[p.Name] = p
@@ -60,7 +96,37 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 	if s.now == nil {
 		s.now = time.Now
 	}
+	s.health = reliability.NewHealth(s.now)
+	if s.rand == nil {
+		s.rand = newLockedRand()
+	}
+	if s.sleep == nil {
+		s.sleep = sleepTimer
+	}
 	return s, nil
+}
+
+// newLockedRand returns a jitter source that is safe for concurrent use.
+func newLockedRand() func() float64 {
+	var mu sync.Mutex
+	r := rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+	return func() float64 {
+		mu.Lock()
+		defer mu.Unlock()
+		return r.Float64()
+	}
+}
+
+// sleepTimer waits d, or returns ctx.Err() if ctx ends first.
+func sleepTimer(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // hasProviderConfig reports whether cfg declares a provider with this name.
@@ -85,6 +151,8 @@ type reqState struct {
 	model       string
 	deployment  string
 	promptBytes int
+	policy      string
+	attempts    int // upstream attempts sent
 	errCode     string
 	canceled    bool
 }
@@ -181,6 +249,8 @@ func (s *Server) logRequest(sw *statusWriter, rs *reqState, start time.Time) {
 		slog.Int("status", status),
 		slog.Int64("duration_ms", s.now().Sub(start).Milliseconds()),
 		slog.Int("prompt_bytes", rs.promptBytes),
+		slog.Int("attempts", rs.attempts),
+		slog.String("policy", rs.policy),
 	}
 	if rs.errCode != "" {
 		attrs = append(attrs, slog.String("error_code", rs.errCode))

@@ -112,20 +112,6 @@ type rule struct {
 	requires       []catalog.Capability
 }
 
-// allCapabilities lists every catalog capability, to resolve config names.
-var allCapabilities = []catalog.Capability{
-	catalog.CapTools, catalog.CapJSONObject, catalog.CapJSONSchema, catalog.CapVision, catalog.CapStreaming,
-}
-
-func capabilityByName(name string) (catalog.Capability, bool) {
-	for _, c := range allCapabilities {
-		if c.String() == name {
-			return c, true
-		}
-	}
-	return 0, false
-}
-
 func newRules(cfg config.RoutingConfig, cat *catalog.Catalog) (*rules, error) {
 	p := &rules{defaultModel: cfg.DefaultModel}
 	if cfg.DefaultModel != "" {
@@ -146,7 +132,7 @@ func newRules(cfg config.RoutingConfig, cat *catalog.Catalog) (*rules, error) {
 			r.containsAny = append(r.containsAny, strings.ToLower(s))
 		}
 		for _, name := range rc.When.Requires {
-			c, ok := capabilityByName(name)
+			c, ok := catalog.ParseCapability(name)
 			if !ok {
 				return nil, fmt.Errorf("routing rule %d (%q): unknown capability %q", i, rc.Name, name)
 			}
