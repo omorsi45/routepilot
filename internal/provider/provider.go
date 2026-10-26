@@ -145,6 +145,19 @@ func NewTransport() *http.Transport {
 	return t
 }
 
+// ClientWithoutRedirects returns a shallow copy of c that never follows
+// redirects, so a 3xx answer surfaces as an HTTP error instead of re-sending
+// the request body and credential headers to another host. A nil c
+// selects a client built on NewTransport. The caller's client is not modified.
+func ClientWithoutRedirects(c *http.Client) *http.Client {
+	if c == nil {
+		c = &http.Client{Transport: NewTransport()}
+	}
+	cp := *c
+	cp.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &cp
+}
+
 // ErrorFromResponse builds a KindHTTP error from a non-2xx response. It reads at
 // most 64 KiB of the body, closes it, and uses error.message from an
 // OpenAI-shaped JSON body (capped at 512 bytes on a rune boundary), otherwise

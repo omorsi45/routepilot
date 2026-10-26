@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/provider"
+	"github.com/omorsi45/routepilot/internal/provider/openaicompat"
 )
 
 func TestProxyNonStreaming(t *testing.T) {
@@ -326,4 +328,33 @@ func TestNilCompletionIsInternalError(t *testing.T) {
 func itoa(n int) string {
 	b, _ := json.Marshal(n)
 	return string(b)
+}
+
+func TestProxyRedirectFromUpstreamIs502(t *testing.T) {
+	var hits atomic.Int32
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+	}))
+	defer target.Close()
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer redirector.Close()
+
+	cfg := buildConfig(t, cfgOpts{baseURL: redirector.URL + "/v1"})
+	prov := openaicompat.New(cfg.Providers[0], "", &http.Client{})
+	gw, err := New(cfg, map[string]provider.Provider{"mockp": prov}, Options{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	rec := do(gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, chatBody("model-a", "hi"))
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status %d, want 502: %s", rec.Code, rec.Body.String())
+	}
+	if got := decodeErr(t, rec); got.Error.Type != "upstream_error" {
+		t.Errorf("error type %q, want upstream_error", got.Error.Type)
+	}
+	if n := hits.Load(); n != 0 {
+		t.Errorf("redirect target received %d requests, want 0", n)
+	}
 }

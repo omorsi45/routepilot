@@ -39,11 +39,9 @@ var _ provider.Provider = (*Client)(nil)
 // New returns a Client for cfg. cfg.BaseURL is the API root without /v1, for
 // example https://api.anthropic.com. apiKey may be empty, in which case no
 // x-api-key header is sent. A nil client selects one built on
-// provider.NewTransport.
+// provider.NewTransport. The client is copied and never follows redirects.
 func New(cfg config.ProviderConfig, apiKey string, client *http.Client) *Client {
-	if client == nil {
-		client = &http.Client{Transport: provider.NewTransport()}
-	}
+	client = provider.ClientWithoutRedirects(client)
 	return &Client{
 		url:    strings.TrimRight(cfg.BaseURL, "/") + "/v1/messages",
 		apiKey: apiKey,

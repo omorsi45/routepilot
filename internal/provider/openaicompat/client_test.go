@@ -11,6 +11,7 @@ import (
 	"net/http/httptrace"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -552,3 +553,60 @@ func TestTransportReusesConnectionsAfterErrorResponse(t *testing.T) {
 }
 
 var _ provider.Provider = (*openaicompat.Client)(nil)
+
+func redirectFixture(t *testing.T, status int) (redirector *httptest.Server, target *httptest.Server, hits *atomic.Int32) {
+	t.Helper()
+	hits = &atomic.Int32{}
+	target = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(target.Close)
+	redirector = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/v1/chat/completions", status)
+	}))
+	t.Cleanup(redirector.Close)
+	return redirector, target, hits
+}
+
+func TestRedirectsAreNotFollowed(t *testing.T) {
+	for _, status := range []int{http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
+		for _, stream := range []bool{false, true} {
+			redirector, _, hits := redirectFixture(t, status)
+			c := newClient(redirector.URL+"/v1", "test-key-a")
+
+			var err error
+			if stream {
+				_, err = c.Stream(context.Background(), newReq("m"))
+			} else {
+				_, err = c.Complete(context.Background(), newReq("m"))
+			}
+			pe := mustProviderErr(t, err)
+			if pe.Kind != provider.KindHTTP || pe.Status != status || pe.Retryable {
+				t.Errorf("status %d stream=%v: got %+v, want non-retryable KindHTTP status %[1]d", status, stream, pe)
+			}
+			if n := hits.Load(); n != 0 {
+				t.Errorf("status %d stream=%v: redirect target received %d requests, want 0", status, stream, n)
+			}
+		}
+	}
+}
+
+func TestNewDoesNotMutateCallerClient(t *testing.T) {
+	hc := &http.Client{Transport: provider.NewTransport()}
+	_ = openaicompat.New(config.ProviderConfig{BaseURL: "http://127.0.0.1:1"}, "", hc)
+	if hc.CheckRedirect != nil {
+		t.Error("New mutated the caller's http.Client")
+	}
+}
+
+func TestNilClientDoesNotFollowRedirects(t *testing.T) {
+	redirector, _, hits := redirectFixture(t, http.StatusTemporaryRedirect)
+	c := openaicompat.New(config.ProviderConfig{BaseURL: redirector.URL + "/v1"}, "k", nil)
+	pe := mustProviderErr(t, errOnly(c.Complete(context.Background(), newReq("m"))))
+	if pe.Status != http.StatusTemporaryRedirect || hits.Load() != 0 {
+		t.Errorf("got %+v, target hits %d", pe, hits.Load())
+	}
+}
+
+func errOnly[T any](_ T, err error) error { return err }
