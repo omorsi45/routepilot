@@ -42,8 +42,12 @@ type streamCall struct {
 	attemptCtx context.Context
 	cancel     context.CancelCauseFunc
 
-	started bool // the first chunk was written, so the status line is sent
+	started bool // the first committing chunk was written, so the status line is sent
 }
+
+// maxHeldChunks caps how many non-committing chunks (such as a role-only
+// opener) are kept back while waiting for the first content.
+const maxHeldChunks = 64
 
 // proxyStream forwards a streaming completion to the model's first deployment.
 //
@@ -51,9 +55,16 @@ type streamCall struct {
 // the client, then read again. A slow client therefore slows the upstream read
 // loop (TCP backpressure) instead of growing a buffer.
 //
-// Before the first chunk is written, failures produce a normal JSON error.
-// After it, the status line is already sent, so a failure becomes one SSE error
-// event and the stream ends without [DONE]. The upstream is never retried.
+// The response is committed (headers and status 200 sent) at the first
+// committing chunk: one with content text, tool calls, a finish reason, or
+// usage that will be forwarded. Earlier chunks, such as a role-only opener,
+// are held in order (at most maxHeldChunks) and written just before it, and
+// the TTFT watchdog keeps running meanwhile, so time to first token is
+// enforced for every provider.
+//
+// Before the commit, failures produce a normal JSON error. After it, the
+// status line is already sent, so a failure becomes one SSE error event and
+// the stream ends without [DONE]. The upstream is never retried.
 func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *reqState, r *http.Request, req *openai.ChatCompletionRequest, model config.ModelConfig) {
 	dep, up := s.prepareUpstream(rs, req, model)
 	up.Stream = true
@@ -69,8 +80,8 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 	}
 	c.sse = openai.NewSSEWriter(w, c.rc.Flush)
 
-	// One timer is the TTFT watchdog until the first chunk arrives, then the
-	// idle watchdog. It starts before Stream() so it also covers connecting and
+	// One timer is the TTFT watchdog until the first committing chunk arrives,
+	// then the idle watchdog. It starts before Stream() so it also covers connecting and
 	// waiting for response headers. The idle phase times only the wait for the
 	// next upstream chunk: it is stopped when Recv returns and reset just before
 	// the next Recv, so a slow client blocked in a write never counts.
@@ -98,12 +109,15 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 	stopClose := context.AfterFunc(attemptCtx, func() { _ = stream.Close() })
 	defer stopClose()
 
-	for first := true; ; first = false {
-		if !first {
+	var held [][]byte // encoded non-committing chunks, in arrival order
+	for {
+		if c.started {
 			watchdog.Reset(idle) // time only the wait for the next upstream chunk
 		}
 		chunk, err := stream.Recv()
-		watchdog.Stop()
+		if c.started {
+			watchdog.Stop()
+		}
 		if errors.Is(err, io.EOF) {
 			break
 		}
@@ -111,7 +125,6 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 			c.fail(err)
 			return
 		}
-		idlePhase.Store(true)
 
 		if !includeUsage {
 			chunk.Usage = nil
@@ -132,8 +145,28 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 			c.fail(err)
 			return
 		}
+
+		if !c.started && !isCommitting(chunk) {
+			if len(held) >= maxHeldChunks {
+				s.fail(w, rs, openai.ErrUpstream("upstream "+dep.Name+" sent too many chunks without content"))
+				return
+			}
+			held = append(held, b)
+			continue
+		}
 		if !c.started {
+			// The first committing chunk: stop the TTFT phase, switch to the
+			// idle phase, then send headers and the held chunks before it.
+			watchdog.Stop()
+			idlePhase.Store(true)
 			c.startResponse()
+			for _, h := range held {
+				if err := c.send(func() error { return c.sse.WriteData(h) }); err != nil {
+					c.clientGone()
+					return
+				}
+			}
+			held = nil
 		}
 		if err := c.send(func() error { return c.sse.WriteData(b) }); err != nil {
 			c.clientGone()
@@ -142,13 +175,31 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 	}
 
 	if !c.started {
-		// A clean end with no chunks: nothing useful was received.
+		// A clean end before any content: nothing useful was received.
+		if c.timedOut() {
+			s.fail(w, rs, openai.ErrUpstreamTimeout())
+			return
+		}
 		s.fail(w, rs, openai.ErrUpstream("upstream "+dep.Name+" returned an empty stream"))
 		return
 	}
 	if err := c.send(c.sse.WriteDone); err != nil {
 		c.clientGone()
 	}
+}
+
+// isCommitting reports whether a chunk carries something worth committing the
+// response for: content text, tool calls, a finish reason, or usage.
+func isCommitting(chunk *openai.ChatCompletionChunk) bool {
+	if chunk.Usage != nil {
+		return true
+	}
+	for _, ch := range chunk.Choices {
+		if ch.FinishReason != nil || len(ch.Delta.ToolCalls) > 0 || (ch.Delta.Content != nil && *ch.Delta.Content != "") {
+			return true
+		}
+	}
+	return false
 }
 
 // startResponse writes the SSE headers and status line. It runs when the first
