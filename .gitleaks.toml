@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+# Config files store only the SHA-256 of tenant API keys, never the keys.
+[allowlist]
+description = "SHA-256 key hashes in RoutePilot config files"
+regexTarget = "line"
+regexes = [
+  '''api_key_sha256:\s*"?[0-9a-f]{64}"?''',
+]
