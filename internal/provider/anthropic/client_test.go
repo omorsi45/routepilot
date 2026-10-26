@@ -536,7 +536,7 @@ func TestStreamIgnoresUnknownEvents(t *testing.T) {
 		"event: content_block_delta\n" +
 		`data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"hmm"}}` + "\n\n" +
 		"event: message_delta\n" +
-		`data: {"type":"message_delta","delta":{"stop_reason":"refusal"},"usage":{"output_tokens":3}}` + "\n\n" +
+		`data: {"type":"message_delta","delta":{"stop_reason":"pause_turn"},"usage":{"output_tokens":3}}` + "\n\n" +
 		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
 	srv := sseServer(t, body)
 	defer srv.Close()
@@ -550,8 +550,8 @@ func TestStreamIgnoresUnknownEvents(t *testing.T) {
 	if len(chunks) != 3 {
 		t.Fatalf("got %d chunks, want 3", len(chunks))
 	}
-	if f := chunks[1].Choices[0].FinishReason; f == nil || *f != "refusal" {
-		t.Errorf("finish = %v, want refusal passthrough", f)
+	if f := chunks[1].Choices[0].FinishReason; f == nil || *f != "pause_turn" {
+		t.Errorf("finish = %v, want pause_turn passthrough", f)
 	}
 	if u := chunks[2].Usage; u == nil || u.TotalTokens != 5 {
 		t.Errorf("usage = %+v", u)

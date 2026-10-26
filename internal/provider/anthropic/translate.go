@@ -355,7 +355,8 @@ func translateResponse(body []byte) (*openai.ChatCompletion, *provider.Error) {
 }
 
 // mapStopReason converts an Anthropic stop_reason to an OpenAI finish_reason.
-// Reasons without an OpenAI equivalent pass through unchanged.
+// A refusal maps to content_filter; other reasons without an OpenAI
+// equivalent (pause_turn) pass through unchanged.
 func mapStopReason(r string) string {
 	switch r {
 	case "end_turn", "stop_sequence":
@@ -364,6 +365,8 @@ func mapStopReason(r string) string {
 		return "length"
 	case "tool_use":
 		return "tool_calls"
+	case "refusal":
+		return "content_filter"
 	}
 	return r
 }

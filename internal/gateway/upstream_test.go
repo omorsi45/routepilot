@@ -373,3 +373,123 @@ func TestProxyForwardsInputAudioPartIntact(t *testing.T) {
 		t.Errorf("file part stripped: %v", parts[2])
 	}
 }
+
+func TestObjectIsNormalized(t *testing.T) {
+	t.Run("completion", func(t *testing.T) {
+		e := newUpstreamEnv(t, cfgOpts{}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"id":"up","object":"","created":1,"model":"up-a","choices":[{"index":0,"message":{"role":"assistant","content":"hi"},"finish_reason":"stop"}]}`)
+		}))
+		rec := do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, chatBody("model-a", "hi"))
+		if got := decodeMap(t, rec.Body.Bytes())["object"]; got != "chat.completion" {
+			t.Errorf("object = %v, want chat.completion: %s", got, rec.Body.String())
+		}
+	})
+	t.Run("chunks", func(t *testing.T) {
+		noObject := `{"id":"up","created":1,"model":"up-a","choices":[{"index":0,"delta":{"content":"a"},"finish_reason":null}]}`
+		e := newUpstreamEnv(t, cfgOpts{}, sseUpstream(noObject, noObject, "[DONE]"))
+		resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
+		events := readAll(t, resp)
+		if len(events) != 3 {
+			t.Fatalf("events = %q", events)
+		}
+		for _, ev := range events[:2] {
+			if got := decodeMap(t, []byte(ev))["object"]; got != "chat.completion.chunk" {
+				t.Errorf("object = %v, want chat.completion.chunk: %s", got, ev)
+			}
+		}
+	})
+}
+
+func decodeMap(t *testing.T, b []byte) map[string]any {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("decode %s: %v", b, err)
+	}
+	return m
+}
+
+func TestLogsCatalogModelNotRawInput(t *testing.T) {
+	t.Run("known model logs the catalog id", func(t *testing.T) {
+		e := newMockEnv(t, cfgOpts{upstreamA: "m;tokens=2"})
+		rec := do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, chatBody("model-a", "hi"))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d", rec.Code)
+		}
+		if !strings.Contains(e.logs.String(), "model=model-a ") {
+			t.Errorf("log does not carry the catalog model id: %s", e.logs.String())
+		}
+	})
+	t.Run("unknown model is capped at 256 bytes", func(t *testing.T) {
+		e := newMockEnv(t, cfgOpts{})
+		long := strings.Repeat("x", 100000)
+		rec := do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, chatBody(long, "hi"))
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status %d, want 404: %.200s", rec.Code, rec.Body.String())
+		}
+		logs := e.logs.String()
+		if !strings.Contains(logs, "model="+strings.Repeat("x", 256)+" ") {
+			t.Errorf("log should carry the first 256 bytes of the model: %.400s", logs)
+		}
+		if len(logs) > 2048 {
+			t.Errorf("log line is %d bytes, the raw model leaked into it", len(logs))
+		}
+	})
+}
+
+func TestRequestExtrasReachUpstreamAndRoutepilotIsStripped(t *testing.T) {
+	e := newMockEnv(t, cfgOpts{upstreamA: "m;tokens=2"})
+	body := `{"model":"model-a","messages":[{"role":"user","content":"hi"}],"logit_bias":{"50256":-100},"reasoning_effort":"low","routepilot":{"timeout_ms":5000}}`
+	rec := do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	up := decodeMap(t, e.upstream.last(t))
+	if bias, _ := up["logit_bias"].(map[string]any); bias["50256"] != float64(-100) {
+		t.Errorf("logit_bias did not reach the upstream: %v", up)
+	}
+	if up["reasoning_effort"] != "low" {
+		t.Errorf("reasoning_effort did not reach the upstream: %v", up)
+	}
+	if _, ok := up["routepilot"]; ok {
+		t.Errorf("routepilot reached the upstream: %v", up)
+	}
+}
+
+// bigEvent is an SSE data payload just over the 1 MiB event cap.
+func bigEvent() string {
+	return `{"id":"up","object":"chat.completion.chunk","created":1,"model":"up-a","choices":[{"index":0,"delta":{"content":"` +
+		strings.Repeat("a", 1<<20) + `"},"finish_reason":null}]}`
+}
+
+func TestStreamOversizedFirstEventIs502JSON(t *testing.T) {
+	e := newUpstreamEnv(t, cfgOpts{}, sseUpstream(bigEvent(), "[DONE]"))
+	resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status %d, want 502", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type %q, want application/json", ct)
+	}
+}
+
+func TestStreamOversizedEventAfterCommitIsOneErrorEvent(t *testing.T) {
+	e := newUpstreamEnv(t, cfgOpts{}, sseUpstream(contentChunk("first"), bigEvent(), "[DONE]"))
+	resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d, want 200", resp.StatusCode)
+	}
+	events := readAll(t, resp)
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want the content chunk and one error event", len(events))
+	}
+	if !strings.Contains(events[1], `"code":"upstream_error"`) {
+		t.Errorf("second event is not an upstream_error: %.200s", events[1])
+	}
+	for _, ev := range events {
+		if ev == "[DONE]" {
+			t.Error("stream ended with [DONE] after an oversized event")
+		}
+	}
+}

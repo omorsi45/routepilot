@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/openai"
@@ -75,7 +76,9 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 		s.fail(w, rs, apiErr)
 		return
 	}
-	rs.model = req.Model
+	// Log a bounded prefix until the model resolves to a catalog entry: the
+	// request model is client text of up to the whole body size.
+	rs.model = truncateBytes(req.Model, maxLoggedModelBytes)
 	rs.promptBytes = promptBytes(req)
 
 	if req.Model == config.ReservedModelAuto {
@@ -87,6 +90,7 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 		s.fail(w, rs, openai.ErrModelNotFound(req.Model))
 		return
 	}
+	rs.model = model.ID
 	if !tenant.Allows(model.ID) {
 		s.fail(w, rs, openai.ErrModelNotAllowed(model.ID))
 		return
@@ -99,6 +103,21 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 		return
 	}
 	s.proxyComplete(ctx, w, rs, r, req, model)
+}
+
+// maxLoggedModelBytes caps how much of an unresolved client model is logged.
+const maxLoggedModelBytes = 256
+
+// truncateBytes cuts s to at most n bytes without splitting a UTF-8 rune.
+func truncateBytes(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	cut := n
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 // deadline is the request timeout: routepilot.timeout_ms if set, else the

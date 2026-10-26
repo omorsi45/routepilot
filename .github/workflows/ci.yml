@@ -2,7 +2,7 @@ name: CI
 
 # The fast lane. Everything here runs on every push to main and every pull
 # request and must stay deterministic: no calls to model providers, no
-# container runtime, no wall-clock sleeps.
+# container runtime, no sleeps beyond short bounded timing tests.
 
 on:
   push:

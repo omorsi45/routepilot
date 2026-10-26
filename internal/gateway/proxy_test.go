@@ -208,6 +208,16 @@ func TestUpstreamErrorMapping(t *testing.T) {
 			status: 502, typ: "upstream_error", code: "upstream_error", message: "upstream dep-a failed: canceled",
 		},
 		{
+			name:   "anthropic overloaded status",
+			err:    &provider.Error{Kind: provider.KindHTTP, Status: 529, Retryable: true, Message: "Overloaded"},
+			status: 502, typ: "upstream_error", code: "upstream_error", message: "upstream dep-a failed: Overloaded",
+		},
+		{
+			name:   "status without text",
+			err:    &provider.Error{Kind: provider.KindHTTP, Status: 599, Retryable: true, Message: "odd"},
+			status: 502, typ: "upstream_error", code: "upstream_error", message: "upstream dep-a failed: status 599",
+		},
+		{
 			name:   "unknown error",
 			err:    errors.New("boom at 10.1.2.3"),
 			status: 502, typ: "upstream_error", code: "upstream_error", message: "upstream dep-a failed: error",

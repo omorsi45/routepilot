@@ -369,7 +369,7 @@ func TestResponseFixtureMapping(t *testing.T) {
 func TestFinishReasonMapping(t *testing.T) {
 	cases := map[string]string{
 		"end_turn": "stop", "stop_sequence": "stop", "max_tokens": "length",
-		"tool_use": "tool_calls", "refusal": "refusal", "pause_turn": "pause_turn",
+		"tool_use": "tool_calls", "refusal": "content_filter", "pause_turn": "pause_turn",
 	}
 	for in, want := range cases {
 		if got := mapStopReason(in); got != want {

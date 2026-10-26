@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/openai"
@@ -29,6 +30,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 	}
 
 	resp.ID = "chatcmpl-" + rs.id
+	resp.Object = openai.ObjectChatCompletion
 	resp.Model = model.ID
 	if resp.Created == 0 {
 		resp.Created = s.now().Unix()
@@ -92,10 +94,21 @@ func mapUpstreamError(ctx, clientCtx context.Context, deployment string, err err
 				}
 				return &openai.APIError{Status: perr.Status, Type: "invalid_request_error", Code: "upstream_rejected", Message: perr.Message}
 			}
-			if text := http.StatusText(perr.Status); text != "" {
-				reason = text
-			}
+			reason = statusReason(perr.Status)
 		}
 	}
 	return openai.ErrUpstream("upstream " + deployment + " failed: " + reason)
+}
+
+// statusReason names an upstream HTTP status for the client-facing message.
+// 529 is Anthropic's "overloaded"; any other status without standard text is
+// shown as "status <N>".
+func statusReason(status int) string {
+	if text := http.StatusText(status); text != "" {
+		return text
+	}
+	if status == 529 {
+		return "Overloaded"
+	}
+	return "status " + strconv.Itoa(status)
 }

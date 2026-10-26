@@ -134,6 +134,7 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 			}
 		}
 		chunk.ID = "chatcmpl-" + rs.id
+		chunk.Object = openai.ObjectChatCompletionChunk
 		chunk.Model = model.ID
 		if chunk.Created == 0 {
 			chunk.Created = s.now().Unix()
