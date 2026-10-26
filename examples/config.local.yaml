@@ -18,17 +18,43 @@ providers:
 
 models:
   - id: mock-small
+    rank: 1
+    context_window: 16384
+    capabilities: [streaming, tools, json_object]
+    input_price_per_mtok: "0.15"
+    output_price_per_mtok: "0.60"
     deployments:
-      - provider: mock
+      - name: mock-small
+        provider: mock
         upstream_model: mock-small
   - id: mock-large
+    rank: 3
+    context_window: 128000
+    max_output_tokens: 16384
+    capabilities: [streaming, tools, json_object, json_schema, vision]
+    input_price_per_mtok: "2.50"
+    output_price_per_mtok: "10.00"
     deployments:
-      - provider: mock
+      - name: mock-large-a
+        provider: mock
         upstream_model: mock-large
+      - name: mock-large-b
+        provider: mock
+        upstream_model: mock-large-b
   - id: qwen3-1.7b
+    rank: 2
+    context_window: 32768
+    capabilities: [streaming]
+    input_price_per_mtok: "0"
+    output_price_per_mtok: "0"
     deployments:
-      - provider: ollama
+      - name: qwen3-1.7b-ollama
+        provider: ollama
         upstream_model: qwen3:1.7b
+
+# "auto" picks the cheapest model that satisfies the request.
+routing:
+  policy: cheapest
 
 tenants:
   # Only the SHA-256 of a client key is stored, never the key itself.
@@ -37,3 +63,6 @@ tenants:
   - id: demo
     api_key_sha256: 8b98693f57d481139ed5b92daf7ba8b09e22e380fcd1bf02532c777ac80aa940
     allowed_models: ["*"]
+    rpm: 600
+    tpm: 200000
+    max_concurrency: 32

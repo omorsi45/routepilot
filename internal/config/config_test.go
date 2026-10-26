@@ -241,3 +241,209 @@ func TestExampleConfigLoads(t *testing.T) {
 		t.Error("demo tenant should allow all models")
 	}
 }
+
+func TestModelDefaultsAndCapabilities(t *testing.T) {
+	cfg, err := Parse([]byte(baseYAML(t)))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	m := cfg.Models[0]
+	if m.ContextWindow != 8192 || m.MaxOutputTokens != 4096 || m.Rank != 0 {
+		t.Errorf("defaults = %d/%d/%d", m.ContextWindow, m.MaxOutputTokens, m.Rank)
+	}
+	if m.InputPricePerMTok != "0" || m.OutputPricePerMTok != "0" {
+		t.Errorf("price defaults = %q/%q", m.InputPricePerMTok, m.OutputPricePerMTok)
+	}
+	if len(m.Capabilities) != 1 || m.Capabilities[0] != "streaming" {
+		t.Errorf("Capabilities = %v, want [streaming]", m.Capabilities)
+	}
+	if !m.HasCapability("streaming") || m.HasCapability("tools") {
+		t.Error("HasCapability mismatch for defaulted capabilities")
+	}
+	if cfg.Routing.Policy != "" || cfg.Quota.Backend != "memory" || cfg.Reliability.MaxAttempts != 3 {
+		t.Errorf("section defaults = %+v %+v %+v", cfg.Routing, cfg.Quota, cfg.Reliability)
+	}
+	if cfg.Server.MaxInflight != 1024 || cfg.Server.QueueWaitMs != 100 {
+		t.Errorf("server defaults = %+v", cfg.Server)
+	}
+
+	cfg, err = Parse([]byte(baseYAML(t, "    deployments:", "    capabilities: []\n    deployments:")))
+	if err != nil {
+		t.Fatalf("Parse explicit empty: %v", err)
+	}
+	if got := cfg.Models[0].Capabilities; got == nil || len(got) != 0 {
+		t.Errorf("explicit [] Capabilities = %#v, want non-nil empty", got)
+	}
+	if cfg.Models[0].HasCapability("streaming") {
+		t.Error("explicit [] should have no capabilities")
+	}
+}
+
+func TestParseRejectsM2(t *testing.T) {
+	model2 := "  - id: big\n    deployments:\n      - provider: mock\n        upstream_model: m1\n"
+	rules := func(extra string) string {
+		return "routing:\n  policy: rules\n  default_model: small\n" + extra + "tenants:"
+	}
+	cases := []struct {
+		name string
+		yaml string
+		want []string
+	}{
+		{"unknown capability", baseYAML(t, "    deployments:", "    capabilities: [telepathy]\n    deployments:"),
+			[]string{`models[0].capabilities[0]: unknown capability "telepathy"`}},
+		{"duplicate capability", baseYAML(t, "    deployments:", "    capabilities: [tools, tools]\n    deployments:"),
+			[]string{"models[0].capabilities[1]: duplicate"}},
+		{"bad input price", baseYAML(t, "    deployments:", "    input_price_per_mtok: \"1e3\"\n    deployments:"),
+			[]string{"models[0].input_price_per_mtok"}},
+		{"bad output price", baseYAML(t, "    deployments:", "    output_price_per_mtok: \"-1\"\n    deployments:"),
+			[]string{"models[0].output_price_per_mtok"}},
+		{"negative rank", baseYAML(t, "    deployments:", "    rank: -1\n    deployments:"),
+			[]string{"models[0].rank"}},
+		{"negative context window", baseYAML(t, "    deployments:", "    context_window: -1\n    deployments:"),
+			[]string{"models[0].context_window"}},
+		{"max output above context", baseYAML(t, "    deployments:", "    context_window: 1000\n    max_output_tokens: 2000\n    deployments:"),
+			[]string{"models[0].max_output_tokens"}},
+		{"duplicate deployment name across models", baseYAML(t, "tenants:", model2+"tenants:"),
+			[]string{"models[1].deployments[0].name: duplicate deployment name"}},
+		{"negative rpm", baseYAML(t, "allowed_models:", "rpm: -1\n    allowed_models:"),
+			[]string{"tenants[0].rpm"}},
+		{"negative tpm burst", baseYAML(t, "allowed_models:", "tpm: 10\n    tpm_burst: -1\n    allowed_models:"),
+			[]string{"tenants[0].tpm_burst"}},
+		{"negative max concurrency", baseYAML(t, "allowed_models:", "max_concurrency: -1\n    allowed_models:"),
+			[]string{"tenants[0].max_concurrency"}},
+		{"negative default max tokens", baseYAML(t, "allowed_models:", "default_max_tokens: -1\n    allowed_models:"),
+			[]string{"tenants[0].default_max_tokens"}},
+		{"rpm burst without rpm", baseYAML(t, "allowed_models:", "rpm_burst: 5\n    allowed_models:"),
+			[]string{"tenants[0].rpm_burst: rpm_burst set without rpm"}},
+		{"tpm burst without tpm", baseYAML(t, "allowed_models:", "tpm_burst: 5\n    allowed_models:"),
+			[]string{"tenants[0].tpm_burst: tpm_burst set without tpm"}},
+		{"negative max inflight", baseYAML(t, "providers:", "  max_inflight: -1\nproviders:"),
+			[]string{"server.max_inflight"}},
+		{"unknown policy", baseYAML(t, "tenants:", "routing:\n  policy: random\ntenants:"),
+			[]string{"routing.policy"}},
+		{"rules policy without default model", baseYAML(t, "tenants:", "routing:\n  policy: rules\n  rules:\n    - name: r\n      model: small\n      when: {min_prompt_bytes: 1}\ntenants:"),
+			[]string{"routing.default_model"}},
+		{"rules policy without rules", baseYAML(t, "tenants:", rules("")),
+			[]string{"routing.rules: at least one rule"}},
+		{"unknown default model", baseYAML(t, "tenants:", "routing:\n  policy: cheapest\n  default_model: ghost\ntenants:"),
+			[]string{`routing.default_model: unknown model "ghost"`}},
+		{"rule with empty when", baseYAML(t, "tenants:", rules("  rules:\n    - name: r\n      model: small\n      when: {}\n")),
+			[]string{"routing.rules[0].when"}},
+		{"rule unknown model", baseYAML(t, "tenants:", rules("  rules:\n    - name: r\n      model: ghost\n      when: {min_prompt_bytes: 1}\n")),
+			[]string{`routing.rules[0].model: unknown model "ghost"`}},
+		{"rule without name", baseYAML(t, "tenants:", rules("  rules:\n    - model: small\n      when: {min_prompt_bytes: 1}\n")),
+			[]string{"routing.rules[0].name"}},
+		{"duplicate rule name", baseYAML(t, "tenants:", rules("  rules:\n    - {name: r, model: small, when: {min_prompt_bytes: 1}}\n    - {name: r, model: small, when: {min_prompt_bytes: 2}}\n")),
+			[]string{"routing.rules[1].name: duplicate"}},
+		{"rule unknown requires", baseYAML(t, "tenants:", rules("  rules:\n    - {name: r, model: small, when: {requires: [telepathy]}}\n")),
+			[]string{"routing.rules[0].when.requires[0]"}},
+		{"rule empty contains_any entry", baseYAML(t, "tenants:", rules("  rules:\n    - {name: r, model: small, when: {contains_any: [\"\"]}}\n")),
+			[]string{"routing.rules[0].when.contains_any[0]"}},
+		{"rule min above max", baseYAML(t, "tenants:", rules("  rules:\n    - {name: r, model: small, when: {min_prompt_bytes: 10, max_prompt_bytes: 5}}\n")),
+			[]string{"routing.rules[0].when.min_prompt_bytes"}},
+		{"rule negative bytes", baseYAML(t, "tenants:", rules("  rules:\n    - {name: r, model: small, when: {min_prompt_bytes: -1}}\n")),
+			[]string{"routing.rules[0].when.min_prompt_bytes"}},
+		{"unknown quota backend", baseYAML(t, "tenants:", "quota:\n  backend: etcd\ntenants:"),
+			[]string{"quota.backend"}},
+		{"redis without env", baseYAML(t, "tenants:", "quota:\n  backend: redis\ntenants:"),
+			[]string{"quota.redis_url_env"}},
+		{"max attempts too high", baseYAML(t, "tenants:", "reliability:\n  max_attempts: 6\ntenants:"),
+			[]string{"reliability.max_attempts"}},
+		{"max attempts negative", baseYAML(t, "tenants:", "reliability:\n  max_attempts: -1\ntenants:"),
+			[]string{"reliability.max_attempts"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := Parse([]byte(tc.yaml))
+			if err == nil {
+				t.Fatalf("Parse succeeded, cfg = %+v", cfg)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Errorf("error %q does not contain %q", err, w)
+				}
+			}
+		})
+	}
+}
+
+func TestParseAcceptsM2Sections(t *testing.T) {
+	y := baseYAML(t, "tenants:", `routing:
+  policy: rules
+  default_model: small
+  rules:
+    - name: long
+      model: small
+      when: {min_prompt_bytes: 100, max_prompt_bytes: 1000, contains_any: [code], requires: [tools]}
+quota:
+  backend: redis
+  redis_url_env: REDIS_URL
+reliability:
+  max_attempts: 5
+tenants:`)
+	y = strings.Replace(y, "    deployments:", "    capabilities: [streaming, tools]\n    deployments:", 1)
+	cfg, err := Parse([]byte(y))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.Routing.Policy != "rules" || len(cfg.Routing.Rules) != 1 || cfg.Quota.Backend != "redis" || cfg.Reliability.MaxAttempts != 5 {
+		t.Errorf("sections = %+v %+v %+v", cfg.Routing, cfg.Quota, cfg.Reliability)
+	}
+}
+
+func TestTenantLimitDefaults(t *testing.T) {
+	cfg, err := Parse([]byte(baseYAML(t, "allowed_models:", "rpm: 600\n    tpm: 1000\n    allowed_models:")))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	tn := cfg.Tenants[0]
+	if tn.RPMBurst != 100 || tn.TPMBurst != 1000 || tn.DefaultMaxTokens != 4096 {
+		t.Errorf("limits = %+v", tn)
+	}
+
+	cfg, err = Parse([]byte(baseYAML(t, "allowed_models:", "rpm: 3\n    allowed_models:")))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if got := cfg.Tenants[0].RPMBurst; got != 1 {
+		t.Errorf("rpm 3 burst = %d, want 1", got)
+	}
+
+	cfg, err = Parse([]byte(baseYAML(t)))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if tn := cfg.Tenants[0]; tn.RPM != 0 || tn.RPMBurst != 0 || tn.TPM != 0 || tn.TPMBurst != 0 || tn.MaxConcurrency != 0 {
+		t.Errorf("unlimited tenant got limits: %+v", tn)
+	}
+}
+
+func TestExampleConfigM2(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", "examples", "config.local.yaml"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Routing.Policy != "cheapest" {
+		t.Errorf("routing.policy = %q", cfg.Routing.Policy)
+	}
+	large, _ := cfg.Model("mock-large")
+	if len(large.Deployments) != 2 || large.Deployments[1].Name != "mock-large-b" || large.Deployments[1].UpstreamModel != "mock-large-b" {
+		t.Errorf("mock-large deployments = %+v", large.Deployments)
+	}
+	if large.Rank != 3 || large.InputPricePerMTok != "2.50" || large.OutputPricePerMTok != "10.00" ||
+		large.ContextWindow != 128000 || large.MaxOutputTokens != 16384 || !large.HasCapability("vision") {
+		t.Errorf("mock-large = %+v", large)
+	}
+	small, _ := cfg.Model("mock-small")
+	if small.Rank != 1 || small.InputPricePerMTok != "0.15" || small.OutputPricePerMTok != "0.60" || small.ContextWindow != 16384 {
+		t.Errorf("mock-small = %+v", small)
+	}
+	qwen, _ := cfg.Model("qwen3-1.7b")
+	if qwen.Rank != 2 || qwen.InputPricePerMTok != "0" || qwen.ContextWindow != 32768 || qwen.HasCapability("tools") {
+		t.Errorf("qwen3-1.7b = %+v", qwen)
+	}
+	tn := cfg.Tenants[0]
+	if tn.RPM != 600 || tn.TPM != 200000 || tn.MaxConcurrency != 32 || tn.RPMBurst != 100 {
+		t.Errorf("demo tenant = %+v", tn)
+	}
+}

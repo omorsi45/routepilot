@@ -15,6 +15,8 @@ import (
 	"regexp"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/omorsi45/routepilot/internal/money"
 )
 
 // Provider types accepted in ProviderConfig.Type.
@@ -26,6 +28,34 @@ const (
 // ReservedModelAuto is a model ID reserved for automatic routing.
 const ReservedModelAuto = "auto"
 
+// Model capability names accepted in ModelConfig.Capabilities and
+// RuleMatch.Requires.
+const (
+	CapStreaming  = "streaming"
+	CapTools      = "tools"
+	CapJSONObject = "json_object"
+	CapJSONSchema = "json_schema"
+	CapVision     = "vision"
+)
+
+// Routing policies accepted in RoutingConfig.Policy. The empty policy means
+// automatic routing is not configured.
+const (
+	PolicyCheapest  = "cheapest"
+	PolicyStrongest = "strongest"
+	PolicyRules     = "rules"
+)
+
+// Quota backends accepted in QuotaConfig.Backend.
+const (
+	QuotaMemory = "memory"
+	QuotaRedis  = "redis"
+)
+
+var knownCapabilities = map[string]bool{
+	CapStreaming: true, CapTools: true, CapJSONObject: true, CapJSONSchema: true, CapVision: true,
+}
+
 // Defaults applied when a field is omitted.
 const (
 	defaultListen           = ":8080"
@@ -35,6 +65,14 @@ const (
 	defaultShutdownGraceMs  = 30000
 	defaultTTFTTimeoutMs    = 10000
 	defaultIdleTimeoutMs    = 30000
+	defaultMaxInflight      = 1024
+	defaultQueueWaitMs      = 100
+	defaultContextWindow    = 8192
+	defaultMaxOutputTokens  = 4096
+	defaultMaxTokens        = 4096
+	defaultMaxAttempts      = 3
+	maxMaxAttempts          = 5
+	rpmBurstDivisor         = 6
 )
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -45,6 +83,10 @@ type Config struct {
 	Providers []ProviderConfig `yaml:"providers"`
 	Models    []ModelConfig    `yaml:"models"`
 	Tenants   []TenantConfig   `yaml:"tenants"`
+
+	Routing     RoutingConfig     `yaml:"routing"`
+	Quota       QuotaConfig       `yaml:"quota"`
+	Reliability ReliabilityConfig `yaml:"reliability"`
 }
 
 // ServerConfig holds listener and request limits.
@@ -54,6 +96,8 @@ type ServerConfig struct {
 	DefaultTimeoutMs int    `yaml:"default_timeout_ms"`
 	MaxTimeoutMs     int    `yaml:"max_timeout_ms"`
 	ShutdownGraceMs  int    `yaml:"shutdown_grace_ms"`
+	MaxInflight      int    `yaml:"max_inflight"`
+	QueueWaitMs      int    `yaml:"queue_wait_ms"`
 }
 
 // ProviderConfig describes one upstream provider.
@@ -70,6 +114,27 @@ type ProviderConfig struct {
 type ModelConfig struct {
 	ID          string             `yaml:"id"`
 	Deployments []DeploymentConfig `yaml:"deployments"`
+
+	ContextWindow   int `yaml:"context_window"`
+	MaxOutputTokens int `yaml:"max_output_tokens"`
+	// Capabilities lists supported features. A nil list (key absent) defaults
+	// to streaming only; an explicit empty list means none.
+	Capabilities []string `yaml:"capabilities"`
+	// Prices are decimal USD per million tokens, parsed by money.ParseUSDPerMTok.
+	InputPricePerMTok  string `yaml:"input_price_per_mtok"`
+	OutputPricePerMTok string `yaml:"output_price_per_mtok"`
+	Rank               int    `yaml:"rank"`
+}
+
+// HasCapability reports whether the model supports capability c. Call it on
+// a config returned by Parse so defaults have been applied.
+func (m ModelConfig) HasCapability(c string) bool {
+	for _, have := range m.Capabilities {
+		if have == c {
+			return true
+		}
+	}
+	return false
 }
 
 // DeploymentConfig maps a public model to a model on one provider.
@@ -85,6 +150,51 @@ type TenantConfig struct {
 	APIKeySHA256  string   `yaml:"api_key_sha256"`
 	AllowedModels []string `yaml:"allowed_models"`
 	MaxTimeoutMs  int      `yaml:"max_timeout_ms"`
+
+	// Rate limits; zero means unlimited.
+	RPM              int `yaml:"rpm"`
+	RPMBurst         int `yaml:"rpm_burst"`
+	TPM              int `yaml:"tpm"`
+	TPMBurst         int `yaml:"tpm_burst"`
+	MaxConcurrency   int `yaml:"max_concurrency"`
+	DefaultMaxTokens int `yaml:"default_max_tokens"`
+}
+
+// RoutingConfig configures static routing for the "auto" model.
+type RoutingConfig struct {
+	Policy       string       `yaml:"policy"`
+	DefaultModel string       `yaml:"default_model"`
+	Rules        []RuleConfig `yaml:"rules"`
+}
+
+// RuleConfig sends matching requests to Model.
+type RuleConfig struct {
+	Name  string    `yaml:"name"`
+	Model string    `yaml:"model"`
+	When  RuleMatch `yaml:"when"`
+}
+
+// RuleMatch holds the conditions of a rule; all set conditions must hold.
+type RuleMatch struct {
+	MinPromptBytes int      `yaml:"min_prompt_bytes"`
+	MaxPromptBytes int      `yaml:"max_prompt_bytes"`
+	ContainsAny    []string `yaml:"contains_any"`
+	Requires       []string `yaml:"requires"`
+}
+
+func (r RuleMatch) isEmpty() bool {
+	return r.MinPromptBytes == 0 && r.MaxPromptBytes == 0 && len(r.ContainsAny) == 0 && len(r.Requires) == 0
+}
+
+// QuotaConfig selects the rate-limit counter backend.
+type QuotaConfig struct {
+	Backend     string `yaml:"backend"`
+	RedisURLEnv string `yaml:"redis_url_env"`
+}
+
+// ReliabilityConfig bounds retry and failover behavior.
+type ReliabilityConfig struct {
+	MaxAttempts int `yaml:"max_attempts"`
 }
 
 // Parse decodes b strictly, applies defaults, and validates the result.
@@ -144,6 +254,12 @@ func (c *Config) applyDefaults() {
 	if s.ShutdownGraceMs == 0 {
 		s.ShutdownGraceMs = defaultShutdownGraceMs
 	}
+	if s.MaxInflight == 0 {
+		s.MaxInflight = defaultMaxInflight
+	}
+	if s.QueueWaitMs == 0 {
+		s.QueueWaitMs = defaultQueueWaitMs
+	}
 	for i := range c.Providers {
 		p := &c.Providers[i]
 		if p.TTFTTimeoutMs == 0 {
@@ -154,12 +270,46 @@ func (c *Config) applyDefaults() {
 		}
 	}
 	for i := range c.Models {
+		m := &c.Models[i]
+		if m.ContextWindow == 0 {
+			m.ContextWindow = defaultContextWindow
+		}
+		if m.MaxOutputTokens == 0 {
+			m.MaxOutputTokens = defaultMaxOutputTokens
+		}
+		if m.Capabilities == nil {
+			m.Capabilities = []string{CapStreaming}
+		}
+		if m.InputPricePerMTok == "" {
+			m.InputPricePerMTok = "0"
+		}
+		if m.OutputPricePerMTok == "" {
+			m.OutputPricePerMTok = "0"
+		}
 		for j := range c.Models[i].Deployments {
 			d := &c.Models[i].Deployments[j]
 			if d.Name == "" && d.Provider != "" && d.UpstreamModel != "" {
 				d.Name = d.Provider + "/" + d.UpstreamModel
 			}
 		}
+	}
+	for i := range c.Tenants {
+		t := &c.Tenants[i]
+		if t.RPM > 0 && t.RPMBurst == 0 {
+			t.RPMBurst = max(1, t.RPM/rpmBurstDivisor)
+		}
+		if t.TPMBurst == 0 {
+			t.TPMBurst = t.TPM
+		}
+		if t.DefaultMaxTokens == 0 {
+			t.DefaultMaxTokens = defaultMaxTokens
+		}
+	}
+	if c.Quota.Backend == "" {
+		c.Quota.Backend = QuotaMemory
+	}
+	if c.Reliability.MaxAttempts == 0 {
+		c.Reliability.MaxAttempts = defaultMaxAttempts
 	}
 }
 
@@ -175,6 +325,9 @@ func (c *Config) Validate() error {
 	providers := c.validateProviders(add)
 	models := c.validateModels(providers, add)
 	c.validateTenants(models, add)
+	c.validateRouting(models, add)
+	c.validateQuota(add)
+	c.validateReliability(add)
 
 	return errors.Join(errs...)
 }
@@ -197,6 +350,12 @@ func (c *Config) validateServer(add addFunc) {
 	}
 	if s.DefaultTimeoutMs > 0 && s.MaxTimeoutMs > 0 && s.DefaultTimeoutMs > s.MaxTimeoutMs {
 		add("server.default_timeout_ms", "%d exceeds server.max_timeout_ms %d", s.DefaultTimeoutMs, s.MaxTimeoutMs)
+	}
+	if s.MaxInflight < 0 {
+		add("server.max_inflight", "must not be negative, got %d", s.MaxInflight)
+	}
+	if s.QueueWaitMs < 0 {
+		add("server.queue_wait_ms", "must not be negative, got %d", s.QueueWaitMs)
 	}
 }
 
@@ -235,6 +394,7 @@ func (c *Config) validateProviders(add addFunc) map[string]bool {
 
 func (c *Config) validateModels(providers map[string]bool, add addFunc) map[string]bool {
 	ids := make(map[string]bool)
+	deploymentNames := make(map[string]bool)
 	if len(c.Models) == 0 {
 		add("models", "at least one model is required")
 	}
@@ -253,7 +413,7 @@ func (c *Config) validateModels(providers map[string]bool, add addFunc) map[stri
 		if len(m.Deployments) == 0 {
 			add(path+".deployments", "at least one deployment is required")
 		}
-		names := make(map[string]bool)
+		c.validateModelCatalog(path, m, add)
 		for j, d := range m.Deployments {
 			dpath := fmt.Sprintf("%s.deployments[%d]", path, j)
 			switch {
@@ -266,14 +426,46 @@ func (c *Config) validateModels(providers map[string]bool, add addFunc) map[stri
 				add(dpath+".upstream_model", "must not be empty")
 			}
 			if d.Name != "" {
-				if names[d.Name] {
+				if deploymentNames[d.Name] {
 					add(dpath+".name", "duplicate deployment name %q", d.Name)
 				}
-				names[d.Name] = true
+				deploymentNames[d.Name] = true
 			}
 		}
 	}
 	return ids
+}
+
+func (c *Config) validateModelCatalog(path string, m ModelConfig, add addFunc) {
+	if m.ContextWindow < 0 {
+		add(path+".context_window", "must not be negative, got %d", m.ContextWindow)
+	}
+	if m.MaxOutputTokens < 0 {
+		add(path+".max_output_tokens", "must not be negative, got %d", m.MaxOutputTokens)
+	}
+	if m.ContextWindow > 0 && m.MaxOutputTokens > m.ContextWindow {
+		add(path+".max_output_tokens", "%d exceeds context_window %d", m.MaxOutputTokens, m.ContextWindow)
+	}
+	if m.Rank < 0 {
+		add(path+".rank", "must not be negative, got %d", m.Rank)
+	}
+	seen := make(map[string]bool)
+	for k, cp := range m.Capabilities {
+		cpath := fmt.Sprintf("%s.capabilities[%d]", path, k)
+		switch {
+		case !knownCapabilities[cp]:
+			add(cpath, "unknown capability %q", cp)
+		case seen[cp]:
+			add(cpath, "duplicate capability %q", cp)
+		}
+		seen[cp] = true
+	}
+	if _, err := money.ParseUSDPerMTok(m.InputPricePerMTok); err != nil {
+		add(path+".input_price_per_mtok", "%v", err)
+	}
+	if _, err := money.ParseUSDPerMTok(m.OutputPricePerMTok); err != nil {
+		add(path+".output_price_per_mtok", "%v", err)
+	}
 }
 
 func (c *Config) validateTenants(models map[string]bool, add addFunc) {
@@ -312,6 +504,99 @@ func (c *Config) validateTenants(models map[string]bool, add addFunc) {
 		} else if t.MaxTimeoutMs > c.Server.MaxTimeoutMs {
 			add(path+".max_timeout_ms", "%d exceeds server.max_timeout_ms %d", t.MaxTimeoutMs, c.Server.MaxTimeoutMs)
 		}
+		for _, f := range []struct {
+			name string
+			v    int
+		}{
+			{"rpm", t.RPM}, {"rpm_burst", t.RPMBurst}, {"tpm", t.TPM}, {"tpm_burst", t.TPMBurst},
+			{"max_concurrency", t.MaxConcurrency}, {"default_max_tokens", t.DefaultMaxTokens},
+		} {
+			if f.v < 0 {
+				add(path+"."+f.name, "must not be negative, got %d", f.v)
+			}
+		}
+		if t.RPM == 0 && t.RPMBurst > 0 {
+			add(path+".rpm_burst", "rpm_burst set without rpm")
+		}
+		if t.TPM == 0 && t.TPMBurst > 0 {
+			add(path+".tpm_burst", "tpm_burst set without tpm")
+		}
+	}
+}
+
+func (c *Config) validateRouting(models map[string]bool, add addFunc) {
+	r := c.Routing
+	switch r.Policy {
+	case "", PolicyCheapest, PolicyStrongest, PolicyRules:
+	default:
+		add("routing.policy", "unknown policy %q (want %q, %q, or %q)", r.Policy, PolicyCheapest, PolicyStrongest, PolicyRules)
+	}
+	if r.DefaultModel != "" && !models[r.DefaultModel] {
+		add("routing.default_model", "unknown model %q", r.DefaultModel)
+	}
+	if r.Policy == PolicyRules {
+		if r.DefaultModel == "" {
+			add("routing.default_model", "required when policy is %q", PolicyRules)
+		}
+		if len(r.Rules) == 0 {
+			add("routing.rules", "at least one rule is required when policy is %q", PolicyRules)
+		}
+	}
+	names := make(map[string]bool)
+	for i, rule := range r.Rules {
+		path := fmt.Sprintf("routing.rules[%d]", i)
+		switch {
+		case rule.Name == "":
+			add(path+".name", "must not be empty")
+		case names[rule.Name]:
+			add(path+".name", "duplicate rule name %q", rule.Name)
+		default:
+			names[rule.Name] = true
+		}
+		if !models[rule.Model] {
+			add(path+".model", "unknown model %q", rule.Model)
+		}
+		w := rule.When
+		if w.isEmpty() {
+			add(path+".when", "must set at least one condition")
+		}
+		if w.MinPromptBytes < 0 {
+			add(path+".when.min_prompt_bytes", "must not be negative, got %d", w.MinPromptBytes)
+		}
+		if w.MaxPromptBytes < 0 {
+			add(path+".when.max_prompt_bytes", "must not be negative, got %d", w.MaxPromptBytes)
+		}
+		if w.MinPromptBytes > 0 && w.MaxPromptBytes > 0 && w.MinPromptBytes > w.MaxPromptBytes {
+			add(path+".when.min_prompt_bytes", "%d exceeds max_prompt_bytes %d", w.MinPromptBytes, w.MaxPromptBytes)
+		}
+		for k, s := range w.ContainsAny {
+			if s == "" {
+				add(fmt.Sprintf("%s.when.contains_any[%d]", path, k), "must not be empty")
+			}
+		}
+		for k, req := range w.Requires {
+			if !knownCapabilities[req] {
+				add(fmt.Sprintf("%s.when.requires[%d]", path, k), "unknown capability %q", req)
+			}
+		}
+	}
+}
+
+func (c *Config) validateQuota(add addFunc) {
+	switch c.Quota.Backend {
+	case QuotaMemory:
+	case QuotaRedis:
+		if c.Quota.RedisURLEnv == "" {
+			add("quota.redis_url_env", "required when backend is %q", QuotaRedis)
+		}
+	default:
+		add("quota.backend", "unknown backend %q (want %q or %q)", c.Quota.Backend, QuotaMemory, QuotaRedis)
+	}
+}
+
+func (c *Config) validateReliability(add addFunc) {
+	if a := c.Reliability.MaxAttempts; a < 1 || a > maxMaxAttempts {
+		add("reliability.max_attempts", "must be between 1 and %d, got %d", maxMaxAttempts, a)
 	}
 }
 
