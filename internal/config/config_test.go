@@ -447,3 +447,23 @@ func TestExampleConfigM2(t *testing.T) {
 		t.Errorf("demo tenant = %+v", tn)
 	}
 }
+
+func TestHasCapabilityNilDefaultsToStreaming(t *testing.T) {
+	var m ModelConfig // Capabilities is nil, as in a hand-built config
+	if !m.HasCapability(CapStreaming) {
+		t.Error("nil Capabilities should have streaming")
+	}
+	for _, c := range []string{CapTools, CapJSONObject, CapJSONSchema, CapVision} {
+		if m.HasCapability(c) {
+			t.Errorf("nil Capabilities should not have %s", c)
+		}
+	}
+	m.Capabilities = []string{}
+	if m.HasCapability(CapStreaming) {
+		t.Error("explicit empty Capabilities should have none")
+	}
+	m.Capabilities = []string{CapTools}
+	if m.HasCapability(CapStreaming) || !m.HasCapability(CapTools) {
+		t.Error("explicit list should be used verbatim")
+	}
+}

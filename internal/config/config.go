@@ -126,9 +126,13 @@ type ModelConfig struct {
 	Rank               int    `yaml:"rank"`
 }
 
-// HasCapability reports whether the model supports capability c. Call it on
-// a config returned by Parse so defaults have been applied.
+// HasCapability reports whether the model supports capability c. A nil
+// Capabilities list is treated as streaming only, the same default Parse
+// applies, so a hand-built config behaves like a parsed one.
 func (m ModelConfig) HasCapability(c string) bool {
+	if m.Capabilities == nil {
+		return c == CapStreaming
+	}
 	for _, have := range m.Capabilities {
 		if have == c {
 			return true
