@@ -1,0 +1,44 @@
+# Build output
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# Local databases and runtime state
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Downloaded and derived datasets (fetched by scripts, never committed)
+/data/raw/
+/data/derived/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Benchmark scratch output (published results live in bench/results/)
+/bench/scratch/
+
+# Isolated worktrees
+/.worktrees/
+
+# Local-only working artifacts
+/.superpowers/
+/docs/superpowers/
+
+# OS and editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets
+.env
+.env.*
+!.env.example
