@@ -186,6 +186,17 @@ var knownRequestKeys = map[string]struct{}{
 	"seed": {}, "user": {}, "routepilot": {},
 }
 
+// isKnownRequestKey reports whether k names a known field. encoding/json
+// matches field names case-insensitively, so this uses the same rule.
+func isKnownRequestKey(k string) bool {
+	for known := range knownRequestKeys {
+		if strings.EqualFold(k, known) {
+			return true
+		}
+	}
+	return false
+}
+
 // UnmarshalJSON decodes known fields, rejects unknown fields inside
 // "routepilot", and stores unknown top-level fields in Extra.
 func (r *ChatCompletionRequest) UnmarshalJSON(data []byte) error {
@@ -214,7 +225,7 @@ func (r *ChatCompletionRequest) UnmarshalJSON(data []byte) error {
 	}
 	r.Extra = nil
 	for k, v := range all {
-		if _, known := knownRequestKeys[k]; known {
+		if isKnownRequestKey(k) {
 			continue
 		}
 		if r.Extra == nil {
@@ -240,7 +251,7 @@ func (r ChatCompletionRequest) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	for k, v := range r.Extra {
-		if _, isKnown := knownRequestKeys[k]; isKnown {
+		if isKnownRequestKey(k) {
 			continue
 		}
 		merged[k] = v

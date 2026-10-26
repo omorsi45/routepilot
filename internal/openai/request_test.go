@@ -344,3 +344,47 @@ func TestCloneNil(t *testing.T) {
 		t.Fatal("Clone of nil should be nil")
 	}
 }
+
+func TestCaseVariantKnownKeysAreNotExtra(t *testing.T) {
+	body := `{"MODEL":"x","messages":[{"role":"user","content":"hi"}],"RoutePilot":{"min_quality":0.5},"logit_bias":{"1":2}}`
+	var req ChatCompletionRequest
+	if err := json.Unmarshal([]byte(body), &req); err != nil {
+		t.Fatal(err)
+	}
+	if req.Model != "x" || req.RoutePilot == nil || *req.RoutePilot.MinQuality != 0.5 {
+		t.Fatalf("case-variant keys not decoded: model=%q routepilot=%v", req.Model, req.RoutePilot)
+	}
+	if len(req.Extra) != 1 || string(req.Extra["logit_bias"]) != `{"1":2}` {
+		t.Fatalf("Extra must hold only logit_bias, got %v", req.Extra)
+	}
+
+	clone := req.Clone()
+	clone.Model = "upstream-id"
+	clone.RoutePilot = nil
+	out, err := json.Marshal(clone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]json.RawMessage
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"MODEL", "RoutePilot", "routepilot"} {
+		if _, ok := got[k]; ok {
+			t.Fatalf("key %q leaked into forwarded body: %s", k, out)
+		}
+	}
+	if string(got["model"]) != `"upstream-id"` {
+		t.Fatalf("model = %s", got["model"])
+	}
+
+	// Extra populated by hand with a case-variant known key must not be emitted.
+	manual := &ChatCompletionRequest{Model: "m", Extra: map[string]json.RawMessage{"MODEL": json.RawMessage(`"x"`)}}
+	out, err = json.Marshal(manual)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "MODEL") {
+		t.Fatalf("manual Extra case-variant leaked: %s", out)
+	}
+}
