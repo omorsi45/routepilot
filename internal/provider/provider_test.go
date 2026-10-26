@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/omorsi45/routepilot/internal/provider"
 )
@@ -37,6 +38,10 @@ func TestParseRetryAfter(t *testing.T) {
 		{"past date", now.Add(-time.Minute).Format(http.TimeFormat), 0},
 		{"negative", "-4", 0},
 		{"empty", "", 0},
+		{"overflowing seconds", "10000000000", 0},
+		{"huge seconds", "99999999999999999999", 0},
+		{"plus sign is not delta-seconds", "+3", 0},
+		{"embedded sign", "3-1", 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -146,6 +151,28 @@ func TestErrorFromResponse(t *testing.T) {
 		resp, _ := mk(400, `{"error":{}}`, http.Header{})
 		if e := provider.ErrorFromResponse(resp, now); e.Message != "Bad Request" || e.Retryable {
 			t.Errorf("unexpected error: %+v", e)
+		}
+	})
+	t.Run("long message is capped on a rune boundary", func(t *testing.T) {
+		// "é" is 2 bytes, so 512 is reached mid-sequence only if cut naively
+		// at an odd offset; the leading "a" shifts every rune to odd offsets.
+		long := "a" + strings.Repeat("é", 600)
+		resp, _ := mk(400, `{"error":{"message":"`+long+`"}}`, http.Header{})
+		e := provider.ErrorFromResponse(resp, now)
+		if len(e.Message) > 512 {
+			t.Errorf("len(Message) = %d, want at most 512", len(e.Message))
+		}
+		if !utf8.ValidString(e.Message) {
+			t.Errorf("Message is not valid UTF-8: %q", e.Message)
+		}
+		if !strings.HasPrefix(e.Message, "aéé") || len(e.Message) < 510 {
+			t.Errorf("Message truncated too aggressively: len %d", len(e.Message))
+		}
+	})
+	t.Run("short message is untouched", func(t *testing.T) {
+		resp, _ := mk(400, `{"error":{"message":"é ok"}}`, http.Header{})
+		if e := provider.ErrorFromResponse(resp, now); e.Message != "é ok" {
+			t.Errorf("Message = %q", e.Message)
 		}
 	})
 	t.Run("read is bounded", func(t *testing.T) {

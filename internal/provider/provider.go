@@ -8,17 +8,22 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/omorsi45/routepilot/internal/openai"
 )
 
 // maxErrorBodyBytes bounds how much of an upstream error body is read.
 const maxErrorBodyBytes = 64 << 10
+
+// maxErrorMessageBytes caps the upstream error.message kept in Error.Message.
+const maxErrorMessageBytes = 512
 
 // Provider is one upstream model provider. The caller passes req.Model already
 // set to the upstream model and req.RoutePilot nil.
@@ -50,8 +55,9 @@ const (
 	KindCanceled Kind = "canceled"
 )
 
-// Error is a classified provider failure. Message is safe to log and surface:
-// it never carries credentials or raw request or response bodies.
+// Error is a classified provider failure. Message never carries raw request or
+// response bodies, but for HTTP errors it can include a bounded excerpt of the
+// upstream's own error.message, which is upstream-controlled text.
 type Error struct {
 	Kind       Kind
 	Status     int
@@ -90,8 +96,11 @@ func ParseRetryAfter(v string, now time.Time) time.Duration {
 	if v == "" {
 		return 0
 	}
-	if secs, err := strconv.Atoi(v); err == nil {
-		if secs < 0 {
+	if isDigits(v) {
+		// RFC 9110 delta-seconds is digits only (no sign). Values that would
+		// overflow time.Duration are treated as invalid.
+		secs, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || secs > math.MaxInt64/int64(time.Second) {
 			return 0
 		}
 		return time.Duration(secs) * time.Second
@@ -102,6 +111,27 @@ func ParseRetryAfter(v string, now time.Time) time.Duration {
 		}
 	}
 	return 0
+}
+
+func isDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// truncateUTF8 cuts s to at most max bytes without splitting a UTF-8 rune.
+func truncateUTF8(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 // NewTransport returns an HTTP transport tuned for many concurrent requests to
@@ -117,8 +147,8 @@ func NewTransport() *http.Transport {
 
 // ErrorFromResponse builds a KindHTTP error from a non-2xx response. It reads at
 // most 64 KiB of the body, closes it, and uses error.message from an
-// OpenAI-shaped JSON body, otherwise http.StatusText. Raw body bytes never
-// reach Message.
+// OpenAI-shaped JSON body (capped at 512 bytes on a rune boundary), otherwise
+// http.StatusText. The raw body never reaches Message beyond that excerpt.
 func ErrorFromResponse(resp *http.Response, now time.Time) *Error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 	_ = resp.Body.Close()
@@ -130,7 +160,7 @@ func ErrorFromResponse(resp *http.Response, now time.Time) *Error {
 	}
 	msg := ""
 	if json.Unmarshal(body, &env) == nil {
-		msg = strings.TrimSpace(env.Error.Message)
+		msg = truncateUTF8(strings.TrimSpace(env.Error.Message), maxErrorMessageBytes)
 	}
 	if msg == "" {
 		msg = http.StatusText(resp.StatusCode)

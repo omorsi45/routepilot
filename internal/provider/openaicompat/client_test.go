@@ -430,6 +430,47 @@ func TestStreamRecvAfterClose(t *testing.T) {
 	}
 }
 
+func TestStreamCloseDuringRecvIsCanceled(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		writeSSE(w, chunkJSON("a"))
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+	st, err := newClient(srv.URL, "k").Stream(context.Background(), newReq("m"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Recv(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := make(chan error, 1)
+	go func() {
+		_, err := st.Recv() // blocks: the server sends nothing more
+		got <- err
+	}()
+	time.Sleep(100 * time.Millisecond) // let Recv block in the read
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case err := <-got:
+		pe := mustProviderErr(t, err)
+		if pe.Kind != provider.KindCanceled || pe.Retryable {
+			t.Errorf("blocked Recv after Close = %+v, want non-retryable KindCanceled", pe)
+		}
+		// The classification is sticky.
+		_, err2 := st.Recv()
+		if pe2 := mustProviderErr(t, err2); pe2.Kind != provider.KindCanceled || pe2.Retryable {
+			t.Errorf("later Recv = %+v, want non-retryable KindCanceled", pe2)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Recv did not return after Close")
+	}
+}
+
 func TestStreamContextCancelPropagates(t *testing.T) {
 	serverSawCancel := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

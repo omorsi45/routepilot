@@ -129,7 +129,7 @@ func (s *stream) Recv() (*openai.ChatCompletionChunk, error) {
 	closed, sticky := s.closed, s.err
 	s.mu.Unlock()
 	if closed {
-		return nil, &provider.Error{Kind: provider.KindCanceled, Message: "stream closed"}
+		return nil, errStreamClosed()
 	}
 	if sticky != nil {
 		return nil, sticky
@@ -137,6 +137,14 @@ func (s *stream) Recv() (*openai.ChatCompletionChunk, error) {
 
 	ev, err := s.sse.Next()
 	if err != nil {
+		// A concurrent Close unblocks the read with a transport error; report
+		// that as our own cancellation, not as an upstream connection failure.
+		s.mu.Lock()
+		closed = s.closed
+		s.mu.Unlock()
+		if closed {
+			return nil, s.fail(errStreamClosed())
+		}
 		return nil, s.fail(s.classifyRead(err))
 	}
 	if ev.IsDone() {
@@ -147,6 +155,10 @@ func (s *stream) Recv() (*openai.ChatCompletionChunk, error) {
 		return nil, s.fail(&provider.Error{Kind: provider.KindProtocol, Message: "invalid chunk JSON", Err: err})
 	}
 	return &chunk, nil
+}
+
+func errStreamClosed() *provider.Error {
+	return &provider.Error{Kind: provider.KindCanceled, Message: "stream closed"}
 }
 
 func (s *stream) classifyRead(err error) *provider.Error {
