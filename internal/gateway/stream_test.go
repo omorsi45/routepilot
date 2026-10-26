@@ -111,10 +111,13 @@ func TestStreamHappyPath(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status %d, want 200", resp.StatusCode)
 	}
+	// The Go client keeps Connection in resp.Header (verified: the assertion
+	// below passes), so keep-alive is asserted like the other headers.
 	for k, want := range map[string]string{
 		"Content-Type":            "text/event-stream",
 		"Cache-Control":           "no-cache",
 		"X-Accel-Buffering":       "no",
+		"Connection":              "keep-alive",
 		"x-routepilot-model":      "model-a",
 		"x-routepilot-deployment": "dep-a",
 	} {
@@ -268,6 +271,15 @@ func TestStreamMidstreamErrorEvent(t *testing.T) {
 		t.Errorf("upstream requests %d, want exactly 1 (no retry after first byte)", got)
 	}
 	waitFor(t, time.Second, "request log line", func() bool { return strings.Contains(e.logs.String(), "error_code=upstream_error") })
+	// The status line was sent before the failure, so the single request line
+	// for this request records status 200 together with the error code.
+	lines := strings.Split(strings.TrimSpace(e.logs.String()), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("got %d log lines, want exactly 1: %q", len(lines), lines)
+	}
+	if !strings.Contains(lines[0], "status=200") || !strings.Contains(lines[0], "error_code=upstream_error") {
+		t.Errorf("log line %q, want status=200 and error_code=upstream_error", lines[0])
+	}
 }
 
 func TestStreamIdleTimeout(t *testing.T) {
@@ -295,6 +307,39 @@ func TestStreamIdleTimeout(t *testing.T) {
 	waitFor(t, time.Second, "mock sees the cancel", func() bool { return e.mock.Stats().Canceled == 1 })
 	if got := e.mock.Stats().Requests; got != 1 {
 		t.Errorf("upstream requests %d, want 1", got)
+	}
+}
+
+func TestStreamSlowClientIsNotUpstreamIdle(t *testing.T) {
+	// The upstream is never idle (tpot_ms=0), but the client stops reading for
+	// longer than the idle timeout. Only upstream waits count toward the idle
+	// watchdog, so the stream must still finish cleanly.
+	e := newMockEnv(t, cfgOpts{upstreamA: "m;tokens=100000;tpot_ms=0", idleMs: 300})
+	resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
+	br := bufio.NewReader(resp.Body)
+	if _, err := readEvent(br); err != nil {
+		t.Fatalf("read first event: %v", err)
+	}
+	time.Sleep(1500 * time.Millisecond)
+
+	var last string
+	n := 1
+	for {
+		ev, err := readEvent(br)
+		if err != nil {
+			break
+		}
+		n++
+		last = ev
+		if strings.Contains(ev, `"error"`) {
+			t.Fatalf("error event after %d events: %s", n, ev)
+		}
+	}
+	if last != "[DONE]" {
+		t.Errorf("last event %q after %d events, want [DONE]", last, n)
+	}
+	if got := e.mock.Stats().Canceled; got != 0 {
+		t.Errorf("mock canceled %d, want 0 (a slow client is not an upstream fault)", got)
 	}
 }
 

@@ -240,6 +240,20 @@ func TestNewRejectsMissingProvider(t *testing.T) {
 	}
 }
 
+func TestNewRejectsMissingProviderConfig(t *testing.T) {
+	cfg := buildConfig(t, cfgOpts{})
+	// A hand-built config can omit the provider entry that a deployment uses.
+	cfg.Providers = nil
+	provs := map[string]provider.Provider{"mockp": &fakeProvider{}}
+	_, err := New(cfg, provs, Options{})
+	if err == nil {
+		t.Fatal("New with a deployment whose provider has no config entry succeeded, want error")
+	}
+	if !strings.Contains(err.Error(), "mockp") {
+		t.Errorf("error %q should name the provider", err)
+	}
+}
+
 func TestHealthNoAuth(t *testing.T) {
 	e := newMockEnv(t, cfgOpts{})
 	for path, want := range map[string]string{"/healthz": "ok", "/readyz": "ready"} {

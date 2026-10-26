@@ -70,8 +70,10 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 	c.sse = openai.NewSSEWriter(w, c.rc.Flush)
 
 	// One timer is the TTFT watchdog until the first chunk arrives, then the
-	// idle watchdog, reset after every chunk. It starts before Stream() so it
-	// also covers connecting and waiting for response headers.
+	// idle watchdog. It starts before Stream() so it also covers connecting and
+	// waiting for response headers. The idle phase times only the wait for the
+	// next upstream chunk: it is stopped when Recv returns and reset just before
+	// the next Recv, so a slow client blocked in a write never counts.
 	var idlePhase atomic.Bool
 	watchdog := time.AfterFunc(time.Duration(pcfg.TTFTTimeoutMs)*time.Millisecond, func() {
 		if idlePhase.Load() {
@@ -96,8 +98,12 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 	stopClose := context.AfterFunc(attemptCtx, func() { _ = stream.Close() })
 	defer stopClose()
 
-	for {
+	for first := true; ; first = false {
+		if !first {
+			watchdog.Reset(idle) // time only the wait for the next upstream chunk
+		}
 		chunk, err := stream.Recv()
+		watchdog.Stop()
 		if errors.Is(err, io.EOF) {
 			break
 		}
@@ -106,7 +112,6 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 			return
 		}
 		idlePhase.Store(true)
-		watchdog.Reset(idle)
 
 		if !includeUsage {
 			chunk.Usage = nil

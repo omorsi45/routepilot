@@ -44,6 +44,9 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 			if providers[d.Provider] == nil {
 				return nil, fmt.Errorf("gateway: model %q deployment %q uses provider %q, which was not supplied", m.ID, d.Name, d.Provider)
 			}
+			if !hasProviderConfig(cfg, d.Provider) {
+				return nil, fmt.Errorf("gateway: model %q deployment %q uses provider %q, which has no provider config entry", m.ID, d.Name, d.Provider)
+			}
 		}
 	}
 	s := &Server{cfg: cfg, providers: providers, logger: opts.Logger, now: opts.Now}
@@ -58,6 +61,16 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 		s.now = time.Now
 	}
 	return s, nil
+}
+
+// hasProviderConfig reports whether cfg declares a provider with this name.
+func hasProviderConfig(cfg *config.Config, name string) bool {
+	for _, p := range cfg.Providers {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // Handler returns the http.Handler serving all gateway routes.
