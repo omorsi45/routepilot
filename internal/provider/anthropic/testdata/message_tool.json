@@ -1,0 +1,15 @@
+{
+  "id": "msg_01MessageFixture",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-fixture-1",
+  "content": [
+    {"type": "text", "text": "I will "},
+    {"type": "text", "text": "look that up."},
+    {"type": "tool_use", "id": "toolu_01FixtureA", "name": "get_weather", "input": {"city": "Paris", "units": "metric"}},
+    {"type": "tool_use", "id": "toolu_01FixtureB", "name": "get_time", "input": {}}
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {"input_tokens": 100, "cache_creation_input_tokens": 20, "cache_read_input_tokens": 5, "output_tokens": 40}
+}
