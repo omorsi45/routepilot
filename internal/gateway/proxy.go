@@ -27,13 +27,18 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 			if !plan.more() {
 				break
 			}
-			if err := s.waitBeforeRetry(ctx, rs.attempts-1, lastErr, lastDep.Name); err != nil {
+			if err := s.waitBeforeRetry(ctx, rs.attempts-1, lastErr); err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					timedOut = true
 					break
 				}
 				rs.canceled = true // the client went away while we waited
 				return
+			}
+			// The wait itself may have run past the deadline: claim nothing.
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				timedOut = true
+				break
 			}
 		}
 		model, dep, ok := plan.next()
@@ -43,13 +48,15 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 		rs.attempts++
 		up := s.prepareUpstream(rs, req, model.ID, dep)
 
+		started := s.now()
 		resp, err := s.providers[dep.Provider].Complete(ctx, up)
+		elapsed := s.now().Sub(started)
 		if err == nil && resp == nil {
 			err = openai.ErrInternal()
 		}
 		switch {
 		case err == nil:
-			s.settle(dep.Name, nil)
+			s.settle(ctx, dep.Name, nil, elapsed)
 			resp.ID = "chatcmpl-" + rs.id
 			resp.Object = openai.ObjectChatCompletion
 			resp.Model = model.ID
@@ -65,7 +72,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 			return
 		}
 
-		s.settle(dep.Name, err)
+		s.settle(ctx, dep.Name, err, elapsed)
 		lastErr, lastDep = err, dep
 		if !retryable(err, ctx) {
 			break

@@ -126,44 +126,77 @@ func healthyOutcome(err error) bool {
 		perr.Status >= 400 && perr.Status < 500 && !retryableStatus(perr.Status)
 }
 
+// deadlineExpired reports whether the attempt ended because the request
+// deadline passed, as opposed to a provider watchdog or a disconnect.
+func deadlineExpired(ctx context.Context) bool {
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return false
+	}
+	cause := context.Cause(ctx)
+	return !errors.Is(cause, errTTFTTimeout) && !errors.Is(cause, errIdleTimeout)
+}
+
 // settle reports the outcome of an attempt claimed with Allow. A nil err is a
-// success. An upstream 401 or 403 also quarantines the deployment.
-func (s *Server) settle(dep string, err error) {
+// success. ctx is the context the attempt ran under and elapsed is how long
+// the attempt took, from just before the provider call to its return.
+//
+// A failure caused by the request deadline blames the deployment only when
+// the attempt ran for at least the server's default timeout. A shorter run
+// was cut off by a client-chosen deadline, which says nothing about the
+// deployment, so the claim is released instead.
+//
+// An upstream 401 or 403 also quarantines the deployment, and a Retry-After
+// longer than maxInlineRetryAfter trips its breaker for that long.
+func (s *Server) settle(ctx context.Context, dep string, err error, elapsed time.Duration) {
 	if err == nil || healthyOutcome(err) {
 		s.health.Record(dep, true)
 		return
 	}
+	if deadlineExpired(ctx) {
+		if elapsed >= time.Duration(s.cfg.Server.DefaultTimeoutMs)*time.Millisecond {
+			s.health.Record(dep, false)
+		} else {
+			s.health.Abort(dep)
+		}
+		return
+	}
 	s.health.Record(dep, false)
 	var perr *provider.Error
-	if errors.As(err, &perr) && perr.Kind == provider.KindHTTP && (perr.Status == 401 || perr.Status == 403) {
+	if !errors.As(err, &perr) {
+		return
+	}
+	if perr.RetryAfter > maxInlineRetryAfter {
+		s.health.Trip(dep, perr.RetryAfter)
+	}
+	if perr.Kind == provider.KindHTTP && (perr.Status == 401 || perr.Status == 403) {
 		s.health.Trip(dep, authQuarantine)
 	}
 }
 
 // waitBeforeRetry waits before the next attempt after err, the failure of
-// attempt number attempt (0 for the first) on deployment dep. It honors a
-// short Retry-After, trips dep's breaker for a long one and moves on at once,
-// and otherwise sleeps a jittered backoff. A wait that would end after the
-// context deadline is not started: it returns context.DeadlineExceeded.
-func (s *Server) waitBeforeRetry(ctx context.Context, attempt int, err error, dep string) error {
+// attempt number attempt (0 for the first). It honors a Retry-After of at
+// most maxInlineRetryAfter and does not wait for a longer one (settle already
+// tripped that deployment's breaker), and otherwise sleeps a jittered backoff.
+// A wait that would end after the context deadline is not started, and
+// neither is a zero wait once the deadline has passed: both return
+// context.DeadlineExceeded.
+func (s *Server) waitBeforeRetry(ctx context.Context, attempt int, err error) error {
 	var wait time.Duration
 	var perr *provider.Error
 	if errors.As(err, &perr) && perr.RetryAfter > 0 {
 		if perr.RetryAfter <= maxInlineRetryAfter {
 			wait = perr.RetryAfter
-		} else {
-			s.health.Trip(dep, perr.RetryAfter)
 		}
 	} else {
 		wait = reliability.Backoff(attempt, s.rand)
-	}
-	if wait <= 0 {
-		return nil
 	}
 	// Context deadlines are wall-clock times, so compare with the real clock
 	// even when the server clock is injected.
 	if deadline, ok := ctx.Deadline(); ok && time.Now().Add(wait).After(deadline) {
 		return context.DeadlineExceeded
+	}
+	if wait <= 0 {
+		return nil
 	}
 	return s.sleep(ctx, wait)
 }

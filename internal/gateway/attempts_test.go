@@ -44,6 +44,10 @@ type attemptOpts struct {
 	upstream    http.Handler // nil: the mock handler
 	clock       func() time.Time
 	realSleep   bool
+	// sleep replaces the recording fake Sleep when set.
+	sleep func(ctx context.Context, d time.Duration) error
+	// defaultTimeoutMs overrides server.default_timeout_ms when positive.
+	defaultTimeoutMs int
 }
 
 // attemptEnv is a gateway over one provider whose upstream counts requests by
@@ -101,6 +105,9 @@ func newAttemptEnv(t *testing.T, o attemptOpts) *attemptEnv {
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "providers:\n  - name: mockp\n    type: openaicompat\n    base_url: %q\n", srv.URL+"/v1")
+	if o.defaultTimeoutMs > 0 {
+		fmt.Fprintf(&sb, "server:\n  default_timeout_ms: %d\n", o.defaultTimeoutMs)
+	}
 	if o.maxAttempts > 0 {
 		fmt.Fprintf(&sb, "reliability:\n  max_attempts: %d\n", o.maxAttempts)
 	}
@@ -132,7 +139,9 @@ func newAttemptEnv(t *testing.T, o attemptOpts) *attemptEnv {
 		Now:    o.clock,
 		Rand:   func() float64 { return 1 },
 	}
-	if !o.realSleep {
+	if o.sleep != nil {
+		opts.Sleep = o.sleep
+	} else if !o.realSleep {
 		opts.Sleep = func(_ context.Context, d time.Duration) error {
 			e.mu.Lock()
 			e.sleeps = append(e.sleeps, d)
@@ -187,10 +196,23 @@ func TestFailoverToSecondDeployment(t *testing.T) {
 }
 
 func TestFailoverToNextModel(t *testing.T) {
+	ok := mock.NewHandler(mock.Config{})
+	up503 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(b), `"model":"uc"`) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, `{"error":{"message":"overloaded","type":"server_error","code":"overloaded"}}`)
+			return
+		}
+		r.Body = io.NopCloser(strings.NewReader(string(b)))
+		ok.ServeHTTP(w, r)
+	})
 	e := newAttemptEnv(t, attemptOpts{
-		policy: config.PolicyCheapest,
+		policy:   config.PolicyCheapest,
+		upstream: up503,
 		models: []modelSpec{
-			{id: "cheap", in: "0.1", out: "0.1", deps: []depSpec{{"cheap-a", "uc;fail=html502"}}},
+			{id: "cheap", in: "0.1", out: "0.1", deps: []depSpec{{"cheap-a", "uc"}}},
 			{id: "pricey", in: "5", out: "5", deps: []depSpec{{"pricey-a", "up"}}},
 		},
 	})
@@ -599,24 +621,30 @@ func TestWaitBeforeRetry(t *testing.T) {
 
 	t.Run("short Retry-After is waited", func(t *testing.T) {
 		s, slept := newServer()
-		err := s.waitBeforeRetry(ctx, 0, rateLimited(2*time.Second), "dep-a")
+		err := s.waitBeforeRetry(ctx, 0, rateLimited(2*time.Second))
 		if err != nil || len(*slept) != 1 || (*slept)[0] != 2*time.Second {
 			t.Errorf("err=%v slept=%v, want one 2s sleep", err, *slept)
 		}
 	})
-	t.Run("long Retry-After trips and does not sleep", func(t *testing.T) {
+	t.Run("long Retry-After does not sleep", func(t *testing.T) {
 		s, slept := newServer()
-		err := s.waitBeforeRetry(ctx, 0, rateLimited(3*time.Second), "dep-a")
+		err := s.waitBeforeRetry(ctx, 0, rateLimited(3*time.Second))
 		if err != nil || len(*slept) != 0 {
 			t.Errorf("err=%v slept=%v, want no sleep", err, *slept)
 		}
-		if s.health.Available("dep-a") {
-			t.Error("dep-a is available after a 3s Retry-After, want tripped")
+	})
+	t.Run("a zero wait after the deadline fails", func(t *testing.T) {
+		s, slept := newServer()
+		dctx, cancel := context.WithDeadline(ctx, time.Now().Add(-time.Second))
+		defer cancel()
+		err := s.waitBeforeRetry(dctx, 0, rateLimited(3*time.Second))
+		if !errors.Is(err, context.DeadlineExceeded) || len(*slept) != 0 {
+			t.Errorf("err=%v slept=%v, want DeadlineExceeded and no sleep", err, *slept)
 		}
 	})
 	t.Run("no Retry-After uses backoff", func(t *testing.T) {
 		s, slept := newServer()
-		err := s.waitBeforeRetry(ctx, 1, errors.New("boom"), "dep-a")
+		err := s.waitBeforeRetry(ctx, 1, errors.New("boom"))
 		want := reliability.Backoff(1, func() float64 { return 1 })
 		if err != nil || len(*slept) != 1 || (*slept)[0] != want {
 			t.Errorf("err=%v slept=%v, want one %v sleep", err, *slept, want)
@@ -626,7 +654,7 @@ func TestWaitBeforeRetry(t *testing.T) {
 		s, slept := newServer()
 		dctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 		defer cancel()
-		err := s.waitBeforeRetry(dctx, 0, rateLimited(time.Second), "dep-a")
+		err := s.waitBeforeRetry(dctx, 0, rateLimited(time.Second))
 		if !errors.Is(err, context.DeadlineExceeded) || len(*slept) != 0 {
 			t.Errorf("err=%v slept=%v, want DeadlineExceeded and no sleep", err, *slept)
 		}
@@ -647,8 +675,10 @@ func TestStreamOutcomesFeedHealth(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "[DONE]") {
 		t.Fatalf("good stream: status %d: %s", rec.Code, rec.Body.String())
 	}
-	if _, seen := e.gw.health.Snapshot()["dep-good"]; !seen {
+	if h, seen := e.gw.health.Snapshot()["dep-good"]; !seen {
 		t.Error("a completed stream did not report an outcome for dep-good")
+	} else if h.State != reliability.Closed || h.ErrorRate != 0 {
+		t.Errorf("dep-good health = %+v, want closed with error rate 0", h)
 	}
 
 	for i := 0; i < reliability.ConsecutiveFailures; i++ {
@@ -663,6 +693,108 @@ func TestStreamOutcomesFeedHealth(t *testing.T) {
 	}
 	if after := e.count("ub;fail=http500"); after != before {
 		t.Errorf("open breaker still sent %d stream requests upstream", after-before)
+	}
+	if !strings.Contains(e.logs.String(), "attempts=1") {
+		t.Errorf("log line missing attempts=1: %s", e.logs.String())
+	}
+}
+
+func TestLongRetryAfterTripsWithoutAFollowUpAttempt(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	var mu sync.Mutex
+	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	const upstream = "ua;fail=http429;retry_after=30"
+	e := newAttemptEnv(t, attemptOpts{
+		clock:  clock,
+		models: []modelSpec{{id: "m", deps: []depSpec{{"dep-a", upstream}}}},
+	})
+	rec := e.post(chatBody("m", "hi"))
+	if rec.Code < 400 {
+		t.Fatalf("first request: status %d, want an error: %s", rec.Code, rec.Body.String())
+	}
+	if e.gw.health.Available("dep-a") {
+		t.Error("dep-a is available after a 30s Retry-After on the only deployment")
+	}
+	rec = e.post(chatBody("m", "hi again"))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("second request: status %d, want 503: %s", rec.Code, rec.Body.String())
+	}
+	if got := decodeErr(t, rec).Error.Code; got != "no_healthy_deployment" {
+		t.Errorf("code %q, want no_healthy_deployment", got)
+	}
+	if n := e.count(upstream); n != 1 {
+		t.Errorf("dep-a saw %d requests, want 1 (none for the second request)", n)
+	}
+}
+
+func TestShortClientDeadlineDoesNotFeedBreaker(t *testing.T) {
+	for name, body := range map[string]string{
+		"complete": `{"model":"m","messages":[{"role":"user","content":"hi"}],"routepilot":{"timeout_ms":50}}`,
+		"stream":   `{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}],"routepilot":{"timeout_ms":50}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newAttemptEnv(t, attemptOpts{models: []modelSpec{
+				{id: "m", deps: []depSpec{{"dep-a", "ua;fail=stall"}}},
+			}})
+			for i := 0; i < reliability.ConsecutiveFailures; i++ {
+				if rec := e.post(body); rec.Code != http.StatusGatewayTimeout {
+					t.Fatalf("request %d: status %d, want 504: %s", i+1, rec.Code, rec.Body.String())
+				}
+			}
+			if !e.gw.health.Available("dep-a") {
+				t.Error("dep-a is unavailable after short client deadlines, want the breaker closed")
+			}
+			if h := e.gw.health.Snapshot()["dep-a"]; h.State != reliability.Closed || h.ErrorRate != 0 {
+				t.Errorf("dep-a health = %+v, want closed with error rate 0", h)
+			}
+		})
+	}
+}
+
+func TestServerDefaultDeadlineFeedsBreaker(t *testing.T) {
+	for name, body := range map[string]string{
+		"complete": chatBody("m", "hi"),
+		"stream":   streamBody("m"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newAttemptEnv(t, attemptOpts{
+				defaultTimeoutMs: 100,
+				models:           []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua;fail=stall"}}}},
+			})
+			for i := 0; i < reliability.ConsecutiveFailures; i++ {
+				if rec := e.post(body); rec.Code != http.StatusGatewayTimeout {
+					t.Fatalf("request %d: status %d, want 504: %s", i+1, rec.Code, rec.Body.String())
+				}
+			}
+			if e.gw.health.Available("dep-a") {
+				t.Error("dep-a is available after repeated server-default timeouts, want the breaker open")
+			}
+		})
+	}
+}
+
+func TestNoRetryClaimedAfterDeadlinePassedDuringWait(t *testing.T) {
+	e := newAttemptEnv(t, attemptOpts{
+		// The backoff (50ms with Rand=1) fits the 100ms deadline, but the
+		// sleep itself overruns it.
+		sleep: func(ctx context.Context, _ time.Duration) error {
+			<-ctx.Done()
+			return nil
+		},
+		models: []modelSpec{
+			{id: "m", deps: []depSpec{{"dep-a", "ua;fail=http500"}, {"dep-b", "ub"}}},
+		},
+	})
+	body := `{"model":"m","messages":[{"role":"user","content":"hi"}],"routepilot":{"timeout_ms":100}}`
+	rec := e.post(body)
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status %d, want 504: %s", rec.Code, rec.Body.String())
+	}
+	if n := e.count("ub"); n != 0 {
+		t.Errorf("second deployment saw %d requests, want 0", n)
+	}
+	if _, claimed := e.gw.health.Snapshot()["dep-b"]; claimed {
+		t.Error("dep-b was claimed after the deadline passed")
 	}
 	if !strings.Contains(e.logs.String(), "attempts=1") {
 		t.Errorf("log line missing attempts=1: %s", e.logs.String())

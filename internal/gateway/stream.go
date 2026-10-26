@@ -45,6 +45,8 @@ type streamCall struct {
 
 	started bool // the first committing chunk was written, so the status line is sent
 	settled bool // the attempt's health outcome was reported
+
+	attemptStart time.Time // just before the provider call, for settle's elapsed time
 }
 
 // maxHeldChunks caps how many non-committing chunks (such as a role-only
@@ -107,6 +109,7 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 	defer watchdog.Stop()
 	idle := time.Duration(pcfg.IdleTimeoutMs) * time.Millisecond
 
+	c.attemptStart = s.now()
 	stream, err := s.providers[dep.Provider].Stream(attemptCtx, up)
 	if err == nil && stream == nil {
 		err = openai.ErrInternal()
@@ -256,7 +259,7 @@ func (c *streamCall) settle(err error) {
 		return
 	}
 	c.settled = true
-	c.s.settle(c.dep.Name, err)
+	c.s.settle(c.attemptCtx, c.dep.Name, err, c.s.now().Sub(c.attemptStart))
 }
 
 // abort releases the attempt's claim without an outcome, once, because the
