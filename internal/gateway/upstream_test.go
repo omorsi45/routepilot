@@ -3,6 +3,7 @@ package gateway
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -259,5 +260,116 @@ func TestStreamCommittingChunks(t *testing.T) {
 				t.Fatalf("events = %q, want role, %s, [DONE]", events, name)
 			}
 		})
+	}
+}
+
+// The mock-like upstream below returns fields outside the typed subset.
+const completionWithExtras = `{"id":"up","object":"chat.completion","created":1,"model":"up-a",` +
+	`"choices":[{"index":0,"message":{"role":"assistant","content":null,"refusal":"I cannot help with that"},"finish_reason":"stop"}],` +
+	`"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5,"completion_tokens_details":{"reasoning_tokens":1}},"service_tier":"default"}`
+
+func TestProxyKeepsRefusalAndUsageDetails(t *testing.T) {
+	e := newUpstreamEnv(t, cfgOpts{}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, completionWithExtras)
+	}))
+	rec := do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, chatBody("model-a", "hi"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		Choices []struct {
+			Message map[string]any `json:"message"`
+		} `json:"choices"`
+		Usage       map[string]any `json:"usage"`
+		ServiceTier string         `json:"service_tier"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Choices[0].Message["refusal"] != "I cannot help with that" {
+		t.Errorf("refusal lost: %s", rec.Body.String())
+	}
+	if d, _ := got.Usage["completion_tokens_details"].(map[string]any); d["reasoning_tokens"] != float64(1) {
+		t.Errorf("usage details lost: %s", rec.Body.String())
+	}
+	if got.ServiceTier != "default" {
+		t.Errorf("service_tier lost: %s", rec.Body.String())
+	}
+}
+
+func TestStreamKeepsReasoningContent(t *testing.T) {
+	reasoning := `{"id":"up","object":"chat.completion.chunk","created":1,"model":"up-a","choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning_content":"thinking"},"finish_reason":null}]}`
+	e := newUpstreamEnv(t, cfgOpts{}, sseUpstream(reasoning, contentChunk("answer"), "[DONE]"))
+	resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	events := readAll(t, resp)
+	if len(events) != 3 {
+		t.Fatalf("events = %q, want reasoning chunk, content chunk, [DONE]", events)
+	}
+	if !strings.Contains(events[0], `"reasoning_content":"thinking"`) {
+		t.Errorf("reasoning_content dropped: %s", events[0])
+	}
+}
+
+func TestStreamReasoningOnlyPrefixIsNotCappedAsEmpty(t *testing.T) {
+	// A reasoning model streams many reasoning deltas before any answer. They
+	// carry content, so they commit the response instead of being held.
+	var payloads []string
+	for i := 0; i < maxHeldChunks+10; i++ {
+		payloads = append(payloads, `{"id":"up","object":"chat.completion.chunk","created":1,"model":"up-a","choices":[{"index":0,"delta":{"reasoning_content":"r"},"finish_reason":null}]}`)
+	}
+	payloads = append(payloads, contentChunk("answer"), "[DONE]")
+	e := newUpstreamEnv(t, cfgOpts{}, sseUpstream(payloads...))
+	resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestStreamRefusalNullOnFirstChunkStillHeld(t *testing.T) {
+	// OpenAI's own opener carries "refusal":null; that must not commit.
+	opener := `{"id":"up","object":"chat.completion.chunk","created":1,"model":"up-a","choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"finish_reason":null}]}`
+	e := newUpstreamEnv(t, cfgOpts{}, sseUpstream(opener, "[DONE]"))
+	resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status %d, want 502 (opener alone is not content)", resp.StatusCode)
+	}
+}
+
+func TestProxyForwardsInputAudioPartIntact(t *testing.T) {
+	e := newMockEnv(t, cfgOpts{upstreamA: "m;tokens=2"})
+	body := `{"model":"model-a","messages":[{"role":"user","content":[` +
+		`{"type":"text","text":""},` +
+		`{"type":"input_audio","input_audio":{"data":"AAAA","format":"wav"}},` +
+		`{"type":"file","file":{"file_id":"file-1"}}]}]}`
+	rec := do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var up struct {
+		Messages []struct {
+			Content []map[string]any `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(e.upstream.last(t), &up); err != nil {
+		t.Fatal(err)
+	}
+	parts := up.Messages[0].Content
+	if len(parts) != 3 {
+		t.Fatalf("upstream saw %d parts: %s", len(parts), e.upstream.last(t))
+	}
+	if v, ok := parts[0]["text"]; !ok || v != "" {
+		t.Errorf("empty text part lost its text: %v", parts[0])
+	}
+	audio, _ := parts[1]["input_audio"].(map[string]any)
+	if audio["data"] != "AAAA" || audio["format"] != "wav" {
+		t.Errorf("input_audio stripped: %v", parts[1])
+	}
+	file, _ := parts[2]["file"].(map[string]any)
+	if file["file_id"] != "file-1" {
+		t.Errorf("file part stripped: %v", parts[2])
 	}
 }

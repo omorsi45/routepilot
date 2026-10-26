@@ -89,6 +89,9 @@ type Message struct {
 	Name       string     `json:"name,omitempty"`
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
+
+	// Extra holds unknown fields, preserved on marshal.
+	Extra map[string]json.RawMessage `json:"-"`
 }
 
 // Content is message content: a JSON string, an array of parts, or null.
@@ -102,6 +105,9 @@ type ContentPart struct {
 	Type     string    `json:"type"`
 	Text     string    `json:"text,omitempty"`
 	ImageURL *ImageURL `json:"image_url,omitempty"`
+
+	// Extra holds unknown fields, preserved on marshal.
+	Extra map[string]json.RawMessage `json:"-"`
 }
 
 // ImageURL references an image in a content part.
@@ -179,22 +185,11 @@ func (c Content) HasImage() bool {
 // of its methods, so the custom (un)marshalers can reuse default behavior.
 type requestAlias ChatCompletionRequest
 
-var knownRequestKeys = map[string]struct{}{
-	"model": {}, "messages": {}, "max_tokens": {}, "max_completion_tokens": {},
-	"temperature": {}, "top_p": {}, "n": {}, "stream": {}, "stream_options": {},
-	"stop": {}, "tools": {}, "tool_choice": {}, "response_format": {},
-	"seed": {}, "user": {}, "routepilot": {},
-}
-
-// isKnownRequestKey reports whether k names a known field. encoding/json
-// matches field names case-insensitively, so this uses the same rule.
-func isKnownRequestKey(k string) bool {
-	for known := range knownRequestKeys {
-		if strings.EqualFold(k, known) {
-			return true
-		}
-	}
-	return false
+var requestKeys = keySet{
+	"model", "messages", "max_tokens", "max_completion_tokens",
+	"temperature", "top_p", "n", "stream", "stream_options",
+	"stop", "tools", "tool_choice", "response_format",
+	"seed", "user", "routepilot",
 }
 
 // UnmarshalJSON decodes known fields, rejects unknown fields inside
@@ -219,44 +214,18 @@ func (r *ChatCompletionRequest) UnmarshalJSON(data []byte) error {
 		r.RoutePilot = &opts
 	}
 
-	var all map[string]json.RawMessage
-	if err := json.Unmarshal(data, &all); err != nil {
+	extra, err := collectExtra(data, requestKeys)
+	if err != nil {
 		return err
 	}
-	r.Extra = nil
-	for k, v := range all {
-		if isKnownRequestKey(k) {
-			continue
-		}
-		if r.Extra == nil {
-			r.Extra = make(map[string]json.RawMessage)
-		}
-		r.Extra[k] = append(json.RawMessage(nil), v...)
-	}
+	r.Extra = extra
 	return nil
 }
 
 // MarshalJSON writes known fields followed by Extra. Extra never overrides a
 // known field.
 func (r ChatCompletionRequest) MarshalJSON() ([]byte, error) {
-	known, err := json.Marshal(requestAlias(r))
-	if err != nil {
-		return nil, err
-	}
-	if len(r.Extra) == 0 {
-		return known, nil
-	}
-	merged := make(map[string]json.RawMessage, len(r.Extra)+8)
-	if err := json.Unmarshal(known, &merged); err != nil {
-		return nil, err
-	}
-	for k, v := range r.Extra {
-		if isKnownRequestKey(k) {
-			continue
-		}
-		merged[k] = v
-	}
-	return json.Marshal(merged)
+	return marshalWithExtra(requestAlias(r), r.Extra, requestKeys)
 }
 
 // ParseChatCompletionRequest decodes body and validates it.
@@ -374,12 +343,7 @@ func (r *ChatCompletionRequest) Clone() *ChatCompletionRequest {
 		c.RoutePilot.SLOE2EMs = clonePtr(r.RoutePilot.SLOE2EMs)
 		c.RoutePilot.TimeoutMs = clonePtr(r.RoutePilot.TimeoutMs)
 	}
-	if r.Extra != nil {
-		c.Extra = make(map[string]json.RawMessage, len(r.Extra))
-		for k, v := range r.Extra {
-			c.Extra[k] = cloneRaw(v)
-		}
-	}
+	c.Extra = cloneExtra(r.Extra)
 	return &c
 }
 
@@ -404,11 +368,13 @@ func cloneMessages(in []Message) []Message {
 	}
 	out := make([]Message, len(in))
 	for i, m := range in {
+		m.Extra = cloneExtra(m.Extra)
 		m.Content.Text = clonePtr(m.Content.Text)
 		if m.Content.Parts != nil {
 			parts := make([]ContentPart, len(m.Content.Parts))
 			for j, p := range m.Content.Parts {
 				p.ImageURL = clonePtr(p.ImageURL)
+				p.Extra = cloneExtra(p.Extra)
 				parts[j] = p
 			}
 			m.Content.Parts = parts

@@ -94,7 +94,8 @@ func TestMockCompletionUsage(t *testing.T) {
 	}
 	// 15 content bytes -> ceil(15/4) = 4, plus 4 per message (2) = 12.
 	want := openai.Usage{PromptTokens: 12, CompletionTokens: 5, TotalTokens: 17}
-	if got.Usage == nil || *got.Usage != want {
+	if got.Usage == nil || got.Usage.PromptTokens != want.PromptTokens ||
+		got.Usage.CompletionTokens != want.CompletionTokens || got.Usage.TotalTokens != want.TotalTokens {
 		t.Fatalf("usage = %+v, want %+v", got.Usage, want)
 	}
 	if s := h.Stats(); s.Requests != 1 || s.Completed != 1 || s.Canceled != 0 {

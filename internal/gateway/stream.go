@@ -57,7 +57,8 @@ const maxHeldChunks = 64
 //
 // The response is committed (headers and status 200 sent) at the first
 // committing chunk: one with content text, tool calls, a finish reason, or
-// usage that will be forwarded. Earlier chunks, such as a role-only opener,
+// usage that will be forwarded, or another delta field with a real value such
+// as reasoning_content. Earlier chunks, such as a role-only opener,
 // are held in order (at most maxHeldChunks) and written just before it, and
 // the TTFT watchdog keeps running meanwhile, so time to first token is
 // enforced for every provider.
@@ -189,13 +190,16 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 }
 
 // isCommitting reports whether a chunk carries something worth committing the
-// response for: content text, tool calls, a finish reason, or usage.
+// response for: content text, tool calls, a finish reason, usage, or another
+// real delta field such as reasoning_content (a reasoning model can stream
+// many of those before its first answer token).
 func isCommitting(chunk *openai.ChatCompletionChunk) bool {
 	if chunk.Usage != nil {
 		return true
 	}
 	for _, ch := range chunk.Choices {
-		if ch.FinishReason != nil || len(ch.Delta.ToolCalls) > 0 || (ch.Delta.Content != nil && *ch.Delta.Content != "") {
+		if ch.FinishReason != nil || len(ch.Delta.ToolCalls) > 0 ||
+			(ch.Delta.Content != nil && *ch.Delta.Content != "") || ch.Delta.HasExtraContent() {
 			return true
 		}
 	}
