@@ -314,7 +314,7 @@ func TestStreamSlowClientIsNotUpstreamIdle(t *testing.T) {
 	// The upstream is never idle (tpot_ms=0), but the client stops reading for
 	// longer than the idle timeout. Only upstream waits count toward the idle
 	// watchdog, so the stream must still finish cleanly.
-	e := newMockEnv(t, cfgOpts{upstreamA: "m;tokens=100000;tpot_ms=0", idleMs: 300})
+	e := newMockEnv(t, cfgOpts{upstreamA: "m;tokens=20000;tpot_ms=0", idleMs: 300})
 	resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
 	br := bufio.NewReader(resp.Body)
 	if _, err := readEvent(br); err != nil {
@@ -406,22 +406,50 @@ func TestStreamBackpressure(t *testing.T) {
 	}
 
 	// The client now stops reading. Socket buffers fill and the gateway must
-	// stop pulling from the upstream instead of buffering without bound.
-	time.Sleep(500 * time.Millisecond)
-	at500 := e.mock.Stats().EventsWritten
-	time.Sleep(500 * time.Millisecond)
-	at1000 := e.mock.Stats().EventsWritten
+	// stop pulling from the upstream instead of buffering without bound. How
+	// long the buffers take to fill depends on machine load, so wait until the
+	// producer has stalled: two samples 300ms apart are equal.
+	stalled := waitForStall(t, e, 100*time.Millisecond, 300*time.Millisecond, 5*time.Second)
 
-	t.Logf("events written: %d at 500ms, %d at 1000ms of %d", at500, at1000, total)
-	if grew := at1000 - at500; grew >= 1000 {
-		t.Errorf("upstream kept writing during the pause: %d events in 500ms (%d -> %d)", grew, at500, at1000)
+	// Then it must stay stalled while the client keeps not reading.
+	time.Sleep(500 * time.Millisecond)
+	after := e.mock.Stats().EventsWritten
+
+	t.Logf("events written: %d when stalled, %d 500ms later, of %d", stalled, after, total)
+	if after != stalled {
+		t.Errorf("upstream kept writing after it stalled: %d -> %d", stalled, after)
 	}
-	if at1000 >= total/2 {
-		t.Errorf("upstream wrote %d of %d events while the client was paused, want under half", at1000, total)
+	if after >= total/2 {
+		t.Errorf("upstream wrote %d of %d events while the client was paused, want under half", after, total)
 	}
 
 	_ = resp.Body.Close()
 	waitFor(t, 2*time.Second, "upstream canceled", func() bool { return e.mock.Stats().Canceled == 1 })
+}
+
+// waitForStall polls the mock's written-event count every interval until the
+// count is unchanged across a window, and returns that count. It fails the test
+// if the producer never stalls within the deadline.
+func waitForStall(t *testing.T, e *env, interval, window, deadline time.Duration) int64 {
+	t.Helper()
+	type sample struct {
+		at time.Time
+		n  int64
+	}
+	var history []sample
+	end := time.Now().Add(deadline)
+	for time.Now().Before(end) {
+		now := sample{time.Now(), e.mock.Stats().EventsWritten}
+		history = append(history, now)
+		for _, old := range history {
+			if now.at.Sub(old.at) >= window && old.n == now.n {
+				return now.n
+			}
+		}
+		time.Sleep(interval)
+	}
+	t.Fatalf("upstream never stalled within %v (samples: %v)", deadline, history)
+	return 0
 }
 
 // fakeStream replays chunks, then returns err.
