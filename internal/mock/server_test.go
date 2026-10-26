@@ -501,3 +501,144 @@ func TestDistSampleMedian(t *testing.T) {
 		t.Fatalf("fraction below median = %.3f, want about 0.5", frac)
 	}
 }
+
+func TestMockMidstreamFailAfterExceedsEventCount(t *testing.T) {
+	h, srv := newServer(t, Config{Seed: 1})
+	// 3 tokens give role + 3 + finish = 5 chunk events, far fewer than 20.
+	resp := mustPost(t, srv.URL, chatBody("m;fail=midstream;fail_after=20;tokens=3;ttft_ms=0;tpot_ms=0", `,"stream":true`), nil)
+	events, err := readEvents(t, resp.Body)
+	if err == nil {
+		t.Fatal("expected the connection to break before [DONE]")
+	}
+	for _, ev := range events {
+		if ev.IsDone() {
+			t.Fatal("must not send [DONE]")
+		}
+	}
+	if len(events) != 5 {
+		t.Fatalf("got %d events, want all 5 chunk events before the break", len(events))
+	}
+	waitFor(t, "stats", func() bool { return h.Stats().EventsWritten == 5 })
+	if s := h.Stats(); s.Completed != 0 {
+		t.Fatalf("stats = %+v, a broken stream must not count as completed", s)
+	}
+}
+
+func TestMockMidstreamNonStreamTruncatesBody(t *testing.T) {
+	h, srv := newServer(t, Config{Seed: 1})
+	resp := mustPost(t, srv.URL, chatBody("m;fail=midstream;tokens=20;ttft_ms=0;tpot_ms=0", ""), nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 headers before the break", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("content-type = %q", ct)
+	}
+	if resp.ContentLength <= 0 {
+		t.Fatalf("content-length = %d, want the full body length announced", resp.ContentLength)
+	}
+	got, err := io.ReadAll(resp.Body)
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("read err = %v, want unexpected EOF", err)
+	}
+	if len(got) == 0 || int64(len(got)) >= resp.ContentLength {
+		t.Fatalf("read %d of %d bytes, want a partial body", len(got), resp.ContentLength)
+	}
+	if s := h.Stats(); s.Completed != 0 {
+		t.Fatalf("stats = %+v, a truncated response must not count as completed", s)
+	}
+}
+
+func TestMockPromptTokensCountsTextBytesDirectly(t *testing.T) {
+	_, srv := newServer(t, Config{Seed: 1})
+	// Text bytes: "abcd"+"efgh" (parts, image ignored) + "abcd" = 12, so
+	// ceil(12/4) = 3, plus 4 per message = 8. Joining parts with "\n" would
+	// wrongly count 13 bytes and give 4.
+	body := `{"model":"m;tokens=1;ttft_ms=0;tpot_ms=0","messages":[` +
+		`{"role":"user","content":[{"type":"text","text":"abcd"},` +
+		`{"type":"image_url","image_url":{"url":"http://example.test/i.png"}},` +
+		`{"type":"text","text":"efgh"}]},` +
+		`{"role":"assistant","content":"abcd"}]}`
+	resp := mustPost(t, srv.URL, body, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	var got openai.ChatCompletion
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Usage == nil || got.Usage.PromptTokens != 11 || got.Usage.TotalTokens != 12 {
+		t.Fatalf("usage = %+v, want prompt 11 and total 12", got.Usage)
+	}
+}
+
+func TestNewHandlerRejectsInvalidFailRates(t *testing.T) {
+	cases := []struct {
+		name  string
+		rates map[string]float64
+		want  string
+	}{
+		{"unknown key", map[string]float64{"http599": 0.1}, "http599"},
+		{"negative", map[string]float64{"http500": -0.1}, "http500"},
+		{"above one", map[string]float64{"http500": 1.5}, "http500"},
+		{"nan", map[string]float64{"http500": math.NaN()}, "http500"},
+		{"sum above one", map[string]float64{"http500": 0.6, "reset": 0.6}, "sum"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r == nil {
+					t.Fatal("expected a panic for invalid config")
+				}
+				if msg := fmt.Sprint(r); !strings.Contains(msg, tc.want) {
+					t.Fatalf("panic %q does not mention %q", msg, tc.want)
+				}
+			}()
+			NewHandler(Config{FailRates: tc.rates})
+		})
+	}
+}
+
+func TestNewHandlerCopiesFailRates(t *testing.T) {
+	rates := map[string]float64{"http500": 1}
+	_, srv := newServer(t, Config{Seed: 1, FailRates: rates})
+	rates["http500"] = 0 // caller mutates after construction
+	resp := mustPost(t, srv.URL, chatBody("m", ""), nil)
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 from the rates captured at construction", resp.StatusCode)
+	}
+}
+
+func TestMockStreamTokenSpacing(t *testing.T) {
+	_, srv := newServer(t, Config{Seed: 1})
+	resp := mustPost(t, srv.URL, chatBody("m;tokens=3;ttft_ms=0;tpot_ms=100", `,"stream":true`), nil)
+	sr := openai.NewSSEReader(resp.Body, 0)
+	var first, last time.Time
+	contentEvents := 0
+	for {
+		ev, err := sr.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ev.IsDone() {
+			break
+		}
+		var c openai.ChatCompletionChunk
+		if err := json.Unmarshal(ev.Data, &c); err != nil {
+			t.Fatal(err)
+		}
+		if first.IsZero() {
+			first = time.Now()
+		}
+		if len(c.Choices) > 0 && c.Choices[0].Delta.Content != nil && *c.Choices[0].Delta.Content != "" {
+			contentEvents++
+			last = time.Now()
+		}
+	}
+	if contentEvents != 3 {
+		t.Fatalf("content events = %d, want 3", contentEvents)
+	}
+	if d := last.Sub(first); d < 190*time.Millisecond || d >= 400*time.Millisecond {
+		t.Fatalf("first data event to last content event = %v, want [190ms, 400ms)", d)
+	}
+}

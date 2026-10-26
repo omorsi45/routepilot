@@ -59,7 +59,8 @@ type Config struct {
 	Seed int64
 	// TTFT is the time to first token distribution.
 	TTFT Dist
-	// TPOT is the time per output token distribution.
+	// TPOT is the time per output token distribution, sampled once per
+	// request; inter-token gaps within one stream are constant.
 	TPOT Dist
 	// OutputTokens is the default completion length; 0 means 16.
 	OutputTokens int
@@ -72,8 +73,9 @@ type Config struct {
 type Stats struct {
 	// Requests counts chat completion requests received.
 	Requests int64
-	// Completed counts successful responses written in full (a stream counts
-	// once [DONE] is written).
+	// Completed counts only successful responses fully written: a unary body
+	// written and flushed, or a stream whose [DONE] is written. Injected
+	// failures, broken responses, and canceled requests are not counted.
 	Completed int64
 	// Canceled counts requests interrupted by client cancellation or a write error.
 	Canceled int64
@@ -94,16 +96,35 @@ type Handler struct {
 	events    atomic.Int64
 }
 
-// NewHandler returns a Handler for cfg.
+// NewHandler returns a Handler for cfg. It copies cfg.FailRates and panics
+// with a descriptive message when the rates are invalid (an unknown fail key,
+// a rate outside [0,1], or rates summing above 1), since that is a
+// programming error in the caller's config.
 func NewHandler(cfg Config) *Handler {
 	if cfg.OutputTokens <= 0 {
 		cfg.OutputTokens = defaultOutputTokens
 	}
 	keys := make([]string, 0, len(cfg.FailRates))
-	for k := range cfg.FailRates {
+	rates := make(map[string]float64, len(cfg.FailRates))
+	for k, v := range cfg.FailRates {
 		keys = append(keys, k)
+		rates[k] = v
 	}
 	sort.Strings(keys)
+	sum := 0.0
+	for _, k := range keys {
+		if !validFail(k) {
+			panic(fmt.Sprintf("mock: FailRates key %q is not a known failure mode", k))
+		}
+		if v := rates[k]; !(v >= 0 && v <= 1) {
+			panic(fmt.Sprintf("mock: FailRates[%q] = %v is outside [0,1]", k, v))
+		}
+		sum += rates[k]
+	}
+	if sum > 1+1e-9 {
+		panic(fmt.Sprintf("mock: FailRates sum %v exceeds 1", sum))
+	}
+	cfg.FailRates = rates
 	return &Handler{
 		cfg:      cfg,
 		failKeys: keys,
@@ -155,7 +176,9 @@ func methodNotAllowed(w http.ResponseWriter, allow string) {
 
 // plan is the per-request outcome of the seeded RNG: the injected failure (if
 // any) and the sampled latencies. All three draws always happen, in this
-// order, so one request consumes the same randomness whatever its directives.
+// order. Randomness consumption depends only on the handler config (Dist
+// parameters), never on a request's directives, so a directive does not shift
+// the draws seen by later requests.
 type plan struct {
 	fail string
 	ttft time.Duration
@@ -208,6 +231,7 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := h.plan(d)
+	prompt := promptTokens(req)
 	tokens := h.cfg.OutputTokens
 	if d.tokens != nil {
 		tokens = *d.tokens
@@ -239,9 +263,9 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 		id:    fmt.Sprintf("chatcmpl-mock-%d", h.nextID.Add(1)),
 		model: model, created: time.Now().Unix(), tokens: tokens, p: p, d: d,
 		usage: openai.Usage{
-			PromptTokens:     promptTokens(req),
+			PromptTokens:     prompt,
 			CompletionTokens: tokens,
-			TotalTokens:      promptTokens(req) + tokens,
+			TotalTokens:      prompt + tokens,
 		},
 	}
 	if req.Stream {
@@ -251,11 +275,19 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// promptTokens is ceil(total text bytes / 4) plus 4 per message.
+// promptTokens is ceil(total text bytes / 4) plus 4 per message. Text bytes
+// are the string content plus every text part, with no separators.
 func promptTokens(req *openai.ChatCompletionRequest) int {
 	bytes := 0
 	for _, m := range req.Messages {
-		bytes += len(m.Content.PlainText())
+		if m.Content.Text != nil {
+			bytes += len(*m.Content.Text)
+		}
+		for _, p := range m.Content.Parts {
+			if p.Type == "text" {
+				bytes += len(p.Text)
+			}
+		}
 	}
 	return (bytes+3)/4 + 4*len(req.Messages)
 }
@@ -355,7 +387,15 @@ func (s *respState) unary() {
 		return
 	}
 	s.w.Header().Set("Content-Type", "application/json")
+	if s.p.fail == failMidstream {
+		s.breakUnary(b)
+		return
+	}
 	if _, err := s.w.Write(b); err != nil {
+		s.cancel()
+		return
+	}
+	if err := s.rc.Flush(); err != nil {
 		s.cancel()
 		return
 	}
@@ -433,7 +473,8 @@ func (s *respState) stream(includeUsage bool) {
 			return
 		}
 	}
-	if midstream && written >= s.d.failAfter {
+	if midstream {
+		// The budget was never spent, so break before [DONE].
 		s.disconnect()
 		return
 	}
@@ -442,6 +483,22 @@ func (s *respState) stream(includeUsage bool) {
 		return
 	}
 	s.h.completed.Add(1)
+}
+
+// breakUnary announces the full body length, sends 200 and about half the
+// body, then drops the connection so the client sees an unexpected EOF.
+func (s *respState) breakUnary(body []byte) {
+	s.w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	s.w.WriteHeader(http.StatusOK)
+	if _, err := s.w.Write(body[:len(body)/2]); err != nil {
+		s.cancel()
+		return
+	}
+	if err := s.rc.Flush(); err != nil {
+		s.cancel()
+		return
+	}
+	s.disconnect()
 }
 
 // disconnect drops the connection without terminating the chunked body.
