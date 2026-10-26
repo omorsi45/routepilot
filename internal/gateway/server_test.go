@@ -41,6 +41,8 @@ type cfgOpts struct {
 	tenantAMaxMs  int
 	serverDefault int
 	serverMax     int
+	ttftMs        int // provider ttft_timeout_ms; 0 keeps the config default
+	idleMs        int // provider idle_timeout_ms; 0 keeps the config default
 }
 
 // buildConfig returns a parsed config with two models and two tenants:
@@ -68,7 +70,7 @@ func buildConfig(t *testing.T, o cfgOpts) *config.Config {
   - name: mockp
     type: openaicompat
     base_url: %q
-models:
+%smodels:
   - id: model-a
     deployments:
       - name: dep-a
@@ -87,12 +89,24 @@ tenants:
   - id: tenant-b
     api_key_sha256: %s
     allowed_models: ["model-a"]
-`, o.baseURL, o.upstreamA, keyHash(keyA), o.tenantAMaxMs, keyHash(keyB))
+`, o.baseURL, providerTimeouts(o), o.upstreamA, keyHash(keyA), o.tenantAMaxMs, keyHash(keyB))
 	cfg, err := config.Parse([]byte(sb.String()))
 	if err != nil {
 		t.Fatalf("parse test config: %v", err)
 	}
 	return cfg
+}
+
+// providerTimeouts renders the optional provider timeout lines.
+func providerTimeouts(o cfgOpts) string {
+	var sb strings.Builder
+	if o.ttftMs > 0 {
+		fmt.Fprintf(&sb, "    ttft_timeout_ms: %d\n", o.ttftMs)
+	}
+	if o.idleMs > 0 {
+		fmt.Fprintf(&sb, "    idle_timeout_ms: %d\n", o.idleMs)
+	}
+	return sb.String()
 }
 
 // recorder captures upstream request bodies seen by a wrapped handler.
@@ -151,14 +165,18 @@ func newMockEnv(t *testing.T, o cfgOpts) *env {
 // fakeProvider implements provider.Provider with a function.
 type fakeProvider struct {
 	complete func(ctx context.Context, req *openai.ChatCompletionRequest) (*openai.ChatCompletion, error)
+	stream   func(ctx context.Context, req *openai.ChatCompletionRequest) (provider.Stream, error)
 }
 
 func (f *fakeProvider) Complete(ctx context.Context, req *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
 	return f.complete(ctx, req)
 }
 
-func (f *fakeProvider) Stream(context.Context, *openai.ChatCompletionRequest) (provider.Stream, error) {
-	return nil, fmt.Errorf("fake: stream not implemented")
+func (f *fakeProvider) Stream(ctx context.Context, req *openai.ChatCompletionRequest) (provider.Stream, error) {
+	if f.stream == nil {
+		return nil, fmt.Errorf("fake: stream not implemented")
+	}
+	return f.stream(ctx, req)
 }
 
 func newFakeGateway(t *testing.T, o cfgOpts, p provider.Provider) (*Server, *bytes.Buffer) {
@@ -336,22 +354,6 @@ func TestModelErrors(t *testing.T) {
 	}
 	if e.mock.Stats().Requests != 0 {
 		t.Errorf("rejected requests reached the upstream: %d", e.mock.Stats().Requests)
-	}
-}
-
-func TestStreamingNotYetSupported(t *testing.T) {
-	e := newMockEnv(t, cfgOpts{})
-	body := `{"model":"model-a","stream":true,"messages":[{"role":"user","content":"hi"}]}`
-	rec := do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, body)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status %d, want 400", rec.Code)
-	}
-	got := decodeErr(t, rec)
-	if got.Error.Message != "streaming not yet supported" || got.Error.Param == nil || *got.Error.Param != "stream" {
-		t.Errorf("unexpected error: %+v", got.Error)
-	}
-	if e.mock.Stats().Requests != 0 {
-		t.Error("streaming request reached the upstream")
 	}
 }
 

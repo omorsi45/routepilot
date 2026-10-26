@@ -13,12 +13,7 @@ import (
 // proxyComplete sends a non-streaming request to the model's first
 // deployment and writes the response or a mapped error.
 func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *reqState, r *http.Request, req *openai.ChatCompletionRequest, model config.ModelConfig) {
-	dep := model.Deployments[0]
-	rs.deployment = dep.Name
-
-	up := req.Clone()
-	up.Model = dep.UpstreamModel
-	up.RoutePilot = nil
+	dep, up := s.prepareUpstream(rs, req, model)
 
 	resp, err := s.providers[dep.Provider].Complete(ctx, up)
 	if err == nil && resp == nil {
@@ -38,9 +33,26 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 	if resp.Created == 0 {
 		resp.Created = s.now().Unix()
 	}
-	w.Header().Set("x-routepilot-model", model.ID)
-	w.Header().Set("x-routepilot-deployment", dep.Name)
+	setRouteHeaders(w, model.ID, dep.Name)
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// prepareUpstream selects the model's deployment, records it for the request
+// log, and builds the request to send upstream.
+func (s *Server) prepareUpstream(rs *reqState, req *openai.ChatCompletionRequest, model config.ModelConfig) (config.DeploymentConfig, *openai.ChatCompletionRequest) {
+	dep := model.Deployments[0]
+	rs.deployment = dep.Name
+
+	up := req.Clone()
+	up.Model = dep.UpstreamModel
+	up.RoutePilot = nil
+	return dep, up
+}
+
+// setRouteHeaders tells the client which model and deployment served it.
+func setRouteHeaders(w http.ResponseWriter, modelID, deployment string) {
+	w.Header().Set("x-routepilot-model", modelID)
+	w.Header().Set("x-routepilot-deployment", deployment)
 }
 
 // mapUpstreamError converts a provider failure into the error to send. It

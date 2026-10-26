@@ -92,21 +92,13 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 		return
 	}
 
-	// Task 9 replaces this seam with the streaming path. It sits before the
-	// deadline and deployment selection because the stream path owns both.
-	if req.Stream {
-		s.serveStream(w, rs, r, tenant, req, model)
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), s.deadline(tenant, req))
 	defer cancel()
+	if req.Stream {
+		s.proxyStream(ctx, w, rs, r, req, model)
+		return
+	}
 	s.proxyComplete(ctx, w, rs, r, req, model)
-}
-
-// serveStream handles stream:true requests. Streaming is not implemented yet.
-func (s *Server) serveStream(w http.ResponseWriter, rs *reqState, _ *http.Request, _ *config.TenantConfig, _ *openai.ChatCompletionRequest, _ config.ModelConfig) {
-	s.fail(w, rs, openai.ErrInvalidRequest("streaming not yet supported", "stream"))
 }
 
 // deadline is the request timeout: routepilot.timeout_ms if set, else the

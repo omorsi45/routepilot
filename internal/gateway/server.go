@@ -28,8 +28,10 @@ type Options struct {
 type Server struct {
 	cfg       *config.Config
 	providers map[string]provider.Provider
-	logger    *slog.Logger
-	now       func() time.Time
+	// providerCfgs holds the configured timeouts, keyed by provider name.
+	providerCfgs map[string]config.ProviderConfig
+	logger       *slog.Logger
+	now          func() time.Time
 }
 
 // New builds a Server. Every deployment's provider must exist in providers.
@@ -45,6 +47,10 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 		}
 	}
 	s := &Server{cfg: cfg, providers: providers, logger: opts.Logger, now: opts.Now}
+	s.providerCfgs = make(map[string]config.ProviderConfig, len(cfg.Providers))
+	for _, p := range cfg.Providers {
+		s.providerCfgs[p.Name] = p
+	}
 	if s.logger == nil {
 		s.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
@@ -98,6 +104,15 @@ func (w *statusWriter) Flush() {
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+// FlushError flushes and reports the failure, which http.ResponseController
+// prefers over Flush. The stream path relies on it to notice a dead client.
+func (w *statusWriter) FlushError() error {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return http.NewResponseController(w.ResponseWriter).Flush()
 }
 
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
