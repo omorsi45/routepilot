@@ -232,12 +232,72 @@ func TestTranslateInvalidMessages(t *testing.T) {
 		"image from assistant": {textMsg("user", "hi"), {Role: "assistant", Content: openai.Content{Parts: []openai.ContentPart{
 			{Type: "image_url", ImageURL: &openai.ImageURL{URL: "https://example.com/a.png"}}}}}},
 		"only system": {textMsg("system", "s")},
-		"empty user":  {textMsg("user", "")},
+		// Empty turns are skipped, so a request with nothing left is still a 400.
+		"only empty user":      {textMsg("user", "")},
+		"only refusal turn":    {{Role: "assistant", Content: openai.Content{Parts: []openai.ContentPart{{Type: "refusal"}}}}},
+		"empty then null user": {textMsg("user", ""), {Role: "assistant"}},
 	}
 	for name, msgs := range cases {
 		t.Run(name, func(t *testing.T) {
 			mustInvalid(t, &openai.ChatCompletionRequest{Model: "m", Messages: msgs}, "messages")
 		})
+	}
+}
+
+func roles(t *testing.T, got map[string]any) []string {
+	t.Helper()
+	var out []string
+	for _, m := range got["messages"].([]any) {
+		out = append(out, m.(map[string]any)["role"].(string))
+	}
+	return out
+}
+
+func TestTranslateSkipsEmptyTurns(t *testing.T) {
+	cases := map[string][]openai.Message{
+		"empty assistant string": {
+			textMsg("user", "one"), textMsg("assistant", ""), textMsg("user", "two")},
+		"null assistant content": {
+			textMsg("user", "one"), {Role: "assistant"}, textMsg("user", "two")},
+		"refusal-only assistant": {
+			textMsg("user", "one"),
+			{Role: "assistant", Content: openai.Content{Parts: []openai.ContentPart{{Type: "refusal"}}}},
+			textMsg("user", "two")},
+	}
+	for name, msgs := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := mustTranslate(t, &openai.ChatCompletionRequest{Model: "m", Messages: msgs})
+			if r := roles(t, got); !reflect.DeepEqual(r, []string{"user", "user"}) {
+				t.Errorf("roles = %v, want [user user]", r)
+			}
+		})
+	}
+}
+
+func TestTranslateDropsRefusalPartKeepsText(t *testing.T) {
+	got := mustTranslate(t, &openai.ChatCompletionRequest{Model: "m", Messages: []openai.Message{
+		textMsg("user", "hi"),
+		{Role: "assistant", Content: openai.Content{Parts: []openai.ContentPart{
+			{Type: "refusal"}, {Type: "text", Text: "partial"}}}},
+	}})
+	msgs := got["messages"].([]any)
+	if len(msgs) != 2 {
+		t.Fatalf("got %d messages, want 2: %v", len(msgs), msgs)
+	}
+	blocks := msgs[1].(map[string]any)["content"].([]any)
+	if len(blocks) != 1 || blocks[0].(map[string]any)["text"] != "partial" {
+		t.Errorf("blocks = %v, want one text block", blocks)
+	}
+}
+
+func TestTranslateNullParametersGetDefaultSchema(t *testing.T) {
+	got := mustTranslate(t, &openai.ChatCompletionRequest{
+		Model: "m", Messages: []openai.Message{textMsg("user", "hi")},
+		Tools: []openai.Tool{{Type: "function", Function: openai.FunctionDef{Name: "ping", Parameters: json.RawMessage(` null `)}}},
+	})
+	schema := got["tools"].([]any)[0].(map[string]any)["input_schema"]
+	if !reflect.DeepEqual(schema, map[string]any{"type": "object", "properties": map[string]any{}}) {
+		t.Errorf("input_schema = %#v", schema)
 	}
 }
 

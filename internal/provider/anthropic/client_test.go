@@ -411,6 +411,67 @@ func TestStreamToolFixture(t *testing.T) {
 	}
 }
 
+func TestStreamZeroInputToolGetsEmptyObjectArguments(t *testing.T) {
+	body := "event: message_start\n" +
+		`data: {"type":"message_start","message":{"id":"msg_1","model":"m","usage":{"input_tokens":1}}}` + "\n\n" +
+		"event: content_block_start\n" +
+		`data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"ping","input":{}}}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}}` + "\n\n" +
+		"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n" +
+		"event: content_block_start\n" +
+		`data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_2","name":"pong","input":{}}}` + "\n\n" +
+		"event: content_block_delta\n" +
+		`data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"a\":1}"}}` + "\n\n" +
+		"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\n" +
+		"event: message_delta\n" +
+		`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":4}}` + "\n\n" +
+		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+	srv := sseServer(t, body)
+	defer srv.Close()
+	st, err := newClient(srv.URL, "k").Stream(context.Background(), newReq("m"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	args := map[int]*strings.Builder{}
+	for _, ch := range drain(t, st) {
+		for _, c := range ch.Choices {
+			for _, tc := range c.Delta.ToolCalls {
+				if args[*tc.Index] == nil {
+					args[*tc.Index] = &strings.Builder{}
+				}
+				args[*tc.Index].WriteString(tc.Function.Arguments)
+			}
+		}
+	}
+	if len(args) != 2 || args[0].String() != "{}" || args[1].String() != `{"a":1}` {
+		t.Errorf("arguments = %q / %q, want {} and {\"a\":1}", args[0], args[1])
+	}
+}
+
+func TestStreamMessageDeltaWithoutUsageKeepsOutputTokens(t *testing.T) {
+	body := "event: message_start\n" +
+		`data: {"type":"message_start","message":{"id":"msg_1","model":"m","usage":{"input_tokens":2}}}` + "\n\n" +
+		"event: message_delta\n" +
+		`data: {"type":"message_delta","delta":{},"usage":{"output_tokens":7}}` + "\n\n" +
+		"event: message_delta\n" +
+		`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}` + "\n\n" +
+		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+	srv := sseServer(t, body)
+	defer srv.Close()
+	st, err := newClient(srv.URL, "k").Stream(context.Background(), newReq("m"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	chunks := drain(t, st)
+	u := chunks[len(chunks)-1].Usage
+	if u == nil || u.CompletionTokens != 7 || u.TotalTokens != 9 {
+		t.Errorf("usage = %+v, want completion 7 total 9", u)
+	}
+}
+
 func TestStreamErrorEvent(t *testing.T) {
 	body := "event: message_start\n" +
 		`data: {"type":"message_start","message":{"id":"msg_1","model":"m","usage":{"input_tokens":1}}}` + "\n\n" +

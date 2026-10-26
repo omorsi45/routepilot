@@ -76,7 +76,7 @@ func translateRequest(req *openai.ChatCompletionRequest) (*messagesRequest, *ope
 	// lastIsToolResults is true while the final output message is a user turn
 	// made only of tool results, so a following tool message joins it.
 	lastIsToolResults := false
-	for i, m := range req.Messages {
+	for _, m := range req.Messages {
 		param := "messages"
 		switch m.Role {
 		case "system", "developer":
@@ -96,8 +96,12 @@ func translateRequest(req *openai.ChatCompletionRequest) (*messagesRequest, *ope
 				}
 				blocks = append(blocks, calls...)
 			}
+			// Turns with nothing to send (empty string, null content, refusal
+			// only) are skipped: Anthropic rejects empty messages, and an
+			// OpenAI client may legitimately echo one back.
 			if len(blocks) == 0 {
-				return nil, openai.ErrInvalidRequest(fmt.Sprintf("messages[%d] has no content", i), param)
+				lastIsToolResults = false
+				continue
 			}
 			out.Messages = append(out.Messages, message{Role: m.Role, Content: blocks})
 			lastIsToolResults = false
@@ -143,6 +147,8 @@ func contentBlocks(m openai.Message) ([]block, *openai.APIError) {
 	var blocks []block
 	for _, p := range m.Content.Parts {
 		switch {
+		case p.Type == "refusal":
+			// Dropped: Anthropic has no equivalent, and echoing it back is harmless.
 		case p.Type == "text":
 			if p.Text != "" {
 				blocks = append(blocks, block{Type: "text", Text: p.Text})
@@ -229,8 +235,8 @@ func translateTools(in []openai.Tool) ([]tool, *openai.APIError) {
 		if t.Type != "function" {
 			return nil, openai.ErrInvalidRequest(fmt.Sprintf("unsupported tool type %q", t.Type), "tools")
 		}
-		schema := t.Function.Parameters
-		if len(bytes.TrimSpace(schema)) == 0 {
+		schema := bytes.TrimSpace(t.Function.Parameters)
+		if len(schema) == 0 || bytes.Equal(schema, []byte("null")) {
 			schema = json.RawMessage(`{"type":"object","properties":{}}`)
 		}
 		out = append(out, tool{Name: t.Function.Name, Description: t.Function.Description, InputSchema: schema})
@@ -372,11 +378,12 @@ type streamTranslator struct {
 	promptTokens int
 	outputTokens int
 	toolCount    int
-	toolIndex    map[int]int // content block index -> tool call index
+	toolIndex    map[int]int  // content block index -> tool call index
+	toolHasArgs  map[int]bool // content block index -> argument bytes were emitted
 }
 
 func newStreamTranslator() *streamTranslator {
-	return &streamTranslator{toolIndex: map[int]int{}}
+	return &streamTranslator{toolIndex: map[int]int{}, toolHasArgs: map[int]bool{}}
 }
 
 // handle processes one event. It returns the chunk to emit (nil for none) and
@@ -450,22 +457,44 @@ func (s *streamTranslator) handle(name string, data []byte) (chunk *openai.ChatC
 			if ev.Delta.PartialJSON == "" {
 				return nil, false, nil
 			}
+			s.toolHasArgs[ev.Index] = true
 			call := openai.ToolCall{Index: &idx, Function: openai.FunctionCall{Arguments: ev.Delta.PartialJSON}}
 			return s.chunk(openai.Delta{ToolCalls: []openai.ToolCall{call}}, nil), false, nil
 		}
 		return nil, false, nil
+
+	case "content_block_stop":
+		var ev struct {
+			Index int `json:"index"`
+		}
+		if perr := decodeEvent(name, data, &ev); perr != nil {
+			return nil, false, perr
+		}
+		idx, ok := s.toolIndex[ev.Index]
+		if !ok || s.toolHasArgs[ev.Index] {
+			return nil, false, nil
+		}
+		// A tool_use with no input streams no argument bytes; the
+		// non-streaming path returns {}, so emit the same here.
+		s.toolHasArgs[ev.Index] = true
+		call := openai.ToolCall{Index: &idx, Function: openai.FunctionCall{Arguments: "{}"}}
+		return s.chunk(openai.Delta{ToolCalls: []openai.ToolCall{call}}, nil), false, nil
 
 	case "message_delta":
 		var ev struct {
 			Delta struct {
 				StopReason string `json:"stop_reason"`
 			} `json:"delta"`
-			Usage usage `json:"usage"`
+			Usage struct {
+				OutputTokens *int `json:"output_tokens"`
+			} `json:"usage"`
 		}
 		if perr := decodeEvent(name, data, &ev); perr != nil {
 			return nil, false, perr
 		}
-		s.outputTokens = ev.Usage.OutputTokens
+		if ev.Usage.OutputTokens != nil {
+			s.outputTokens = *ev.Usage.OutputTokens
+		}
 		if ev.Delta.StopReason == "" {
 			return nil, false, nil
 		}
