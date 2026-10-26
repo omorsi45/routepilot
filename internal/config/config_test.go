@@ -226,6 +226,9 @@ func TestExampleConfigLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+	if got := cfg.Server.Listen; got != "127.0.0.1:8080" {
+		t.Errorf("example listen = %q, want loopback 127.0.0.1:8080", got)
+	}
 	for _, id := range []string{"mock-small", "mock-large", "qwen3-1.7b"} {
 		if _, ok := cfg.Model(id); !ok {
 			t.Errorf("example config missing model %q", id)

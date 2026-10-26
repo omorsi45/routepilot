@@ -3,6 +3,11 @@
 # Start the mock upstream on 127.0.0.1:9090 and/or Ollama on 127.0.0.1:11434,
 # then run: routepilot serve --config examples/config.local.yaml
 
+# The gateway speaks plaintext HTTP, so this example binds loopback only.
+# Do not change it to ":8080" or "0.0.0.0:8080" without TLS in front.
+server:
+  listen: "127.0.0.1:8080"
+
 providers:
   - name: mock
     type: openaicompat
