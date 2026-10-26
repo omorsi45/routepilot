@@ -142,7 +142,9 @@ func (b *Breaker) Record(success bool) {
 			return
 		}
 		b.openFor = min(b.openFor*2, MaxOpenFor)
-		b.openUntil = now.Add(b.openFor)
+		if until := now.Add(b.openFor); until.After(b.openUntil) {
+			b.openUntil = until // never shorten a longer quarantine
+		}
 		return
 	}
 
@@ -165,7 +167,8 @@ func (b *Breaker) Record(success bool) {
 }
 
 // Trip forces the breaker open until at least d from now. It never shortens an
-// existing open period and does not change the doubling sequence.
+// existing open period and does not change the doubling sequence. A probe in
+// flight is superseded and its outcome is ignored.
 func (b *Breaker) Trip(d time.Duration) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -180,6 +183,9 @@ func (b *Breaker) Trip(d time.Duration) {
 	if until.After(b.openUntil) {
 		b.openUntil = until
 	}
+	// The trip supersedes any in-flight probe: its later Record is ignored
+	// (open, no probe claimed), so it neither closes nor shortens the period.
+	b.probing = false
 }
 
 // State returns Closed, Open, or HalfOpen. HalfOpen means a probe is in flight;

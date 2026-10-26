@@ -164,6 +164,21 @@ func TestBreakerClockMovingBackwardsIsSafe(t *testing.T) {
 	}
 }
 
+func TestBreakerFailuresAfterClockMovedBackStillCount(t *testing.T) {
+	clk := newFakeClock()
+	b := NewBreaker(clk.Now)
+	failN(b, ConsecutiveFailures-2)
+	clk.Advance(-time.Hour)
+	if got := b.State(); got != Closed {
+		t.Fatalf("state after %d failures = %v, want Closed", ConsecutiveFailures-2, got)
+	}
+	failN(b, 2)
+	if got := b.State(); got != Open {
+		t.Fatalf("state after %d consecutive failures across a backwards clock = %v, want Open",
+			ConsecutiveFailures, got)
+	}
+}
+
 func TestBreakerHalfOpenSingleProbe(t *testing.T) {
 	clk := newFakeClock()
 	b := NewBreaker(clk.Now)
@@ -441,4 +456,67 @@ func TestBreakerCloseClearsConsecutiveCount(t *testing.T) {
 	if s := b.State(); s != Closed {
 		t.Fatalf("stale consecutive count survived the close: %v", s)
 	}
+}
+
+// claimProbe opens the breaker, waits out the cooldown, and claims the probe.
+func claimProbe(t *testing.T, clk *fakeClock, b *Breaker) {
+	t.Helper()
+	tripOpen(t, b)
+	clk.Advance(OpenFor)
+	if !b.Allow() {
+		t.Fatal("probe not admitted after the cooldown")
+	}
+	if got := b.State(); got != HalfOpen {
+		t.Fatalf("state with probe in flight = %v, want HalfOpen", got)
+	}
+}
+
+// assertQuarantined checks the breaker is open and unavailable until exactly d
+// from now, then available.
+func assertQuarantined(t *testing.T, clk *fakeClock, b *Breaker, d time.Duration) {
+	t.Helper()
+	if got := b.State(); got != Open {
+		t.Fatalf("state = %v, want Open", got)
+	}
+	clk.Advance(d - time.Nanosecond)
+	if b.Available() || b.Allow() {
+		t.Fatalf("breaker available before the %v quarantine elapsed", d)
+	}
+	if got := b.State(); got != Open {
+		t.Fatalf("state before quarantine elapsed = %v, want Open", got)
+	}
+	clk.Advance(time.Nanosecond)
+	if !b.Available() {
+		t.Fatalf("breaker still unavailable after the %v quarantine", d)
+	}
+}
+
+func TestBreakerTripDuringProbeThenProbeSuccessStaysQuarantined(t *testing.T) {
+	clk := newFakeClock()
+	b := NewBreaker(clk.Now)
+	claimProbe(t, clk, b)
+
+	b.Trip(120 * time.Second)
+	if got := b.State(); got != Open {
+		t.Fatalf("state after Trip during probe = %v, want Open", got)
+	}
+	b.Record(true) // the superseded probe's outcome
+	assertQuarantined(t, clk, b, 120*time.Second)
+}
+
+func TestBreakerTripDuringProbeThenProbeFailureKeepsQuarantine(t *testing.T) {
+	clk := newFakeClock()
+	b := NewBreaker(clk.Now)
+	claimProbe(t, clk, b)
+
+	b.Trip(120 * time.Second)
+	b.Record(false) // the superseded probe's outcome
+	assertQuarantined(t, clk, b, 120*time.Second)
+
+	// The doubling sequence was untouched: the next probe failure gives 20 s.
+	if !b.Allow() {
+		t.Fatal("probe not admitted after the quarantine")
+	}
+	b.Record(false)
+	assertQuarantined(t, clk, b, 2*OpenFor)
 }

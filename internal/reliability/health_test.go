@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -65,8 +66,17 @@ func TestHealthLazyAndIndependent(t *testing.T) {
 	if len(h.Snapshot()) != 0 {
 		t.Fatal("new Health must have no deployments")
 	}
-	if !h.Available("a") || !h.Allow("a") {
+	if !h.Available("a") {
 		t.Fatal("unknown deployment must be available")
+	}
+	if len(h.Snapshot()) != 0 {
+		t.Fatal("Available must not create an entry")
+	}
+	if !h.Allow("a") {
+		t.Fatal("unknown deployment must admit an attempt")
+	}
+	if _, ok := h.Snapshot()["a"]; !ok {
+		t.Fatal("Allow must create the entry")
 	}
 	for i := 0; i < ConsecutiveFailures; i++ {
 		h.Record("a", false)
@@ -77,6 +87,7 @@ func TestHealthLazyAndIndependent(t *testing.T) {
 	if !h.Available("b") {
 		t.Fatal("deployment b must be unaffected")
 	}
+	h.Record("b", true) // b only appears in the snapshot once something is recorded
 	snap := h.Snapshot()
 	if snap["a"].State != Open || snap["a"].ErrorRate != 1 {
 		t.Fatalf("snapshot a = %+v", snap["a"])
@@ -136,9 +147,11 @@ func TestHealthConcurrentUse(t *testing.T) {
 			dep := fmt.Sprintf("dep-%d", g%4)
 			for i := 0; i < 200; i++ {
 				if h.Allow(dep) {
-					h.Record(dep, (g+i)%3 != 0)
-				} else {
-					h.Abort(dep)
+					if i%7 == 0 {
+						h.Abort(dep) // admitted attempt abandoned before being sent
+					} else {
+						h.Record(dep, (g+i)%3 != 0)
+					}
 				}
 				_ = h.Available(dep)
 				if i%50 == 0 {
@@ -152,5 +165,30 @@ func TestHealthConcurrentUse(t *testing.T) {
 	wg.Wait()
 	if len(h.Snapshot()) != 4 {
 		t.Fatalf("expected 4 deployments, got %d", len(h.Snapshot()))
+	}
+
+	// Invariant: once the cooldown elapses, exactly one concurrent caller is
+	// admitted as the half-open probe.
+	h.Trip("probe", OpenFor)
+	clk.Advance(OpenFor)
+	var admitted atomic.Int32
+	start := make(chan struct{})
+	for g := 0; g < 64; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if h.Allow("probe") {
+				admitted.Add(1)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	if got := admitted.Load(); got != 1 {
+		t.Fatalf("%d concurrent callers admitted as probe, want exactly 1", got)
+	}
+	if got := h.Snapshot()["probe"].State; got != HalfOpen {
+		t.Fatalf("state with probe in flight = %v, want HalfOpen", got)
 	}
 }

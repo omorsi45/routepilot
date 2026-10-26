@@ -53,9 +53,15 @@ func (h *Health) entry(deployment string) *healthEntry {
 }
 
 // Available reports whether the deployment would admit an attempt, without
-// claiming anything.
+// claiming anything. It never creates an entry.
 func (h *Health) Available(deployment string) bool {
-	return h.entry(deployment).breaker.Available()
+	h.mu.RLock()
+	e, ok := h.entries[deployment]
+	h.mu.RUnlock()
+	if !ok {
+		return true
+	}
+	return e.breaker.Available()
 }
 
 // Allow claims an attempt on the deployment.
@@ -83,10 +89,10 @@ func (h *Health) Record(deployment string, success bool) {
 	if success {
 		x = 0
 	}
-	now := h.now()
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	now := h.now() // read under e.mu so concurrent Records never see dt < 0
 	if !e.seen {
 		e.rate, e.last, e.seen = x, now, true
 		return
