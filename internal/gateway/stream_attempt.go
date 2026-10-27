@@ -224,6 +224,11 @@ func (a *streamAttempt) clientGone() attemptResult {
 // mistaking it for a complete answer.
 func (a *streamAttempt) fail(err error) attemptResult {
 	c := a.c
+	if !c.started {
+		// No attempt has answered, so usage seen on this one is not the
+		// usage of a response and must not drive a refund (M2-R18).
+		c.rs.usage = nil
+	}
 	if c.r.Context().Err() != nil {
 		c.rs.canceled = true
 		a.abort()

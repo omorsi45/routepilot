@@ -405,9 +405,15 @@ func TestSemaphoreQueuedClientLeaving(t *testing.T) {
 	gw, logs := newAdmissionGateway(t, func(cfg *config.Config) {
 		cfg.Server.MaxInflight, cfg.Server.QueueWaitMs = 1, 5000
 	}, p, quota.Limiters{})
-	defer close(release)
-
-	go chat(gw, keyA, chatBody("model-a", "hi"))
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		chat(gw, keyA, chatBody("model-a", "hi"))
+	}()
+	defer func() {
+		close(release)
+		<-done // join the first request before the test returns
+	}()
 	<-started
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -480,8 +486,17 @@ func TestDisconnectReleasesQuota(t *testing.T) {
 type errLimiters struct {
 	mem   quota.Limiters
 	err   error
-	which string // "requests", "tokens", "concurrency"; anything else never fails
+	which string // "requests", "tokens", "concurrency", "refund", "release"; anything else never fails
 	calls atomic.Int32
+
+	mu       sync.Mutex
+	released []string // lease IDs passed to Release, in call order
+}
+
+func (e *errLimiters) releasedLeases() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string(nil), e.released...)
 }
 
 func (e *errLimiters) limiters() quota.Limiters {
@@ -511,7 +526,9 @@ func (e *errLimiters) Reserve(ctx context.Context, key string, lim quota.RateLim
 }
 
 func (e *errLimiters) Refund(ctx context.Context, key string, lim quota.RateLimit, n int64, now time.Time) error {
-	e.calls.Add(1)
+	if err := e.fail("refund"); err != nil {
+		return err
+	}
 	return e.mem.Tokens.Refund(ctx, key, lim, n, now)
 }
 
@@ -523,7 +540,12 @@ func (e *errLimiters) Acquire(ctx context.Context, key, lease string, limit int,
 }
 
 func (e *errLimiters) Release(ctx context.Context, key, lease string) error {
-	e.calls.Add(1)
+	e.mu.Lock()
+	e.released = append(e.released, lease)
+	e.mu.Unlock()
+	if err := e.fail("release"); err != nil {
+		return err
+	}
 	return e.mem.Concurrency.Release(ctx, key, lease)
 }
 
@@ -567,6 +589,56 @@ func TestLimiterErrorIs503(t *testing.T) {
 	}
 }
 
+// TestConcurrencyAcquireErrorReleasesLease: a reply timeout can follow a script
+// that already took the lease, so the failed Acquire is followed by a Release
+// of the request's lease (absent leases are a no-op in both backends).
+func TestConcurrencyAcquireErrorReleasesLease(t *testing.T) {
+	stub := &errLimiters{mem: quota.NewMemory(), err: errors.New("reply timeout"), which: "concurrency"}
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) { tenantA(cfg).MaxConcurrency = 1 }, okProvider(), stub.limiters())
+
+	rec := chat(gw, keyA, chatBody("model-a", "hi"))
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status %d, want 503: %s", rec.Code, rec.Body.String())
+	}
+	id := rec.Header().Get(requestIDHeader)
+	if got := stub.releasedLeases(); len(got) != 1 || got[0] != id || id == "" {
+		t.Errorf("Release leases = %v, want exactly the request ID %q", got, id)
+	}
+}
+
+// TestFinishFailuresAreLoggedAtWarn: a refund or release that fails after the
+// answer was sent does not change the answer, is logged at warn with its
+// cause, and never logs the API key or its hash.
+func TestFinishFailuresAreLoggedAtWarn(t *testing.T) {
+	for _, which := range []string{"refund", "release"} {
+		t.Run(which, func(t *testing.T) {
+			stub := &errLimiters{mem: quota.NewMemory(), err: errors.New(which + " backend down"), which: which}
+			// Small usage so the refund path runs.
+			p := completionWithUsage(func() *openai.Usage { return &openai.Usage{PromptTokens: 1, CompletionTokens: 1} })
+			gw, logs := newAdmissionGateway(t, func(cfg *config.Config) {
+				tn := tenantA(cfg)
+				tn.MaxConcurrency, tn.TPM, tn.TPMBurst = 1, 1000, 1000
+			}, p, stub.limiters())
+
+			rec := chat(gw, keyA, bodyWithMaxTokens("model-a", maxTokensFor(t, 100), false))
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status %d, want 200 (cleanup failures do not change the answer): %s", rec.Code, rec.Body.String())
+			}
+			out := logs.String()
+			if !strings.Contains(out, "level=WARN") || !strings.Contains(out, which+" backend down") {
+				t.Errorf("%s failure not logged at warn with its cause:\n%s", which, out)
+			}
+			for _, secret := range []string{keyA, keyHash(keyA)} {
+				if strings.Contains(out, secret) {
+					t.Errorf("log leaks a credential:\n%s", out)
+				}
+			}
+		})
+	}
+}
+
 func TestUnlimitedTenantSkipsLimiters(t *testing.T) {
 	stub := &errLimiters{mem: quota.NewMemory(), err: errors.New("must not be called"), which: "none"}
 	gw, _ := newAdmissionGateway(t, nil, okProvider(), stub.limiters())
@@ -602,4 +674,36 @@ func TestRedisBackendEndToEnd(t *testing.T) {
 	// The burst of 2 is spent across both servers.
 	wantRateLimited(t, chat(one, keyA, body), "tenant request rate exceeded", "1")
 	wantRateLimited(t, chat(two, keyA, body), "tenant request rate exceeded", "1")
+}
+
+// TestStreamFailedAttemptUsageIsNotRefunded: a usage-only chunk from the only
+// attempt, which then ends without content, must not be treated as the usage
+// of an answer. No attempt produced a response and the usage is unknown, so
+// the reservation stands (M2-R18).
+func TestStreamFailedAttemptUsageIsNotRefunded(t *testing.T) {
+	released := make(chan struct{})
+	close(released) // the stream ends cleanly right after its chunks
+	p := &fakeProvider{
+		complete: func(context.Context, *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
+			return &openai.ChatCompletion{}, nil
+		},
+		stream: func(context.Context, *openai.ChatCompletionRequest) (provider.Stream, error) {
+			usageOnly := &openai.ChatCompletionChunk{Usage: &openai.Usage{PromptTokens: 10, TotalTokens: 10}}
+			return newGatedStream(released, usageOnly), nil
+		},
+	}
+	lim := quota.NewMemory()
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+		tenantA(cfg).TPM, tenantA(cfg).TPMBurst = 1000, 1000
+	}, p, lim)
+
+	rec := chat(gw, keyA, bodyWithMaxTokens("model-a", maxTokensFor(t, 1000), true))
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status %d, want 502: %s", rec.Code, rec.Body.String())
+	}
+	res, err := lim.Tokens.Reserve(context.Background(), "tenant-a", quota.RateLimit{PerMinute: 1000, Burst: 1000}, 1, admissionNow)
+	if err != nil || res.Allowed {
+		t.Errorf("Reserve(1) = %+v, %v; want denied because no refund happens for a failed attempt", res, err)
+	}
 }

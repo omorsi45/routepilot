@@ -126,6 +126,10 @@ func (s *Server) admit(w http.ResponseWriter, rs *reqState, r *http.Request, ten
 	if tenant.MaxConcurrency > 0 {
 		got, err := s.limits.Concurrency.Acquire(ctx, tenant.ID, rs.id, tenant.MaxConcurrency, ttl, now)
 		if err != nil {
+			// The script may have run before the reply failed (a timeout),
+			// leaving a lease that would block the tenant for deadline + 60 s.
+			// Release it best effort: an absent lease is a no-op.
+			leased = true
 			return failed("concurrency acquire", err)
 		}
 		if !got {

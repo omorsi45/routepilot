@@ -226,6 +226,9 @@ func TestServeRedisBackendEnforcesRPM(t *testing.T) {
 		if err != nil {
 			t.Errorf("serve() = %v, want nil after a clean shutdown", err)
 		}
+	// The 10 s bound is tolerance for a loaded machine (make verify runs
+	// packages in parallel), not an expected shutdown time: shutdown takes
+	// milliseconds when idle.
 	case <-time.After(10 * time.Second):
 		t.Fatal("serve() did not return within 10s of cancellation")
 	}
