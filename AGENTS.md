@@ -12,8 +12,9 @@ request.
 
 - `cmd/routepilot/`: the CLI entry point and subcommand dispatch.
 - `internal/`: private packages, one responsibility per package:
-  `config`, `gateway`, `mock`, `openai`, `provider` (with the `openaicompat`,
-  `anthropic` and `factory` subpackages), and `version`.
+  `catalog`, `config`, `gateway`, `mock`, `money`, `openai`, `provider` (with
+  the `openaicompat`, `anthropic` and `factory` subpackages), `quota` (with the
+  `quotatest` conformance suite), `reliability`, `router`, and `version`.
 
 The planned directory layout is described in section 11 of the design spec.
 Add a directory only when the task that needs it lands.
