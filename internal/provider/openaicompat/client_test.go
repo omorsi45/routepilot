@@ -623,6 +623,11 @@ func TestStreamInBandErrorIsProtocolError(t *testing.T) {
 		{"error string", `{"error":"engine died"}`, "engine died"},
 		{"object error", `{"object":"error","message":"engine died","type":"InternalServerError","code":500}`, "engine died"},
 		{"error without message", `{"error":{"type":"server_error"}}`, ""},
+		{"non-string error message", `{"error":{"message":123}}`, "upstream reported an error"},
+		{"non-string object", `{"object":123,"error":{"message":"engine died"}}`, "engine died"},
+		{"non-string top-level message", `{"object":"error","message":123}`, "upstream reported an error"},
+		{"top-level message when error.message is not a string", `{"error":{"message":123},"message":"outer"}`, "outer"},
+		{"object error with an object message", `{"object":"error","message":{"detail":"x"}}`, "upstream reported an error"},
 		{"long message", `{"error":{"message":"` + long + `"}}`, "cap"},
 	}
 	for _, tc := range cases {

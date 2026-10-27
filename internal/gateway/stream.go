@@ -114,8 +114,9 @@ func isCommitting(chunk *openai.ChatCompletionChunk) bool {
 	return false
 }
 
-// startResponse writes the SSE headers and status line. It runs when the first
-// chunk is ready, so earlier failures can still be a JSON error.
+// startResponse writes the SSE headers and status line. It runs at the first
+// committing chunk (see isCommitting), so any earlier failure can still be a
+// JSON error.
 func (c *streamCall) startResponse(modelID, deployment string) {
 	h := c.w.Header()
 	h.Set("Content-Type", "text/event-stream")

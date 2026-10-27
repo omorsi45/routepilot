@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -9,12 +10,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/mock"
@@ -505,5 +508,268 @@ func TestNewRequestID(t *testing.T) {
 			t.Fatalf("duplicate id %q", id)
 		}
 		seen[id] = true
+	}
+}
+
+// doHeaders is do with extra request headers.
+func doHeaders(h http.Handler, key, body string, headers map[string]string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+key)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestHeaderRoutingControls(t *testing.T) {
+	const bodyNoOpts = `{"model":"model-a","messages":[{"role":"user","content":"hi"}]}`
+
+	t.Run("header timeout applies", func(t *testing.T) {
+		e := newMockEnv(t, cfgOpts{upstreamA: "m;fail=stall", serverDefault: 1500, serverMax: 3000})
+		start := time.Now()
+		rec := doHeaders(e.gw.Handler(), keyA, bodyNoOpts, map[string]string{"x-routepilot-timeout-ms": "100"})
+		if elapsed := time.Since(start); elapsed > time.Second {
+			t.Errorf("took %v, want under 1s (the header timeout)", elapsed)
+		}
+		if rec.Code != http.StatusGatewayTimeout {
+			t.Fatalf("status %d, want 504: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("body wins over header", func(t *testing.T) {
+		e := newMockEnv(t, cfgOpts{upstreamA: "m;fail=stall", serverDefault: 1500, serverMax: 3000})
+		body := `{"model":"model-a","messages":[{"role":"user","content":"hi"}],"routepilot":{"timeout_ms":100}}`
+		start := time.Now()
+		rec := doHeaders(e.gw.Handler(), keyA, body, map[string]string{"x-routepilot-timeout-ms": "60000"})
+		if elapsed := time.Since(start); elapsed > time.Second {
+			t.Errorf("took %v, want under 1s (the body timeout wins)", elapsed)
+		}
+		if rec.Code != http.StatusGatewayTimeout {
+			t.Fatalf("status %d, want 504: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	bad := []struct{ header, value string }{
+		{"x-routepilot-min-quality", "abc"},
+		{"x-routepilot-min-quality", "1.5"},
+		{"x-routepilot-min-quality", "-0.1"},
+		{"x-routepilot-min-quality", "NaN"},
+		{"x-routepilot-min-quality", ""},
+		{"x-routepilot-slo-ttft-ms", "0"},
+		{"x-routepilot-slo-e2e-ms", "-5"},
+		{"x-routepilot-timeout-ms", "abc"},
+		{"x-routepilot-timeout-ms", "1.5"},
+		{"x-routepilot-timeout-ms", "0"},
+		{"x-routepilot-timeout-ms", "99999999999999999999"},
+	}
+	for _, tc := range bad {
+		t.Run("bad "+tc.header+"="+tc.value, func(t *testing.T) {
+			e := newMockEnv(t, cfgOpts{})
+			rec := doHeaders(e.gw.Handler(), keyA, bodyNoOpts, map[string]string{tc.header: tc.value})
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status %d, want 400: %s", rec.Code, rec.Body.String())
+			}
+			got := decodeErr(t, rec)
+			if got.Error.Code != "invalid_request" || got.Error.Param == nil || *got.Error.Param != tc.header {
+				t.Errorf("code %q param %v, want invalid_request / %q", got.Error.Code, got.Error.Param, tc.header)
+			}
+			if n := e.mock.Stats().Requests; n != 0 {
+				t.Errorf("rejected request reached the upstream: %d", n)
+			}
+		})
+	}
+}
+
+func TestMergeRoutingHeaders(t *testing.T) {
+	f := func(v float64) *float64 { return &v }
+	i := func(v int) *int { return &v }
+	all := http.Header{}
+	all.Set("x-routepilot-min-quality", "0.5")
+	all.Set("x-routepilot-slo-ttft-ms", "200")
+	all.Set("x-routepilot-slo-e2e-ms", "3000")
+	all.Set("x-routepilot-timeout-ms", "9000")
+
+	valid := func(rp *openai.RoutingOptions) *openai.ChatCompletionRequest {
+		return &openai.ChatCompletionRequest{
+			Model:      "model-a",
+			Messages:   []openai.Message{{Role: "user"}},
+			RoutePilot: rp,
+		}
+	}
+	t.Run("creates the options when the body had none", func(t *testing.T) {
+		req := valid(nil)
+		if err := mergeRoutingHeaders(all, req); err != nil {
+			t.Fatalf("merge: %v", err)
+		}
+		rp := req.RoutePilot
+		if rp == nil || *rp.MinQuality != 0.5 || *rp.SLOTTFTMs != 200 || *rp.SLOE2EMs != 3000 || *rp.TimeoutMs != 9000 {
+			t.Errorf("RoutePilot = %+v", rp)
+		}
+	})
+	t.Run("body wins field by field", func(t *testing.T) {
+		req := valid(&openai.RoutingOptions{MinQuality: f(0.9), TimeoutMs: i(100)})
+		if err := mergeRoutingHeaders(all, req); err != nil {
+			t.Fatalf("merge: %v", err)
+		}
+		rp := req.RoutePilot
+		if *rp.MinQuality != 0.9 || *rp.TimeoutMs != 100 {
+			t.Errorf("body values lost: %+v", rp)
+		}
+		if *rp.SLOTTFTMs != 200 || *rp.SLOE2EMs != 3000 {
+			t.Errorf("header values not filled: %+v", rp)
+		}
+	})
+	t.Run("no headers leaves the request alone", func(t *testing.T) {
+		req := valid(nil)
+		if err := mergeRoutingHeaders(http.Header{}, req); err != nil || req.RoutePilot != nil {
+			t.Errorf("err=%v RoutePilot=%+v, want nil and nil", err, req.RoutePilot)
+		}
+	})
+}
+
+func TestSlowBodyIs408(t *testing.T) {
+	gw, err := New(buildConfig(t, cfgOpts{}), map[string]provider.Provider{"mockp": okProvider()}, Options{
+		ReadBodyTimeout: 150 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	srv := httptest.NewServer(gw.Handler())
+	t.Cleanup(srv.Close)
+
+	conn, err := net.Dial("tcp", srv.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+	// Promise 1000 body bytes, send 10, then go quiet.
+	fmt.Fprintf(conn, "POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer %s\r\n"+
+		"Content-Type: application/json\r\nContent-Length: 1000\r\n\r\n{\"model\":\"", keyA)
+
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusRequestTimeout {
+		t.Fatalf("status %d, want 408", resp.StatusCode)
+	}
+	var got errBody
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Error.Type != "invalid_request_error" || got.Error.Code != "request_timeout" ||
+		got.Error.Message != "request body read timed out" {
+		t.Errorf("error = %+v", got.Error)
+	}
+}
+
+func TestModelsListsAuto(t *testing.T) {
+	ids := func(e *attemptEnv) (out []string, owners []string) {
+		rec := do(e.gw.Handler(), http.MethodGet, "/v1/models", keyA, "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+		}
+		var list struct {
+			Data []struct {
+				ID      string `json:"id"`
+				OwnedBy string `json:"owned_by"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		for _, m := range list.Data {
+			out, owners = append(out, m.ID), append(owners, m.OwnedBy)
+		}
+		return out, owners
+	}
+	models := []modelSpec{{id: "m1", in: "1", out: "1", deps: []depSpec{{"d1", "u1"}}}}
+
+	withPolicy := newAttemptEnv(t, attemptOpts{policy: config.PolicyCheapest, models: models})
+	got, owners := ids(withPolicy)
+	if strings.Join(got, ",") != "auto,m1" || owners[0] != "routepilot" {
+		t.Errorf("with a policy: ids %v owners %v, want auto first owned by routepilot, then m1", got, owners)
+	}
+
+	noPolicy := newAttemptEnv(t, attemptOpts{models: models})
+	if got, _ := ids(noPolicy); strings.Join(got, ",") != "m1" {
+		t.Errorf("without a policy: ids %v, want just m1", got)
+	}
+}
+
+func TestNotFoundTruncatesModel(t *testing.T) {
+	e := newMockEnv(t, cfgOpts{})
+	// One ASCII byte shifts the two-byte runes so byte 256 falls inside one.
+	long := "x" + strings.Repeat("é", 2000)
+	rec := do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, chatBody(long, "hi"))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status %d, want 404", rec.Code)
+	}
+	msg := decodeErr(t, rec).Error.Message
+	want := `model "` + long[:255] + `" does not exist`
+	if msg != want {
+		t.Errorf("message has %d bytes, want %d (255 bytes of model on a rune boundary)", len(msg), len(want))
+	}
+	if !utf8.ValidString(msg) {
+		t.Error("message is not valid UTF-8")
+	}
+}
+
+// deadlineRecorder is a recorder that supports http.ResponseController
+// deadlines and remembers them.
+type deadlineRecorder struct {
+	*httptest.ResponseRecorder
+	reads, writes []time.Time
+}
+
+func (d *deadlineRecorder) SetReadDeadline(t time.Time) error {
+	d.reads = append(d.reads, t)
+	return nil
+}
+
+func (d *deadlineRecorder) SetWriteDeadline(t time.Time) error {
+	d.writes = append(d.writes, t)
+	return nil
+}
+
+func TestWriteJSONSetsWriteDeadline(t *testing.T) {
+	d := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	before := time.Now()
+	writeJSON(d, http.StatusOK, map[string]string{"a": "b"})
+
+	if len(d.writes) != 1 {
+		t.Fatalf("SetWriteDeadline called %d times, want 1", len(d.writes))
+	}
+	if got := d.writes[0].Sub(before); got < 29*time.Second || got > 31*time.Second {
+		t.Errorf("write deadline is %v ahead, want about 30s", got)
+	}
+	if d.Body.Len() == 0 {
+		t.Error("nothing written")
+	}
+}
+
+func TestBodyReadDeadlineSetAndCleared(t *testing.T) {
+	gw, _ := newFakeGateway(t, cfgOpts{}, okProvider())
+	d := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(chatBody("model-a", "hi")))
+	req.Header.Set("Authorization", "Bearer "+keyA)
+	before := time.Now()
+	gw.Handler().ServeHTTP(d, req)
+
+	if d.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", d.Code, d.Body.String())
+	}
+	if len(d.reads) != 2 {
+		t.Fatalf("SetReadDeadline called %d times, want 2 (set, then clear)", len(d.reads))
+	}
+	if got := d.reads[0].Sub(before); got < 29*time.Second || got > 31*time.Second {
+		t.Errorf("read deadline is %v ahead, want about 30s (the default)", got)
+	}
+	if !d.reads[1].IsZero() {
+		t.Errorf("read deadline after the body = %v, want the zero time", d.reads[1])
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -28,6 +29,9 @@ const (
 	// redisPingTimeout bounds the startup connectivity check.
 	redisPingTimeout = 5 * time.Second
 )
+
+// notifyContext is signal.NotifyContext; tests replace it to inject signals.
+var notifyContext = signal.NotifyContext
 
 const serveUsage = "usage: routepilot serve -config <path>\n"
 
@@ -59,8 +63,21 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stopSignals := notifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	stop := sync.OnceFunc(stopSignals)
 	defer stop()
+	// After the first signal, restore the default handling so a second
+	// SIGINT or SIGTERM ends the process instead of being swallowed while the
+	// graceful shutdown runs.
+	finished := make(chan struct{})
+	defer close(finished)
+	go func() {
+		select {
+		case <-ctx.Done():
+			stop()
+		case <-finished:
+		}
+	}()
 	logger := slog.New(slog.NewJSONHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	if err := serve(ctx, cfg, ln, logger); err != nil {

@@ -98,6 +98,12 @@ func TestMockCompletionUsage(t *testing.T) {
 		got.Usage.CompletionTokens != want.CompletionTokens || got.Usage.TotalTokens != want.TotalTokens {
 		t.Fatalf("usage = %+v, want %+v", got.Usage, want)
 	}
+	// The handler counts the request as completed after the response is
+	// flushed, which can be just after the client has read the body.
+	deadline := time.Now().Add(time.Second)
+	for h.Stats().Completed != 1 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	if s := h.Stats(); s.Requests != 1 || s.Completed != 1 || s.Canceled != 0 {
 		t.Fatalf("stats = %+v", s)
 	}

@@ -244,16 +244,16 @@ func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan,
 		if !plan.more() {
 			return catalog.Model{}, catalog.Deployment{}, nil, claimNone
 		}
-		if err := s.waitBeforeRetry(ctx, rs.attempts-1, lastErr); err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
+		waitErr := s.waitBeforeRetry(ctx, rs.attempts-1, lastErr)
+		// Check the context even when the wait succeeded (a zero wait never
+		// looks at it): claim nothing once the deadline passed or the client
+		// left.
+		if ctxErr := ctx.Err(); waitErr != nil || ctxErr != nil {
+			if errors.Is(waitErr, context.DeadlineExceeded) || errors.Is(ctxErr, context.DeadlineExceeded) {
 				return catalog.Model{}, catalog.Deployment{}, nil, claimDeadline
 			}
 			rs.canceled = true // the client went away while we waited
 			return catalog.Model{}, catalog.Deployment{}, nil, claimClientGone
-		}
-		// The wait itself may have run past the deadline: claim nothing.
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return catalog.Model{}, catalog.Deployment{}, nil, claimDeadline
 		}
 	}
 	model, dep, ok := plan.next()
@@ -270,6 +270,10 @@ func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan,
 // mapped error of lastErr, which lastDep produced. Nothing is written when
 // the client is gone.
 func (s *Server) failAttempts(ctx context.Context, w http.ResponseWriter, r *http.Request, rs *reqState, lastDep catalog.Deployment, lastErr error, timedOut bool) {
+	if r.Context().Err() != nil {
+		rs.canceled = true
+		return
+	}
 	switch {
 	case rs.attempts == 0:
 		s.fail(w, rs, openai.ErrNoHealthyDeployment())

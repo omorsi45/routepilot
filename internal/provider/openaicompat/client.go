@@ -168,39 +168,52 @@ func (s *stream) Recv() (*openai.ChatCompletionChunk, error) {
 // OpenAI-compatible servers (vLLM among them) signal engine failures that way,
 // either as {"error":{...}} or as {"object":"error","message":...}. It returns
 // nil for any other body, including invalid JSON, which callers reject on
-// their own.
+// their own. Every probed field is a json.RawMessage, so a field of an
+// unexpected type still lets the error be detected.
 func inBandError(data []byte) *provider.Error {
 	var probe struct {
-		Object  string          `json:"object"`
+		Object  json.RawMessage `json:"object"`
 		Error   json.RawMessage `json:"error"`
-		Message string          `json:"message"`
+		Message json.RawMessage `json:"message"`
 	}
 	if json.Unmarshal(data, &probe) != nil {
 		return nil
 	}
 	hasError := len(probe.Error) > 0 && string(probe.Error) != "null"
-	if !hasError && probe.Object != "error" {
+	var object string
+	_ = json.Unmarshal(probe.Object, &object)
+	if !hasError && object != "error" {
 		return nil
 	}
-	msg := probe.Message
+
+	var msg string
 	if hasError {
 		var obj struct {
-			Message string `json:"message"`
+			Message json.RawMessage `json:"message"`
 		}
 		if json.Unmarshal(probe.Error, &obj) == nil {
-			msg = obj.Message
+			msg = jsonString(obj.Message)
 		} else {
-			var str string
-			if json.Unmarshal(probe.Error, &str) == nil {
-				msg = str
-			}
+			msg = jsonString(probe.Error)
 		}
+	}
+	if strings.TrimSpace(msg) == "" {
+		msg = jsonString(probe.Message)
 	}
 	msg = provider.TruncateMessage(msg)
 	if msg == "" {
-		msg = "upstream reported an error in the response body"
+		msg = "upstream reported an error"
 	}
 	return &provider.Error{Kind: provider.KindProtocol, Message: msg}
+}
+
+// jsonString returns raw as a string, or "" when it is not a JSON string.
+func jsonString(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) != nil {
+		return ""
+	}
+	return s
 }
 
 func errStreamClosed() *provider.Error {

@@ -867,3 +867,114 @@ func TestSettleDeadlineBranchOnlyForTimeoutKinds(t *testing.T) {
 		})
 	}
 }
+
+// claimFixture is a server and a one-pair plan for driving claimNext and
+// failAttempts directly. sleep replaces the server's Sleep when set.
+func claimFixture(t *testing.T, sleep func(ctx context.Context, d time.Duration) error) (*Server, *attemptPlan, *reqState) {
+	t.Helper()
+	cfg := buildConfig(t, cfgOpts{})
+	s, err := New(cfg, map[string]provider.Provider{"mockp": &fakeProvider{}}, Options{
+		Rand:  func() float64 { return 1 },
+		Sleep: sleep,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ma, _ := s.cat.Model("model-a")
+	plan := s.newAttemptPlan(router.Decision{Candidates: []router.Candidate{{Model: ma, Deployments: ma.Deployments}}})
+	return s, plan, &reqState{attempts: 1}
+}
+
+func TestClaimNextStopsOnContextError(t *testing.T) {
+	req := &openai.ChatCompletionRequest{}
+	// A Retry-After over the inline limit gives a zero wait.
+	zeroWait := &provider.Error{Kind: provider.KindHTTP, Status: 429, RetryAfter: 3 * time.Second}
+	noSleep := func(context.Context, time.Duration) error { return nil }
+
+	check := func(t *testing.T, s *Server, rs *reqState, outcome, want claimOutcome, wantCanceled bool) {
+		t.Helper()
+		if outcome != want {
+			t.Errorf("outcome = %d, want %d", outcome, want)
+		}
+		if rs.canceled != wantCanceled {
+			t.Errorf("canceled = %v, want %v", rs.canceled, wantCanceled)
+		}
+		if rs.attempts != 1 {
+			t.Errorf("attempts = %d, want 1 (nothing claimed)", rs.attempts)
+		}
+		if _, claimed := s.health.Snapshot()["dep-a"]; claimed {
+			t.Error("dep-a was claimed")
+		}
+	}
+
+	t.Run("client gone before a zero wait returns", func(t *testing.T) {
+		s, plan, rs := claimFixture(t, noSleep)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, _, _, outcome := s.claimNext(ctx, rs, plan, req, zeroWait)
+		check(t, s, rs, outcome, claimClientGone, true)
+	})
+	t.Run("client gone during the sleep", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		s, plan, rs := claimFixture(t, func(context.Context, time.Duration) error {
+			cancel()
+			return nil
+		})
+		_, _, _, outcome := s.claimNext(ctx, rs, plan, req, errors.New("boom"))
+		check(t, s, rs, outcome, claimClientGone, true)
+	})
+	t.Run("deadline passed during the sleep", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		s, plan, rs := claimFixture(t, func(ctx context.Context, _ time.Duration) error {
+			<-ctx.Done()
+			return nil
+		})
+		_, _, _, outcome := s.claimNext(ctx, rs, plan, req, errors.New("boom"))
+		check(t, s, rs, outcome, claimDeadline, false)
+	})
+	t.Run("a live context claims the pair", func(t *testing.T) {
+		s, plan, rs := claimFixture(t, noSleep)
+		_, dep, _, outcome := s.claimNext(context.Background(), rs, plan, req, errors.New("boom"))
+		if outcome != claimOK || dep.Name != "dep-a" || rs.attempts != 2 {
+			t.Errorf("outcome=%d dep=%q attempts=%d, want claimOK dep-a 2", outcome, dep.Name, rs.attempts)
+		}
+	})
+}
+
+func TestFailAttemptsWritesNothingWhenClientGone(t *testing.T) {
+	lastDep := catalog.Deployment{Name: "dep-a"}
+	cases := []struct {
+		name     string
+		attempts int
+		err      error
+		timedOut bool
+	}{
+		{"503 branch", 0, nil, false},
+		{"504 branch", 1, &provider.Error{Kind: provider.KindTimeout}, true},
+		{"mapped error branch", 1, &provider.Error{Kind: provider.KindConnect}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _, rs := claimFixture(t, nil)
+			rs.attempts = tc.attempts
+			clientCtx, cancel := context.WithCancel(context.Background())
+			cancel()
+			r := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(clientCtx)
+			rec := httptest.NewRecorder()
+
+			s.failAttempts(context.Background(), rec, r, rs, lastDep, tc.err, tc.timedOut)
+
+			if rec.Body.Len() != 0 || len(rec.Header()) != 0 {
+				t.Errorf("wrote to a gone client: header %v body %q", rec.Header(), rec.Body.String())
+			}
+			if !rs.canceled {
+				t.Error("canceled = false, want true")
+			}
+			if rs.errCode != "" {
+				t.Errorf("errCode = %q, want none", rs.errCode)
+			}
+		})
+	}
+}

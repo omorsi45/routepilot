@@ -37,6 +37,9 @@ type Options struct {
 	// Limiters back the per-tenant request, token and concurrency limits. Any
 	// nil field uses the in-process memory implementation.
 	Limiters quota.Limiters
+	// ReadBodyTimeout bounds how long the gateway waits for a request body.
+	// Zero means 30 seconds.
+	ReadBodyTimeout time.Duration
 }
 
 // Server is the gateway HTTP server.
@@ -55,6 +58,8 @@ type Server struct {
 	sleep  func(ctx context.Context, d time.Duration) error
 
 	limits quota.Limiters
+	// readBodyTimeout is Options.ReadBodyTimeout; zero means the default.
+	readBodyTimeout time.Duration
 	// sem is the global in-flight limit: one token per request in progress.
 	// Nil when server.max_inflight is not positive (no limit).
 	sem chan struct{}
@@ -113,6 +118,7 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 		s.sleep = sleepTimer
 	}
 	s.limits = fillLimiters(opts.Limiters)
+	s.readBodyTimeout = opts.ReadBodyTimeout
 	if n := cfg.Server.MaxInflight; n > 0 {
 		s.sem = make(chan struct{}, n)
 	}

@@ -11,7 +11,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -231,5 +236,129 @@ func TestServeRedisBackendEnforcesRPM(t *testing.T) {
 	// milliseconds when idle.
 	case <-time.After(10 * time.Second):
 		t.Fatal("serve() did not return within 10s of cancellation")
+	}
+}
+
+// syncBuffer is a bytes.Buffer safe for a writer goroutine and a polling test.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// TestServeSecondSignalExits checks the stop wiring: once the first signal
+// has cancelled the context, runServe calls the stop function from
+// signal.NotifyContext, which restores the default handling so a second
+// SIGINT or SIGTERM terminates the process. The signal source is injected, and
+// a request stalled upstream keeps the graceful shutdown pending so the test
+// can see stop was called while shutdown was still in progress.
+func TestServeSecondSignalExits(t *testing.T) {
+	h := mock.NewHandler(mock.Config{})
+	upstream := httptest.NewServer(h)
+	t.Cleanup(upstream.Close)
+	cfgPath := filepath.Join(t.TempDir(), "routepilot.yaml")
+	yaml := fmt.Sprintf(`
+server:
+  listen: 127.0.0.1:0
+  shutdown_grace_ms: 1000
+providers:
+  - name: mockp
+    type: openaicompat
+    base_url: %q
+models:
+  - id: m
+    deployments:
+      - provider: mockp
+        upstream_model: "m;fail=stall"
+tenants:
+  - id: t
+    api_key_sha256: %s
+    allowed_models: ["*"]
+`, upstream.URL+"/v1", sha256Hex("test-key-signal"))
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	sigCtx, firstSignal := context.WithCancel(context.Background())
+	defer firstSignal()
+	var stopCalls atomic.Int32
+	stopped := make(chan struct{})
+	orig := notifyContext
+	notifyContext = func(context.Context, ...os.Signal) (context.Context, context.CancelFunc) {
+		return sigCtx, func() {
+			if stopCalls.Add(1) == 1 {
+				close(stopped)
+			}
+		}
+	}
+	t.Cleanup(func() { notifyContext = orig })
+
+	stderr := &syncBuffer{}
+	exit := make(chan int, 1)
+	go func() { exit <- runServe([]string{"-config", cfgPath}, io.Discard, stderr) }()
+
+	addrRE := regexp.MustCompile(`"addr":"([^"]+)"`)
+	var addr string
+	for deadline := time.Now().Add(2 * time.Second); addr == "" && time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if m := addrRE.FindStringSubmatch(stderr.String()); m != nil {
+			addr = m[1]
+		}
+	}
+	if addr == "" {
+		t.Fatalf("server did not report its address; stderr: %s", stderr.String())
+	}
+
+	// A request stalled upstream keeps the shutdown waiting out its grace.
+	go func() {
+		req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/v1/chat/completions",
+			strings.NewReader(`{"model":"m","messages":[{"role":"user","content":"hi"}]}`))
+		if err != nil {
+			return
+		}
+		req.Header.Set("Authorization", "Bearer test-key-signal")
+		if resp, err := http.DefaultClient.Do(req); err == nil {
+			resp.Body.Close()
+		}
+	}()
+	for deadline := time.Now().Add(2 * time.Second); h.Stats().Requests == 0 && time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+	}
+	if h.Stats().Requests == 0 {
+		t.Fatal("the stalled request never reached the upstream")
+	}
+
+	if n := stopCalls.Load(); n != 0 {
+		t.Fatalf("stop called %d times before the first signal, want 0", n)
+	}
+	firstSignal()
+
+	select {
+	case <-stopped:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("stop was not called after the first signal")
+	}
+	select {
+	case code := <-exit:
+		t.Fatalf("runServe returned %d before the stalled request ended: stop was not called ahead of shutdown", code)
+	default:
+	}
+
+	select {
+	case <-exit:
+	case <-time.After(5 * time.Second):
+		t.Fatal("runServe did not return after the shutdown grace")
+	}
+	if n := stopCalls.Load(); n != 1 {
+		t.Errorf("stop called %d times in total, want exactly 1", n)
 	}
 }

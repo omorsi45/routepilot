@@ -94,6 +94,11 @@ func ErrRequestTooLarge(limit int64) *APIError {
 	return &APIError{Status: http.StatusRequestEntityTooLarge, Type: "invalid_request_error", Code: "request_too_large", Message: fmt.Sprintf("request body exceeds the %d byte limit", limit)}
 }
 
+// ErrRequestTimeout is a 408 when the client did not send the body in time.
+func ErrRequestTimeout() *APIError {
+	return &APIError{Status: http.StatusRequestTimeout, Type: "invalid_request_error", Code: "request_timeout", Message: "request body read timed out"}
+}
+
 // ErrRateLimited is a 429.
 func ErrRateLimited(msg string) *APIError {
 	return &APIError{Status: http.StatusTooManyRequests, Type: "rate_limit_error", Code: "rate_limit_exceeded", Message: msg}
