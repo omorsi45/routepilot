@@ -39,9 +39,10 @@ func (s *Server) newAttemptPlan(d router.Decision) *attemptPlan {
 	return &attemptPlan{health: s.health, cands: d.Candidates, max: s.cfg.Reliability.MaxAttempts}
 }
 
-// next returns the next pair whose breaker admits an attempt. Pairs the
-// breaker refuses are skipped and do not count toward the attempt limit.
-func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, bool) {
+// next returns the next pair whose breaker admits an attempt, with the output
+// token budget K its model was admitted with. Pairs the breaker refuses are
+// skipped and do not count toward the attempt limit.
+func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, int, bool) {
 	for p.issued < p.max && p.ci < len(p.cands) {
 		c := p.cands[p.ci]
 		if p.di >= len(c.Deployments) {
@@ -52,10 +53,10 @@ func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, bool) {
 		p.di++
 		if p.health.Allow(dep.Name) {
 			p.issued++
-			return *c.Model, dep, true
+			return *c.Model, dep, c.K, true
 		}
 	}
-	return catalog.Model{}, catalog.Deployment{}, false
+	return catalog.Model{}, catalog.Deployment{}, 0, false
 }
 
 // more reports whether next could return a pair, judged by Available so that
@@ -257,12 +258,12 @@ func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan,
 			return catalog.Model{}, catalog.Deployment{}, nil, claimClientGone
 		}
 	}
-	model, dep, ok := plan.next()
+	model, dep, k, ok := plan.next()
 	if !ok {
 		return catalog.Model{}, catalog.Deployment{}, nil, claimNone
 	}
 	rs.attempts++
-	return model, dep, s.prepareUpstream(rs, req, model.ID, dep), claimOK
+	return model, dep, s.prepareUpstream(rs, req, model.ID, dep, k), claimOK
 }
 
 // failAttempts writes the error for a request whose attempts are over without

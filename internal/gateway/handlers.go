@@ -135,7 +135,13 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 
 	timeout := s.deadline(tenant, req)
 	rs.blameBudget = s.blameBudget(tenant)
-	finish, ok := s.admit(w, rs, r, tenant, lease, int64(reqs.InUpper)+int64(dec.Candidates[0].K), timeout+leaseGrace)
+	// A failover can land on any candidate, so reserve the largest budget
+	// among them, not just the first candidate's.
+	var maxK int
+	for _, c := range dec.Candidates {
+		maxK = max(maxK, c.K)
+	}
+	finish, ok := s.admit(w, rs, r, tenant, lease, int64(reqs.InUpper)+int64(maxK), timeout+leaseGrace)
 	if !ok {
 		return
 	}

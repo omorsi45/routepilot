@@ -71,13 +71,21 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 
 // prepareUpstream records the attempt for the request log and builds the
 // request to send upstream. Both the streaming and non-streaming paths use it.
-func (s *Server) prepareUpstream(rs *reqState, req *openai.ChatCompletionRequest, modelID string, dep catalog.Deployment) *openai.ChatCompletionRequest {
+// k is the output token budget the attempt's model was admitted with.
+func (s *Server) prepareUpstream(rs *reqState, req *openai.ChatCompletionRequest, modelID string, dep catalog.Deployment, k int) *openai.ChatCompletionRequest {
 	rs.model = modelID
 	rs.deployment = dep.Name
 
 	up := req.Clone()
 	up.Model = dep.UpstreamModel
 	up.RoutePilot = nil
+	// A request without an output cap is admitted and costed with k, so it is
+	// sent upstream with k as its cap: the provider then cannot produce more
+	// than was reserved, and an adapter that needs a cap (Anthropic) uses it
+	// instead of its own default.
+	if _, set := req.EffectiveMaxTokens(); !set {
+		up.MaxTokens = &k
+	}
 	return up
 }
 

@@ -171,8 +171,8 @@ func (s *Server) acquireLease(w http.ResponseWriter, rs *reqState, r *http.Reque
 
 // admit applies the tenant's remaining limits in order: the concurrency lease
 // (refreshed from the one acquireLease took before the body was read), request
-// rate, token rate. n is the token reservation (InUpper plus the first
-// candidate's K) and ttl the new lifetime of the lease. Each
+// rate, token rate. n is the token reservation (InUpper plus the largest K
+// among the decision's candidates) and ttl the new lifetime of the lease. Each
 // limiter call is bounded by limiterCallTimeout; one that runs out of time is
 // a limiter error (503).
 //

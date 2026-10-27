@@ -33,6 +33,7 @@ type modelSpec struct {
 	id      string
 	in, out string
 	rank    int
+	maxOut  int      // max_output_tokens; 0 keeps the config default
 	caps    []string // nil keeps the streaming-only default
 	deps    []depSpec
 }
@@ -126,6 +127,9 @@ func newAttemptEnv(t *testing.T, o attemptOpts) *attemptEnv {
 		fmt.Fprintf(&sb, "  - id: %s\n    rank: %d\n", m.id, m.rank)
 		if m.in != "" {
 			fmt.Fprintf(&sb, "    input_price_per_mtok: %q\n    output_price_per_mtok: %q\n", m.in, m.out)
+		}
+		if m.maxOut > 0 {
+			fmt.Fprintf(&sb, "    max_output_tokens: %d\n", m.maxOut)
 		}
 		if m.caps != nil {
 			fmt.Fprintf(&sb, "    capabilities: [%s]\n", strings.Join(m.caps, ", "))
@@ -603,7 +607,7 @@ func TestAttemptPlan(t *testing.T) {
 	walk := func(plan *attemptPlan) string {
 		var got []string
 		for {
-			m, d, ok := plan.next()
+			m, d, _, ok := plan.next()
 			if !ok {
 				return strings.Join(got, ",")
 			}
