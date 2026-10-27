@@ -43,6 +43,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 		switch {
 		case err == nil:
 			s.settle(ctx, dep.Name, nil, elapsed)
+			rs.usage = resp.Usage
 			resp.ID = "chatcmpl-" + rs.id
 			resp.Object = openai.ObjectChatCompletion
 			resp.Model = model.ID

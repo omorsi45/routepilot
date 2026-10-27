@@ -62,6 +62,13 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	}
 	rs.tenant = tenant.ID
 
+	// The global in-flight slot is taken before the body is read and held for
+	// the whole request, including a stream.
+	if !s.acquireSlot(w, rs, r) {
+		return
+	}
+	defer s.releaseSlot()
+
 	limit := s.cfg.Server.MaxBodyBytes
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {
@@ -87,10 +94,11 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 		rs.model = m.ID
 	}
 
+	reqs := catalog.Derive(req)
 	dec, apiErr := s.router.Decide(router.Input{
 		Tenant:    tenant,
 		Requested: req.Model,
-		Req:       catalog.Derive(req),
+		Req:       reqs,
 		Available: s.health.Available,
 	})
 	rs.policy = dec.Policy
@@ -100,7 +108,14 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	}
 	rs.model = dec.Candidates[0].Model.ID
 
-	ctx, cancel := context.WithTimeout(r.Context(), s.deadline(tenant, req))
+	timeout := s.deadline(tenant, req)
+	finish, ok := s.admit(w, rs, r, tenant, int64(reqs.InUpper)+int64(dec.Candidates[0].K), timeout+leaseGrace)
+	if !ok {
+		return
+	}
+	defer finish()
+
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	if req.Stream {
 		s.proxyStream(ctx, w, rs, r, req, dec)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/logging"
 
 	"github.com/omorsi45/routepilot/internal/quota"
 	"github.com/omorsi45/routepilot/internal/quota/quotatest"
@@ -52,6 +53,7 @@ func (discardLogger) Printf(context.Context, string, ...interface{}) {}
 func newClosedClient(t *testing.T) *redis.Client {
 	t.Helper()
 	redis.SetLogger(discardLogger{})
+	t.Cleanup(logging.Enable) // restore the process-global default logging
 	mr := miniredis.RunT(t)
 	c := redis.NewClient(&redis.Options{Addr: mr.Addr(), MaxRetries: -1, DialerRetries: 1})
 	t.Cleanup(func() { _ = c.Close() })

@@ -1,0 +1,605 @@
+package gateway
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
+
+	"github.com/omorsi45/routepilot/internal/catalog"
+	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/openai"
+	"github.com/omorsi45/routepilot/internal/provider"
+	"github.com/omorsi45/routepilot/internal/quota"
+)
+
+// admissionNow is the fixed gateway clock, so GCRA state never drifts between
+// requests inside a test.
+var admissionNow = time.Unix(1700000000, 0)
+
+// newAdmissionGateway builds a gateway whose config is adjusted by mutate
+// before New, with the given limiters (nil fields use the memory backend).
+func newAdmissionGateway(t *testing.T, mutate func(*config.Config), p provider.Provider, lim quota.Limiters) (*Server, *bytes.Buffer) {
+	t.Helper()
+	cfg := buildConfig(t, cfgOpts{})
+	if mutate != nil {
+		mutate(cfg)
+	}
+	logs := &bytes.Buffer{}
+	gw, err := New(cfg, map[string]provider.Provider{"mockp": p}, Options{
+		Logger:   slog.New(slog.NewTextHandler(logs, nil)),
+		Now:      func() time.Time { return admissionNow },
+		Limiters: lim,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return gw, logs
+}
+
+// tenantA returns tenant-a's config for mutation.
+func tenantA(cfg *config.Config) *config.TenantConfig { return &cfg.Tenants[0] }
+
+// tenantB returns tenant-b's config for mutation.
+func tenantB(cfg *config.Config) *config.TenantConfig { return &cfg.Tenants[1] }
+
+// completionWithUsage is a provider that answers every request with the usage
+// returned by usage (nil usage means the response carries none).
+func completionWithUsage(usage func() *openai.Usage) *fakeProvider {
+	return &fakeProvider{complete: func(context.Context, *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
+		return &openai.ChatCompletion{Usage: usage()}, nil
+	}}
+}
+
+func okProvider() *fakeProvider {
+	return completionWithUsage(func() *openai.Usage { return nil })
+}
+
+// inUpperHi is InUpper of the one-message "hi" request the tests send.
+func inUpperHi(t *testing.T) int {
+	t.Helper()
+	req, apiErr := openai.ParseChatCompletionRequest([]byte(chatBody("model-a", "hi")))
+	if apiErr != nil {
+		t.Fatalf("parse: %v", apiErr)
+	}
+	return catalog.Derive(req).InUpper
+}
+
+// maxTokensFor returns the max_tokens that makes InUpper+K equal n.
+func maxTokensFor(t *testing.T, n int) int {
+	t.Helper()
+	k := n - inUpperHi(t)
+	if k <= 0 {
+		t.Fatalf("n=%d is not above InUpper", n)
+	}
+	return k
+}
+
+func bodyWithMaxTokens(model string, maxTokens int, stream bool) string {
+	return fmt.Sprintf(`{"model":%q,"stream":%t,"max_tokens":%d,"messages":[{"role":"user","content":"hi"}]}`, model, stream, maxTokens)
+}
+
+func chat(gw *Server, key, body string) *httptest.ResponseRecorder {
+	return do(gw.Handler(), http.MethodPost, "/v1/chat/completions", key, body)
+}
+
+func wantRateLimited(t *testing.T, rec *httptest.ResponseRecorder, message, retryAfter string) {
+	t.Helper()
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status %d, want 429: %s", rec.Code, rec.Body.String())
+	}
+	e := decodeErr(t, rec).Error
+	if e.Code != "rate_limit_exceeded" || e.Message != message {
+		t.Errorf("error = %q / %q, want rate_limit_exceeded / %q", e.Code, e.Message, message)
+	}
+	got, present := rec.Header()["Retry-After"]
+	switch {
+	case retryAfter == "" && present:
+		t.Errorf("Retry-After = %v, want absent", got)
+	case retryAfter != "" && (!present || got[0] != retryAfter):
+		t.Errorf("Retry-After = %v, want %q", got, retryAfter)
+	}
+}
+
+func TestRPMLimit(t *testing.T) {
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+		for _, tn := range []*config.TenantConfig{tenantA(cfg), tenantB(cfg)} {
+			tn.RPM, tn.RPMBurst = 60, 2
+		}
+	}, okProvider(), quota.Limiters{})
+
+	body := chatBody("model-a", "hi")
+	for i := 0; i < 2; i++ {
+		if rec := chat(gw, keyA, body); rec.Code != http.StatusOK {
+			t.Fatalf("request %d: status %d, want 200: %s", i+1, rec.Code, rec.Body.String())
+		}
+	}
+	wantRateLimited(t, chat(gw, keyA, body), "tenant request rate exceeded", "1")
+
+	if rec := chat(gw, keyB, body); rec.Code != http.StatusOK {
+		t.Errorf("other tenant: status %d, want 200 (limits are per tenant): %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTPMLimitAndRefund(t *testing.T) {
+	var used atomic.Pointer[openai.Usage]
+	p := completionWithUsage(func() *openai.Usage { return used.Load() })
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+		tenantA(cfg).TPM, tenantA(cfg).TPMBurst = 1000, 1000
+	}, p, quota.Limiters{})
+
+	req := func(n int) *httptest.ResponseRecorder {
+		return chat(gw, keyA, bodyWithMaxTokens("model-a", maxTokensFor(t, n), false))
+	}
+
+	// The first request uses everything it reserved, so nothing is refunded.
+	used.Store(&openai.Usage{PromptTokens: 100, CompletionTokens: 500})
+	if rec := req(600); rec.Code != http.StatusOK {
+		t.Fatalf("first 600: status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	// 400 tokens are left, so a second 600 waits for 200 tokens at 1000/min: 12 s.
+	wantRateLimited(t, req(600), "tenant token rate exceeded", "12")
+
+	// 400 fits exactly. It then uses 100, so 300 are refunded...
+	used.Store(&openai.Usage{PromptTokens: 40, CompletionTokens: 60})
+	if rec := req(400); rec.Code != http.StatusOK {
+		t.Fatalf("400: status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	// ...which admits a third request of 300 and nothing more.
+	used.Store(&openai.Usage{PromptTokens: 150, CompletionTokens: 150})
+	if rec := req(300); rec.Code != http.StatusOK {
+		t.Fatalf("300 after the refund: status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	// The bucket is empty: one more token (n = InUpper+1 = 27 at 60 ms each)
+	// waits 1.62 s, which rounds up to 2.
+	wantRateLimited(t, req(inUpperHi(t)+1), "tenant token rate exceeded", "2")
+}
+
+func TestTPMNoRefundWhenUsageUnknown(t *testing.T) {
+	// The upstream was tried and failed without reporting usage: the tokens
+	// may have been spent, so the reservation stands.
+	p := &fakeProvider{complete: func(context.Context, *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
+		return nil, &provider.Error{Kind: provider.KindHTTP, Status: http.StatusBadRequest, Message: "bad"}
+	}}
+	lim := quota.NewMemory()
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+		tenantA(cfg).TPM, tenantA(cfg).TPMBurst = 1000, 1000
+	}, p, lim)
+
+	if rec := chat(gw, keyA, bodyWithMaxTokens("model-a", maxTokensFor(t, 1000), false)); rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	res, err := lim.Tokens.Reserve(context.Background(), "tenant-a", quota.RateLimit{PerMinute: 1000, Burst: 1000}, 1, admissionNow)
+	if err != nil || res.Allowed {
+		t.Errorf("Reserve(1) = %+v, %v; want denied because the reservation was kept", res, err)
+	}
+}
+
+func TestRefundAmount(t *testing.T) {
+	tests := []struct {
+		name     string
+		n        int64
+		attempts int
+		usage    *openai.Usage
+		want     int64
+	}{
+		{"no attempt sent refunds everything", 600, 0, nil, 600},
+		{"no attempt sent ignores stale usage", 600, 0, &openai.Usage{PromptTokens: 1}, 600},
+		{"attempted without usage keeps the reservation", 600, 1, nil, 0},
+		{"usage below the reservation refunds the difference", 600, 1, &openai.Usage{PromptTokens: 50, CompletionTokens: 50}, 500},
+		{"usage equal to the reservation refunds nothing", 600, 2, &openai.Usage{PromptTokens: 100, CompletionTokens: 500}, 0},
+		{"usage above the reservation refunds nothing", 600, 1, &openai.Usage{PromptTokens: 400, CompletionTokens: 400}, 0},
+		{"zero usage refunds everything", 600, 1, &openai.Usage{}, 600},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rs := &reqState{attempts: tt.attempts, usage: tt.usage}
+			if got := refundAmount(tt.n, rs); got != tt.want {
+				t.Errorf("refundAmount = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRetryAfterSeconds(t *testing.T) {
+	tests := map[time.Duration]string{
+		time.Microsecond:         "1",
+		time.Second:              "1",
+		time.Second + 1:          "2",
+		12 * time.Second:         "12",
+		12*time.Second + 1:       "13",
+		time.Duration(1<<63 - 1): "9223372037",
+	}
+	for d, want := range tests {
+		if got := retryAfterSeconds(d); got != want {
+			t.Errorf("retryAfterSeconds(%v) = %q, want %q", d, got, want)
+		}
+	}
+}
+
+func TestTokenBurstExceeded(t *testing.T) {
+	called := false
+	p := &fakeProvider{complete: func(context.Context, *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
+		called = true
+		return &openai.ChatCompletion{}, nil
+	}}
+	lim := quota.NewMemory()
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+		tn := tenantA(cfg)
+		tn.TPM, tn.TPMBurst, tn.MaxConcurrency = 1000, 500, 1
+	}, p, lim)
+
+	rec := chat(gw, keyA, bodyWithMaxTokens("model-a", maxTokensFor(t, 600), false))
+
+	wantRateLimited(t, rec, "request exceeds tenant token burst; lower max_tokens", "")
+	if called {
+		t.Error("the upstream was called for a request over the token burst")
+	}
+	// The rejected request must not keep its concurrency lease.
+	ok, err := lim.Concurrency.Acquire(context.Background(), "tenant-a", "probe", 1, time.Minute, admissionNow)
+	if err != nil || !ok {
+		t.Errorf("Acquire after the rejection = %v, %v; want the slot free", ok, err)
+	}
+}
+
+// gatedStream serves chunks, then blocks until release closes (clean end) or
+// the stream is closed (canceled).
+type gatedStream struct {
+	chunks  []*openai.ChatCompletionChunk
+	release <-chan struct{}
+	closed  chan struct{}
+	once    sync.Once
+}
+
+func newGatedStream(release <-chan struct{}, chunks ...*openai.ChatCompletionChunk) *gatedStream {
+	return &gatedStream{chunks: chunks, release: release, closed: make(chan struct{})}
+}
+
+func (g *gatedStream) Recv() (*openai.ChatCompletionChunk, error) {
+	if len(g.chunks) > 0 {
+		c := g.chunks[0]
+		g.chunks = g.chunks[1:]
+		return c, nil
+	}
+	select {
+	case <-g.release:
+		return nil, io.EOF
+	case <-g.closed:
+		return nil, context.Canceled
+	}
+}
+
+func (g *gatedStream) Close() error {
+	g.once.Do(func() { close(g.closed) })
+	return nil
+}
+
+// stalledProvider streams one chunk and then stalls until release closes.
+// started receives one value per stream opened.
+func stalledProvider(release <-chan struct{}, started chan<- struct{}, first *openai.ChatCompletionChunk) *fakeProvider {
+	return &fakeProvider{
+		complete: func(context.Context, *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
+			return &openai.ChatCompletion{}, nil
+		},
+		stream: func(context.Context, *openai.ChatCompletionRequest) (provider.Stream, error) {
+			started <- struct{}{}
+			return newGatedStream(release, first), nil
+		},
+	}
+}
+
+// startStream posts a streaming request on a real connection and returns the
+// response once its headers arrive.
+func startStream(t *testing.T, ctx context.Context, url, body string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url+"/v1/chat/completions", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+keyA)
+	resp, err := (&http.Client{Transport: &http.Transport{}}).Do(req)
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	return resp
+}
+
+func TestConcurrencyLimit(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{}, 4)
+	p := stalledProvider(release, started, textChunk("hello"))
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) { tenantA(cfg).MaxConcurrency = 1 }, p, quota.Limiters{})
+	srv := httptest.NewServer(gw.Handler())
+	t.Cleanup(srv.Close)
+
+	resp := startStream(t, context.Background(), srv.URL, streamReqBody("model-a", false))
+	<-started
+
+	wantRateLimited(t, chat(gw, keyA, chatBody("model-a", "hi")), "tenant concurrency limit reached", "1")
+	if rec := chat(gw, keyB, chatBody("model-a", "hi")); rec.Code == http.StatusTooManyRequests {
+		t.Errorf("other tenant was limited by tenant-a's concurrency: %s", rec.Body.String())
+	}
+
+	close(release)
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		t.Fatalf("read first stream: %v", err)
+	}
+	// The slot is released just after the response ends, so poll for it.
+	waitFor(t, time.Second, "the slot to be released", func() bool {
+		return chat(gw, keyA, chatBody("model-a", "hi")).Code == http.StatusOK
+	})
+}
+
+func TestGlobalSemaphoreOverload(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{}, 4)
+	p := &fakeProvider{complete: func(ctx context.Context, _ *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
+		started <- struct{}{}
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return &openai.ChatCompletion{}, nil
+	}}
+	gw, logs := newAdmissionGateway(t, func(cfg *config.Config) {
+		cfg.Server.MaxInflight, cfg.Server.QueueWaitMs = 1, 50
+	}, p, quota.Limiters{})
+
+	first := make(chan int, 1)
+	go func() { first <- chat(gw, keyA, chatBody("model-a", "hi")).Code }()
+	<-started
+
+	t0 := time.Now()
+	rec := chat(gw, keyB, chatBody("model-a", "hi"))
+	elapsed := time.Since(t0)
+	if rec.Code != http.StatusServiceUnavailable || decodeErr(t, rec).Error.Code != "overloaded" {
+		t.Fatalf("status %d body %s, want 503 overloaded", rec.Code, rec.Body.String())
+	}
+	if elapsed < 40*time.Millisecond || elapsed > 200*time.Millisecond {
+		t.Errorf("rejected after %v, want about the 50ms queue wait (under 200ms)", elapsed)
+	}
+	if !strings.Contains(logs.String(), "error_code=overloaded") {
+		t.Errorf("log lacks error_code=overloaded:\n%s", logs.String())
+	}
+
+	// Authentication comes first: a bad key is 401 even when the gateway is full.
+	if rec := chat(gw, "test-key-nobody", chatBody("model-a", "hi")); rec.Code != http.StatusUnauthorized {
+		t.Errorf("bad key while full: status %d, want 401", rec.Code)
+	}
+	// The slot is taken before the body is read: an unparsable body waits too.
+	if rec := chat(gw, keyB, "not json"); rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("bad body while full: status %d, want 503 (slot is taken before parsing)", rec.Code)
+	}
+
+	close(release)
+	if code := <-first; code != http.StatusOK {
+		t.Fatalf("first request status %d, want 200", code)
+	}
+	if rec := chat(gw, keyB, chatBody("model-a", "hi")); rec.Code != http.StatusOK {
+		t.Errorf("after the slot freed: status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSemaphoreQueuedClientLeaving(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan struct{}, 4)
+	p := &fakeProvider{complete: func(context.Context, *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
+		started <- struct{}{}
+		<-release
+		return &openai.ChatCompletion{}, nil
+	}}
+	gw, logs := newAdmissionGateway(t, func(cfg *config.Config) {
+		cfg.Server.MaxInflight, cfg.Server.QueueWaitMs = 1, 5000
+	}, p, quota.Limiters{})
+	defer close(release)
+
+	go chat(gw, keyA, chatBody("model-a", "hi"))
+	<-started
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(chatBody("model-a", "hi"))).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+keyB)
+	rec := httptest.NewRecorder()
+	time.AfterFunc(30*time.Millisecond, cancel)
+	gw.Handler().ServeHTTP(rec, req)
+
+	if rec.Body.Len() != 0 {
+		t.Errorf("wrote %q for a client that left", rec.Body.String())
+	}
+	if !strings.Contains(logs.String(), "status=499") {
+		t.Errorf("log lacks status=499:\n%s", logs.String())
+	}
+}
+
+func TestDisconnectReleasesQuota(t *testing.T) {
+	started := make(chan struct{}, 1)
+	// One chunk carries content and usage; the usage must be captured even
+	// though this client did not ask for it. Then the upstream stalls.
+	first := textChunk("hello")
+	first.Usage = &openai.Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15}
+	p := stalledProvider(nil, started, first)
+
+	lim := quota.NewMemory()
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+		tn := tenantA(cfg)
+		tn.MaxConcurrency, tn.TPM, tn.TPMBurst = 1, 1000, 1000
+	}, p, lim)
+	srv := httptest.NewServer(gw.Handler())
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// n is the whole burst, so the bucket is empty while the stream is open.
+	resp := startStream(t, ctx, srv.URL, bodyWithMaxTokens("model-a", maxTokensFor(t, 1000), true))
+	<-started
+	if _, err := bufio.NewReader(resp.Body).ReadString('\n'); err != nil {
+		t.Fatalf("read first event: %v", err)
+	}
+	tpm := quota.RateLimit{PerMinute: 1000, Burst: 1000}
+	bg := context.Background()
+	if res, err := lim.Tokens.Reserve(bg, "tenant-a", tpm, 1, admissionNow); err != nil || res.Allowed {
+		t.Fatalf("Reserve(1) while streaming = %+v, %v; want denied (bucket empty)", res, err)
+	}
+	if ok, err := lim.Concurrency.Acquire(bg, "tenant-a", "probe", 1, time.Minute, admissionNow); err != nil || ok {
+		t.Fatalf("Acquire while streaming = %v, %v; want denied (slot held)", ok, err)
+	}
+
+	cancel()
+
+	waitFor(t, time.Second, "the concurrency slot to be released", func() bool {
+		ok, err := lim.Concurrency.Acquire(bg, "tenant-a", "probe", 1, time.Minute, admissionNow)
+		return err == nil && ok
+	})
+	_ = lim.Concurrency.Release(bg, "tenant-a", "probe")
+	// 1000 reserved, 15 used: 985 come back, so exactly 985 fit again.
+	waitFor(t, time.Second, "the unused tokens to be refunded", func() bool {
+		res, err := lim.Tokens.Reserve(bg, "tenant-a", tpm, 985, admissionNow)
+		return err == nil && res.Allowed
+	})
+	if res, _ := lim.Tokens.Reserve(bg, "tenant-a", tpm, 1, admissionNow); res.Allowed {
+		t.Error("more than the unused tokens were refunded")
+	}
+}
+
+// errLimiters fails the selected limiter and counts every limiter call.
+type errLimiters struct {
+	mem   quota.Limiters
+	err   error
+	which string // "requests", "tokens", "concurrency"; anything else never fails
+	calls atomic.Int32
+}
+
+func (e *errLimiters) limiters() quota.Limiters {
+	return quota.Limiters{Requests: e, Tokens: e, Concurrency: e}
+}
+
+func (e *errLimiters) fail(kind string) error {
+	e.calls.Add(1)
+	if kind == e.which {
+		return e.err
+	}
+	return nil
+}
+
+func (e *errLimiters) Allow(ctx context.Context, key string, lim quota.RateLimit, now time.Time) (quota.Result, error) {
+	if err := e.fail("requests"); err != nil {
+		return quota.Result{}, err
+	}
+	return e.mem.Requests.Allow(ctx, key, lim, now)
+}
+
+func (e *errLimiters) Reserve(ctx context.Context, key string, lim quota.RateLimit, n int64, now time.Time) (quota.Result, error) {
+	if err := e.fail("tokens"); err != nil {
+		return quota.Result{}, err
+	}
+	return e.mem.Tokens.Reserve(ctx, key, lim, n, now)
+}
+
+func (e *errLimiters) Refund(ctx context.Context, key string, lim quota.RateLimit, n int64, now time.Time) error {
+	e.calls.Add(1)
+	return e.mem.Tokens.Refund(ctx, key, lim, n, now)
+}
+
+func (e *errLimiters) Acquire(ctx context.Context, key, lease string, limit int, ttl time.Duration, now time.Time) (bool, error) {
+	if err := e.fail("concurrency"); err != nil {
+		return false, err
+	}
+	return e.mem.Concurrency.Acquire(ctx, key, lease, limit, ttl, now)
+}
+
+func (e *errLimiters) Release(ctx context.Context, key, lease string) error {
+	e.calls.Add(1)
+	return e.mem.Concurrency.Release(ctx, key, lease)
+}
+
+func TestLimiterErrorIs503(t *testing.T) {
+	for _, which := range []string{"concurrency", "requests", "tokens"} {
+		t.Run(which, func(t *testing.T) {
+			stub := &errLimiters{mem: quota.NewMemory(), err: errors.New("limiter backend down"), which: which}
+			called := false
+			p := &fakeProvider{complete: func(context.Context, *openai.ChatCompletionRequest) (*openai.ChatCompletion, error) {
+				called = true
+				return &openai.ChatCompletion{}, nil
+			}}
+			gw, logs := newAdmissionGateway(t, func(cfg *config.Config) {
+				tn := tenantA(cfg)
+				tn.MaxConcurrency, tn.RPM, tn.RPMBurst, tn.TPM, tn.TPMBurst = 1, 60, 2, 1000, 1000
+			}, p, stub.limiters())
+
+			rec := chat(gw, keyA, chatBody("model-a", "hi"))
+
+			if rec.Code != http.StatusServiceUnavailable || decodeErr(t, rec).Error.Code != "overloaded" {
+				t.Fatalf("status %d body %s, want 503 overloaded", rec.Code, rec.Body.String())
+			}
+			if called {
+				t.Error("the upstream was called after a limiter error")
+			}
+			out := logs.String()
+			if !strings.Contains(out, "level=WARN") || !strings.Contains(out, "limiter backend down") {
+				t.Errorf("limiter error not logged at warn with its cause:\n%s", out)
+			}
+			for _, secret := range []string{keyA, keyHash(keyA)} {
+				if strings.Contains(out, secret) {
+					t.Errorf("log leaks a credential:\n%s", out)
+				}
+			}
+			// Whatever an earlier check took was handed back.
+			ok, err := stub.mem.Concurrency.Acquire(context.Background(), "tenant-a", "probe", 1, time.Minute, admissionNow)
+			if err != nil || !ok {
+				t.Errorf("Acquire after the failure = %v, %v; want the slot free", ok, err)
+			}
+		})
+	}
+}
+
+func TestUnlimitedTenantSkipsLimiters(t *testing.T) {
+	stub := &errLimiters{mem: quota.NewMemory(), err: errors.New("must not be called"), which: "none"}
+	gw, _ := newAdmissionGateway(t, nil, okProvider(), stub.limiters())
+
+	if rec := chat(gw, keyA, chatBody("model-a", "hi")); rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if n := stub.calls.Load(); n != 0 {
+		t.Errorf("limiters were called %d times for a tenant with no limits, want 0", n)
+	}
+}
+
+func TestRedisBackendEndToEnd(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+
+	newServer := func() *Server {
+		gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+			tenantA(cfg).RPM, tenantA(cfg).RPMBurst = 60, 2
+		}, okProvider(), quota.NewRedis(client, "routepilot"))
+		return gw
+	}
+	one, two := newServer(), newServer()
+	body := chatBody("model-a", "hi")
+
+	if rec := chat(one, keyA, body); rec.Code != http.StatusOK {
+		t.Fatalf("server one: status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if rec := chat(two, keyA, body); rec.Code != http.StatusOK {
+		t.Fatalf("server two: status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	// The burst of 2 is spent across both servers.
+	wantRateLimited(t, chat(one, keyA, body), "tenant request rate exceeded", "1")
+	wantRateLimited(t, chat(two, keyA, body), "tenant request rate exceeded", "1")
+}

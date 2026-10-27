@@ -17,6 +17,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/provider"
+	"github.com/omorsi45/routepilot/internal/quota"
 	"github.com/omorsi45/routepilot/internal/reliability"
 	"github.com/omorsi45/routepilot/internal/router"
 )
@@ -33,6 +34,9 @@ type Options struct {
 	// Sleep waits d between attempts and returns ctx.Err() if ctx ends first.
 	// Nil sleeps on a timer.
 	Sleep func(ctx context.Context, d time.Duration) error
+	// Limiters back the per-tenant request, token and concurrency limits. Any
+	// nil field uses the in-process memory implementation.
+	Limiters quota.Limiters
 }
 
 // Server is the gateway HTTP server.
@@ -49,6 +53,11 @@ type Server struct {
 	health *reliability.Health
 	rand   func() float64
 	sleep  func(ctx context.Context, d time.Duration) error
+
+	limits quota.Limiters
+	// sem is the global in-flight limit: one token per request in progress.
+	// Nil when server.max_inflight is not positive (no limit).
+	sem chan struct{}
 }
 
 // New builds a Server. Every deployment's provider must exist in providers.
@@ -103,6 +112,10 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 	if s.sleep == nil {
 		s.sleep = sleepTimer
 	}
+	s.limits = fillLimiters(opts.Limiters)
+	if n := cfg.Server.MaxInflight; n > 0 {
+		s.sem = make(chan struct{}, n)
+	}
 	return s, nil
 }
 
@@ -153,8 +166,11 @@ type reqState struct {
 	promptBytes int
 	policy      string
 	attempts    int // upstream attempts sent
-	errCode     string
-	canceled    bool
+	// usage is the token usage reported by the attempt that produced the
+	// response, nil when none was reported. It drives the TPM refund.
+	usage    *openai.Usage
+	errCode  string
+	canceled bool
 }
 
 // statusWriter records the response status. It forwards Flush and exposes the

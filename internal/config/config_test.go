@@ -317,6 +317,10 @@ func TestParseRejectsM2(t *testing.T) {
 			[]string{"tenants[0].rpm_burst: rpm_burst set without rpm"}},
 		{"tpm burst without tpm", baseYAML(t, "allowed_models:", "tpm_burst: 5\n    allowed_models:"),
 			[]string{"tenants[0].tpm_burst: tpm_burst set without tpm"}},
+		{"rpm burst window over 24h", baseYAML(t, "allowed_models:", "rpm: 1\n    rpm_burst: 1441\n    allowed_models:"),
+			[]string{"tenants[0].rpm_burst: window exceeds 24h"}},
+		{"tpm burst window over 24h", baseYAML(t, "allowed_models:", "tpm: 1\n    tpm_burst: 1441\n    allowed_models:"),
+			[]string{"tenants[0].tpm_burst: window exceeds 24h"}},
 		{"negative max inflight", baseYAML(t, "providers:", "  max_inflight: -1\nproviders:"),
 			[]string{"server.max_inflight"}},
 		{"unknown policy", baseYAML(t, "tenants:", "routing:\n  policy: random\ntenants:"),
@@ -465,5 +469,13 @@ func TestHasCapabilityNilDefaultsToStreaming(t *testing.T) {
 	m.Capabilities = []string{CapTools}
 	if m.HasCapability(CapStreaming) || !m.HasCapability(CapTools) {
 		t.Error("explicit list should be used verbatim")
+	}
+}
+
+func TestParseAcceptsBurstWindowAt24h(t *testing.T) {
+	// rpm 1 gives a 60 s emission interval, so a burst of 1440 is exactly 24 h.
+	y := baseYAML(t, "allowed_models:", "rpm: 1\n    rpm_burst: 1440\n    tpm: 1\n    tpm_burst: 1440\n    allowed_models:")
+	if _, err := Parse([]byte(y)); err != nil {
+		t.Fatalf("burst window of exactly 24h rejected: %v", err)
 	}
 }

@@ -71,6 +71,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 	defer a.watchdog.Stop()
 	idle := time.Duration(pcfg.IdleTimeoutMs) * time.Millisecond
 
+	c.rs.usage = nil // only the attempt that answers reports usage
 	a.start = c.s.now()
 	stream, err := c.s.providers[dep.Provider].Stream(ctx, up)
 	if err == nil && stream == nil {
@@ -100,6 +101,11 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 			return a.fail(err)
 		}
 
+		if chunk.Usage != nil {
+			// Capture before a client that did not ask for usage has it stripped.
+			u := *chunk.Usage
+			c.rs.usage = &u
+		}
 		if !includeUsage {
 			chunk.Usage = nil
 			if len(chunk.Choices) == 0 {

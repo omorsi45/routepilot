@@ -525,7 +525,30 @@ func (c *Config) validateTenants(models map[string]bool, add addFunc) {
 		if t.TPM == 0 && t.TPMBurst > 0 {
 			add(path+".tpm_burst", "tpm_burst set without tpm")
 		}
+		if burstWindowTooLong(t.RPM, t.RPMBurst) {
+			add(path+".rpm_burst", "window exceeds 24h")
+		}
+		if burstWindowTooLong(t.TPM, t.TPMBurst) {
+			add(path+".tpm_burst", "window exceeds 24h")
+		}
 	}
+}
+
+// maxBurstWindowMicros is the longest GCRA burst window the limiters accept,
+// 24 hours, so a stored theoretical arrival time stays within a day of now.
+const maxBurstWindowMicros = 86_400_000_000
+
+// burstWindowTooLong reports whether a limit of perMinute with the given burst
+// has a GCRA window (emission interval times burst) over 24 hours. The
+// emission interval is the quota package's max(60_000_000/perMinute, 1)
+// microseconds. A zero limit is unlimited and never too long.
+func burstWindowTooLong(perMinute, burst int) bool {
+	if perMinute <= 0 || burst <= 0 {
+		return false
+	}
+	interval := max(60_000_000/int64(perMinute), 1)
+	// interval*burst > max without overflowing the product.
+	return int64(burst) > maxBurstWindowMicros/interval
 }
 
 func (c *Config) validateRouting(models map[string]bool, add addFunc) {
