@@ -2,11 +2,8 @@ package gateway
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
-	"sync/atomic"
 	"time"
 
 	"github.com/omorsi45/routepilot/internal/catalog"
@@ -26,183 +23,102 @@ var (
 	errClientWrite = errors.New("gateway: client write failed")
 )
 
-// streamCall is the state of one streaming request.
+// streamCall is the client-facing state of one streaming request. It outlives
+// the individual attempts: only the one that commits writes to the client.
 type streamCall struct {
-	s     *Server
-	w     http.ResponseWriter
-	rs    *reqState
-	r     *http.Request
-	rc    *http.ResponseController
-	sse   *openai.SSEWriter
-	model string // catalog model ID served
-	dep   catalog.Deployment
-
-	// ctx is the request context with the deadline applied; attemptCtx is its
-	// child, canceled with a cause by the watchdogs and by write failures.
-	ctx        context.Context
-	attemptCtx context.Context
-	cancel     context.CancelCauseFunc
+	s   *Server
+	w   http.ResponseWriter
+	rs  *reqState
+	r   *http.Request
+	rc  *http.ResponseController
+	sse *openai.SSEWriter
+	ctx context.Context // the request context with the deadline applied
 
 	started bool // the first committing chunk was written, so the status line is sent
-	settled bool // the attempt's health outcome was reported
-
-	attemptStart time.Time // just before the provider call, for settle's elapsed time
 }
 
 // maxHeldChunks caps how many non-committing chunks (such as a role-only
 // opener) are kept back while waiting for the first content.
 const maxHeldChunks = 64
 
-// proxyStream forwards a streaming completion to the first deployment the
-// decision offers. It makes one attempt; failing over to the next deployment
-// is not done here yet.
+// proxyStream forwards a streaming completion to the decision's deployments in
+// order until one commits, like proxyComplete does for a whole response. One
+// deadline, already on ctx, covers every attempt and wait.
 //
 // Exactly one chunk is in flight: read from the upstream, write and flush to
 // the client, then read again. A slow client therefore slows the upstream read
 // loop (TCP backpressure) instead of growing a buffer.
 //
-// The response is committed (headers and status 200 sent) at the first
+// An attempt commits the response (headers and status 200 sent) at its first
 // committing chunk: one with content text, tool calls, a finish reason, or
 // usage that will be forwarded, or another delta field with a real value such
-// as reasoning_content. Earlier chunks, such as a role-only opener,
-// are held in order (at most maxHeldChunks) and written just before it, and
-// the TTFT watchdog keeps running meanwhile, so time to first token is
-// enforced for every provider.
+// as reasoning_content. Earlier chunks, such as a role-only opener, are held
+// in order (at most maxHeldChunks) and written just before it, and the TTFT
+// watchdog keeps running meanwhile, so time to first token is enforced for
+// every provider.
 //
-// Before the commit, failures produce a normal JSON error. After it, the
-// status line is already sent, so a failure becomes one SSE error event and
-// the stream ends without [DONE]. The upstream is never retried.
+// Until the commit nothing has reached the client, so a retryable failure
+// discards the attempt's held chunks and moves on to the next deployment, and
+// a final failure is a normal JSON error. After the commit the status line is
+// already sent: a failure becomes one SSE error event, the stream ends without
+// [DONE], and the upstream is never retried.
 func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *reqState, r *http.Request, req *openai.ChatCompletionRequest, dec router.Decision) {
-	model, dep, ok := s.newAttemptPlan(dec).next()
-	if !ok {
-		s.fail(w, rs, openai.ErrNoHealthyDeployment())
-		return
-	}
-	rs.attempts++
-	up := s.prepareUpstream(rs, req, model.ID, dep)
-	up.Stream = true
-	includeUsage := req.StreamOptions != nil && req.StreamOptions.IncludeUsage
-	pcfg := s.providerCfgs[dep.Provider]
-
-	attemptCtx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	c := &streamCall{
-		s: s, w: w, rs: rs, r: r, model: model.ID, dep: dep,
-		ctx: ctx, attemptCtx: attemptCtx, cancel: cancel,
-		rc: http.NewResponseController(w),
-	}
+	c := &streamCall{s: s, w: w, rs: rs, r: r, ctx: ctx, rc: http.NewResponseController(w)}
 	c.sse = openai.NewSSEWriter(w, c.rc.Flush)
 
-	// One timer is the TTFT watchdog until the first committing chunk arrives,
-	// then the idle watchdog. It starts before Stream() so it also covers connecting and
-	// waiting for response headers. The idle phase times only the wait for the
-	// next upstream chunk: it is stopped when Recv returns and reset just before
-	// the next Recv, so a slow client blocked in a write never counts.
-	var idlePhase atomic.Bool
-	watchdog := time.AfterFunc(time.Duration(pcfg.TTFTTimeoutMs)*time.Millisecond, func() {
-		if idlePhase.Load() {
-			cancel(errIdleTimeout)
-		} else {
-			cancel(errTTFTTimeout)
-		}
-	})
-	defer watchdog.Stop()
-	idle := time.Duration(pcfg.IdleTimeoutMs) * time.Millisecond
-
-	c.attemptStart = s.now()
-	stream, err := s.providers[dep.Provider].Stream(attemptCtx, up)
-	if err == nil && stream == nil {
-		err = openai.ErrInternal()
-	}
-	if err != nil {
-		c.fail(err)
-		return
-	}
-	defer stream.Close()
-	// Make a cancel unblock a Recv even if the provider ignores the context.
-	stopClose := context.AfterFunc(attemptCtx, func() { _ = stream.Close() })
-	defer stopClose()
-
-	var held [][]byte // encoded non-committing chunks, in arrival order
+	plan := s.newAttemptPlan(dec)
+	var (
+		last     attemptResult
+		lastDep  catalog.Deployment
+		timedOut bool // a retry wait would have passed the deadline
+	)
 	for {
-		if c.started {
-			watchdog.Reset(idle) // time only the wait for the next upstream chunk
-		}
-		chunk, err := stream.Recv()
-		if c.started {
-			watchdog.Stop()
-		}
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			c.fail(err)
-			return
-		}
-
-		if !includeUsage {
-			chunk.Usage = nil
-			if len(chunk.Choices) == 0 {
-				continue
+		if rs.attempts > 0 {
+			if !plan.more() {
+				break
 			}
-		}
-		chunk.ID = "chatcmpl-" + rs.id
-		chunk.Object = openai.ObjectChatCompletionChunk
-		chunk.Model = model.ID
-		if chunk.Created == 0 {
-			chunk.Created = s.now().Unix()
-		}
-		if chunk.Choices == nil {
-			chunk.Choices = []openai.ChunkChoice{}
-		}
-		b, err := json.Marshal(chunk)
-		if err != nil {
-			c.fail(err)
-			return
-		}
-
-		if !c.started && !isCommitting(chunk) {
-			if len(held) >= maxHeldChunks {
-				c.settle(errors.New("too many chunks without content"))
-				s.fail(w, rs, openai.ErrUpstream("upstream "+dep.Name+" sent too many chunks without content"))
+			if err := s.waitBeforeRetry(ctx, rs.attempts-1, last.err); err != nil {
+				if errors.Is(err, context.DeadlineExceeded) {
+					timedOut = true
+					break
+				}
+				rs.canceled = true // the client went away while we waited
 				return
 			}
-			held = append(held, b)
-			continue
-		}
-		if !c.started {
-			// The first committing chunk: stop the TTFT phase, switch to the
-			// idle phase, then send headers and the held chunks before it.
-			watchdog.Stop()
-			idlePhase.Store(true)
-			c.startResponse()
-			for _, h := range held {
-				if err := c.send(func() error { return c.sse.WriteData(h) }); err != nil {
-					c.clientGone()
-					return
-				}
+			// The wait itself may have run past the deadline: claim nothing.
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				timedOut = true
+				break
 			}
-			held = nil
 		}
-		if err := c.send(func() error { return c.sse.WriteData(b) }); err != nil {
-			c.clientGone()
+		model, dep, ok := plan.next()
+		if !ok {
+			break
+		}
+		rs.attempts++
+		up := s.prepareUpstream(rs, req, model.ID, dep)
+		up.Stream = true
+
+		last, lastDep = c.attempt(model.ID, dep, up, req.StreamOptions != nil && req.StreamOptions.IncludeUsage), dep
+		if last.done {
 			return
+		}
+		if !retryable(last.err, last.ctx) {
+			break
 		}
 	}
 
-	if !c.started {
-		// A clean end before any content: nothing useful was received.
-		c.settle(errors.New("stream ended without content"))
-		if c.timedOut() {
-			s.fail(w, rs, openai.ErrUpstreamTimeout())
-			return
+	switch {
+	case rs.attempts == 0:
+		s.fail(w, rs, openai.ErrNoHealthyDeployment())
+	case timedOut || last.timedOut || errors.Is(ctx.Err(), context.DeadlineExceeded):
+		s.fail(w, rs, openai.ErrUpstreamTimeout())
+	default:
+		if apiErr := mapUpstreamError(ctx, r.Context(), lastDep.Name, last.err); apiErr != nil {
+			s.fail(w, rs, apiErr)
+		} else {
+			rs.canceled = true
 		}
-		s.fail(w, rs, openai.ErrUpstream("upstream "+dep.Name+" returned an empty stream"))
-		return
-	}
-	c.settle(nil) // the upstream finished cleanly, whatever the client does next
-	if err := c.send(c.sse.WriteDone); err != nil {
-		c.clientGone()
 	}
 }
 
@@ -225,13 +141,13 @@ func isCommitting(chunk *openai.ChatCompletionChunk) bool {
 
 // startResponse writes the SSE headers and status line. It runs when the first
 // chunk is ready, so earlier failures can still be a JSON error.
-func (c *streamCall) startResponse() {
+func (c *streamCall) startResponse(modelID, deployment string) {
 	h := c.w.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
-	setRouteHeaders(c.w, c.model, c.dep.Name)
+	setRouteHeaders(c.w, modelID, deployment)
 	c.w.WriteHeader(http.StatusOK)
 	c.started = true
 }
@@ -243,73 +159,4 @@ func (c *streamCall) send(write func() error) error {
 		return err
 	}
 	return write()
-}
-
-// clientGone stops the upstream after a failed client write.
-func (c *streamCall) clientGone() {
-	c.cancel(errClientWrite)
-	c.rs.canceled = true
-	c.abort()
-}
-
-// settle reports the attempt's outcome to deployment health, once. A nil err
-// is a success.
-func (c *streamCall) settle(err error) {
-	if c.settled {
-		return
-	}
-	c.settled = true
-	c.s.settle(c.attemptCtx, c.dep.Name, err, c.s.now().Sub(c.attemptStart))
-}
-
-// abort releases the attempt's claim without an outcome, once, because the
-// client went away.
-func (c *streamCall) abort() {
-	if c.settled {
-		return
-	}
-	c.settled = true
-	c.s.health.Abort(c.dep.Name)
-}
-
-// timedOut reports whether the attempt ended because a watchdog fired or the
-// request deadline passed, not because of a disconnect or a plain failure.
-func (c *streamCall) timedOut() bool {
-	cause := context.Cause(c.attemptCtx)
-	return errors.Is(cause, errTTFTTimeout) || errors.Is(cause, errIdleTimeout) ||
-		errors.Is(c.ctx.Err(), context.DeadlineExceeded)
-}
-
-// fail ends the request after an upstream or local failure.
-//
-// Before the first byte it is a normal JSON error (or nothing, when the client
-// is gone). After it, the status line is sent, so it is one SSE error event and
-// no [DONE], which keeps a client from mistaking it for a complete answer.
-func (c *streamCall) fail(err error) {
-	if c.r.Context().Err() != nil {
-		c.rs.canceled = true
-		c.abort()
-		return
-	}
-	c.settle(err)
-	if !c.started {
-		if c.timedOut() {
-			c.s.fail(c.w, c.rs, openai.ErrUpstreamTimeout())
-		} else if apiErr := mapUpstreamError(c.ctx, c.r.Context(), c.dep.Name, err); apiErr != nil {
-			c.s.fail(c.w, c.rs, apiErr)
-		} else {
-			c.rs.canceled = true
-		}
-		return
-	}
-
-	apiErr := openai.ErrUpstream("upstream " + c.dep.Name + " failed mid-stream")
-	if c.timedOut() {
-		apiErr = openai.ErrUpstreamTimeout()
-	}
-	c.rs.errCode = apiErr.Code
-	body := apiErr.Body()
-	if err := c.send(func() error { return c.sse.WriteData(body) }); err != nil {
-		c.clientGone()
-	}
 }

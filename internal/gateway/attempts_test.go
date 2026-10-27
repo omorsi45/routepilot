@@ -48,6 +48,8 @@ type attemptOpts struct {
 	sleep func(ctx context.Context, d time.Duration) error
 	// defaultTimeoutMs overrides server.default_timeout_ms when positive.
 	defaultTimeoutMs int
+	// ttftMs overrides the provider's ttft_timeout_ms when positive.
+	ttftMs int
 }
 
 // attemptEnv is a gateway over one provider whose upstream counts requests by
@@ -105,6 +107,9 @@ func newAttemptEnv(t *testing.T, o attemptOpts) *attemptEnv {
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "providers:\n  - name: mockp\n    type: openaicompat\n    base_url: %q\n", srv.URL+"/v1")
+	if o.ttftMs > 0 {
+		fmt.Fprintf(&sb, "    ttft_timeout_ms: %d\n", o.ttftMs)
+	}
 	if o.defaultTimeoutMs > 0 {
 		fmt.Fprintf(&sb, "server:\n  default_timeout_ms: %d\n", o.defaultTimeoutMs)
 	}
@@ -798,5 +803,67 @@ func TestNoRetryClaimedAfterDeadlinePassedDuringWait(t *testing.T) {
 	}
 	if !strings.Contains(e.logs.String(), "attempts=1") {
 		t.Errorf("log line missing attempts=1: %s", e.logs.String())
+	}
+}
+
+// expiredCtx returns a context whose deadline has passed.
+func expiredCtx(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Millisecond))
+	t.Cleanup(cancel)
+	return ctx
+}
+
+func TestSettleDeadlineBlameThreshold(t *testing.T) {
+	timeout := &provider.Error{Kind: provider.KindTimeout, Message: "deadline"}
+	for name, tc := range map[string]struct {
+		elapsed time.Duration
+		blamed  bool
+	}{
+		"just under 90%":  {899 * time.Millisecond, false},
+		"exactly 90%":     {900 * time.Millisecond, true},
+		"the full budget": {time.Second, true},
+		"far shorter":     {50 * time.Millisecond, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newAttemptEnv(t, attemptOpts{
+				defaultTimeoutMs: 1000,
+				models:           []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua"}}}},
+			})
+			if !e.gw.health.Allow("dep-a") {
+				t.Fatal("Allow refused a fresh deployment")
+			}
+			e.gw.settle(expiredCtx(t), "dep-a", timeout, tc.elapsed)
+			// A recorded failure sets the error rate; an abort leaves it 0.
+			if blamed := e.gw.health.Snapshot()["dep-a"].ErrorRate > 0; blamed != tc.blamed {
+				t.Errorf("failure recorded = %v, want %v", blamed, tc.blamed)
+			}
+		})
+	}
+}
+
+// A 401/403 or a long Retry-After that arrives just before the deadline is
+// still the deployment's fault: only timeout and cancel failures are excused.
+func TestSettleDeadlineBranchOnlyForTimeoutKinds(t *testing.T) {
+	for name, err := range map[string]*provider.Error{
+		"401":              {Kind: provider.KindHTTP, Status: 401, Message: "bad key"},
+		"long retry-after": {Kind: provider.KindHTTP, Status: 429, Retryable: true, RetryAfter: 30 * time.Second},
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := newAttemptEnv(t, attemptOpts{
+				defaultTimeoutMs: 1000,
+				models:           []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua"}}}},
+			})
+			if !e.gw.health.Allow("dep-a") {
+				t.Fatal("Allow refused a fresh deployment")
+			}
+			e.gw.settle(expiredCtx(t), "dep-a", err, 10*time.Millisecond)
+			if e.gw.health.Snapshot()["dep-a"].ErrorRate == 0 {
+				t.Error("no failure recorded: the claim was released as a short deadline")
+			}
+			if e.gw.health.Available("dep-a") {
+				t.Error("dep-a is still available, want it tripped")
+			}
+		})
 	}
 }

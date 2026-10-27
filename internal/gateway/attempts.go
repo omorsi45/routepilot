@@ -136,14 +136,32 @@ func deadlineExpired(ctx context.Context) bool {
 	return !errors.Is(cause, errTTFTTimeout) && !errors.Is(cause, errIdleTimeout)
 }
 
+// timeoutOrCancel reports whether err is a timeout or a cancel: a provider
+// KindTimeout or KindCanceled, or a context error. Only these can be blamed on
+// the request deadline rather than on the deployment.
+func timeoutOrCancel(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	var perr *provider.Error
+	return errors.As(err, &perr) && (perr.Kind == provider.KindTimeout || perr.Kind == provider.KindCanceled)
+}
+
+// deadlineBlameNum and deadlineBlameDen make the share of the server's default
+// timeout (9/10) an attempt must have used for a deadline expiry to count
+// against its deployment.
+const deadlineBlameNum, deadlineBlameDen = 9, 10
+
 // settle reports the outcome of an attempt claimed with Allow. A nil err is a
 // success. ctx is the context the attempt ran under and elapsed is how long
 // the attempt took, from just before the provider call to its return.
 //
-// A failure caused by the request deadline blames the deployment only when
-// the attempt ran for at least the server's default timeout. A shorter run
-// was cut off by a client-chosen deadline, which says nothing about the
-// deployment, so the claim is released instead.
+// A timeout or cancel caused by the request deadline blames the deployment
+// only when the attempt ran for at least 90% of the server's default timeout.
+// A shorter run was cut off by a client-chosen deadline, which says nothing
+// about the deployment, so the claim is released instead. Any other failure
+// that happens to arrive near the deadline, such as a 401 or a long
+// Retry-After, is still the deployment's.
 //
 // An upstream 401 or 403 also quarantines the deployment, and a Retry-After
 // longer than maxInlineRetryAfter trips its breaker for that long.
@@ -152,8 +170,9 @@ func (s *Server) settle(ctx context.Context, dep string, err error, elapsed time
 		s.health.Record(dep, true)
 		return
 	}
-	if deadlineExpired(ctx) {
-		if elapsed >= time.Duration(s.cfg.Server.DefaultTimeoutMs)*time.Millisecond {
+	if deadlineExpired(ctx) && timeoutOrCancel(err) {
+		budget := time.Duration(s.cfg.Server.DefaultTimeoutMs) * time.Millisecond
+		if elapsed*deadlineBlameDen >= budget*deadlineBlameNum {
 			s.health.Record(dep, false)
 		} else {
 			s.health.Abort(dep)

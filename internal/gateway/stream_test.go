@@ -6,15 +6,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/mock"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/provider"
+	"github.com/omorsi45/routepilot/internal/reliability"
 )
 
 // streamClient is an HTTP client with its own transport so a test can drop its
@@ -497,4 +502,347 @@ func waitFor(t *testing.T, d time.Duration, what string, cond func() bool) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// sseEvents returns the data of every event in a recorded SSE body.
+func sseEvents(body string) []string {
+	var events []string
+	for _, block := range strings.Split(body, "\n\n") {
+		if data, ok := strings.CutPrefix(strings.TrimSpace(block), "data: "); ok {
+			events = append(events, data)
+		}
+	}
+	return events
+}
+
+// twoDepModel is one model served by two deployments on the same upstream.
+func twoDepModel(a, b string) []modelSpec {
+	return []modelSpec{{id: "m", deps: []depSpec{{"dep-a", a}, {"dep-b", b}}}}
+}
+
+func TestStreamFailoverBeforeCommit(t *testing.T) {
+	e := newAttemptEnv(t, attemptOpts{models: twoDepModel("ua;fail=http500", "ub;tokens=3")})
+	rec := e.post(streamBody("m"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("x-routepilot-deployment"); got != "dep-b" {
+		t.Errorf("deployment header %q, want dep-b", got)
+	}
+	events := sseEvents(rec.Body.String())
+	if len(events) == 0 || events[len(events)-1] != "[DONE]" {
+		t.Fatalf("stream does not end with [DONE]: %q", events)
+	}
+	if !strings.Contains(rec.Body.String(), "tok") {
+		t.Errorf("dep-b content missing from the stream: %s", rec.Body.String())
+	}
+	if a, b := e.count("ua;fail=http500"), e.count("ub;tokens=3"); a != 1 || b != 1 {
+		t.Errorf("upstream hits a=%d b=%d, want 1 and 1", a, b)
+	}
+	if !strings.Contains(e.logs.String(), "attempts=2") {
+		t.Errorf("log line missing attempts=2: %s", e.logs.String())
+	}
+	if !strings.Contains(e.logs.String(), "deployment=dep-b") {
+		t.Errorf("log line should name the committing deployment dep-b: %s", e.logs.String())
+	}
+}
+
+func TestStreamTTFTTimeoutFailsOver(t *testing.T) {
+	e := newAttemptEnv(t, attemptOpts{ttftMs: 100, models: twoDepModel("ua;ttft_ms=2000", "ub;tokens=3")})
+	start := time.Now()
+	rec := e.post(streamBody("m"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("x-routepilot-deployment"); got != "dep-b" {
+		t.Errorf("deployment header %q, want dep-b", got)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("took %v, want under 1s", d)
+	}
+	if h := e.gw.health.Snapshot()["dep-a"]; h.ErrorRate == 0 {
+		t.Errorf("dep-a health = %+v, want the TTFT timeout recorded as a failure", h)
+	}
+}
+
+func TestStreamFailoverDiscardsHeldChunks(t *testing.T) {
+	mockH := mock.NewHandler(mock.Config{})
+	upstream := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(strings.NewReader(string(b)))
+		if !strings.Contains(string(b), `"ua"`) {
+			mockH.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"ua","choices":[{"index":0,"delta":{"role":"assistant","content":""}}]}`+"\n\n")
+		fmt.Fprint(w, `data: {"error":{"message":"boom"}}`+"\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	})
+	e := newAttemptEnv(t, attemptOpts{upstream: upstream, models: twoDepModel("ua", "ub;tokens=3")})
+	rec := e.post(streamBody("m"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("x-routepilot-deployment"); got != "dep-b" {
+		t.Errorf("deployment header %q, want dep-b", got)
+	}
+	var roles, firstContent int
+	firstContent = -1
+	for i, ev := range sseEvents(rec.Body.String()) {
+		if ev == "[DONE]" {
+			continue
+		}
+		c := decodeChunk(t, ev)
+		for _, ch := range c.Choices {
+			if ch.Delta.Role != "" {
+				roles++
+				if firstContent >= 0 {
+					t.Errorf("role chunk at event %d follows content at event %d", i, firstContent)
+				}
+			}
+			if ch.Delta.Content != nil && *ch.Delta.Content != "" && firstContent < 0 {
+				firstContent = i
+			}
+		}
+	}
+	if roles != 1 {
+		t.Errorf("client saw %d role chunks, want exactly 1 (dep-a's held chunk must be discarded)", roles)
+	}
+	if firstContent < 0 {
+		t.Error("dep-b content never reached the client")
+	}
+}
+
+// An upstream that ends without any committing chunk is a retryable failure,
+// not an empty 200 stream.
+func TestStreamEmptyUpstreamFailsOver(t *testing.T) {
+	cfg := twoProviderModelConfig(t)
+	p := &fakeProvider{stream: func(_ context.Context, req *openai.ChatCompletionRequest) (provider.Stream, error) {
+		if req.Model == "ua" {
+			return &fakeStream{err: io.EOF}, nil
+		}
+		return &fakeStream{chunks: []*openai.ChatCompletionChunk{textChunk("from-b")}, err: io.EOF}, nil
+	}}
+	gw, err := New(cfg, map[string]provider.Provider{"mockp": p}, Options{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Sleep:  func(context.Context, time.Duration) error { return nil },
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	rec := do(gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, streamBody("m"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("x-routepilot-deployment"); got != "dep-b" {
+		t.Errorf("deployment header %q, want dep-b", got)
+	}
+	if !strings.Contains(rec.Body.String(), "from-b") {
+		t.Errorf("dep-b content missing: %s", rec.Body.String())
+	}
+	if h := gw.health.Snapshot()["dep-a"]; h.ErrorRate == 0 {
+		t.Errorf("dep-a health = %+v, want the empty stream recorded as a failure", h)
+	}
+}
+
+func TestStreamNoRetryAfterCommit(t *testing.T) {
+	e := newAttemptEnv(t, attemptOpts{models: twoDepModel("ua;fail=midstream;fail_after=2", "ub;tokens=3")})
+	rec := e.post(streamBody("m"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200 (headers were already sent): %s", rec.Code, rec.Body.String())
+	}
+	events := sseEvents(rec.Body.String())
+	if len(events) != 3 {
+		t.Fatalf("got %d events, want 2 chunks + 1 error: %q", len(events), events)
+	}
+	for _, ev := range events {
+		if ev == "[DONE]" {
+			t.Error("[DONE] sent after a failed stream")
+		}
+	}
+	if !strings.Contains(events[2], "failed mid-stream") {
+		t.Errorf("last event %q is not the mid-stream error", events[2])
+	}
+	if n := e.count("ub;tokens=3"); n != 0 {
+		t.Errorf("dep-b saw %d requests, want 0 (no retry after commit)", n)
+	}
+	if got := rec.Header().Get("x-routepilot-deployment"); got != "dep-a" {
+		t.Errorf("deployment header %q, want dep-a", got)
+	}
+}
+
+func TestStreamAllAttemptsFailIsJSON(t *testing.T) {
+	e := newAttemptEnv(t, attemptOpts{models: twoDepModel("ua;fail=http500", "ub;fail=http500")})
+	rec := e.post(streamBody("m"))
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status %d, want 502: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type %q, want application/json", ct)
+	}
+	if got := decodeErr(t, rec).Error.Code; got != "upstream_error" {
+		t.Errorf("code %q, want upstream_error", got)
+	}
+	if a, b := e.count("ua;fail=http500"), e.count("ub;fail=http500"); a != 1 || b != 1 {
+		t.Errorf("upstream hits a=%d b=%d, want 1 and 1", a, b)
+	}
+	if strings.Contains(rec.Body.String(), "data: ") {
+		t.Errorf("SSE written before commit: %s", rec.Body.String())
+	}
+}
+
+func TestStreamClientDisconnectReleasesProbe(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	var mu sync.Mutex
+	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	e := newAttemptEnv(t, attemptOpts{
+		clock:  clock,
+		models: []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua;fail=stall"}}}},
+	})
+	e.gw.health.Trip("dep-a", time.Second)
+	mu.Lock()
+	now = now.Add(2 * time.Second) // the cooldown elapsed: the next attempt is the probe
+	mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(streamBody("m"))).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+keyA)
+	done := make(chan struct{})
+	go func() {
+		e.gw.Handler().ServeHTTP(httptest.NewRecorder(), req)
+		close(done)
+	}()
+	waitFor(t, 2*time.Second, "the probe to reach the upstream", func() bool { return e.total() == 1 })
+	if e.gw.health.Available("dep-a") {
+		t.Fatal("dep-a admits a second attempt while the probe is in flight")
+	}
+	cancel()
+	<-done
+	if !e.gw.health.Available("dep-a") {
+		t.Error("a disconnected client left the half-open probe claimed")
+	}
+}
+
+func TestStreamDeadlineAfterCommitRecordsSuccess(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	var mu sync.Mutex
+	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	e := newAttemptEnv(t, attemptOpts{
+		clock:  clock,
+		models: []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua;tokens=100;tpot_ms=50"}}}},
+	})
+	e.gw.health.Trip("dep-a", time.Second)
+	mu.Lock()
+	now = now.Add(2 * time.Second) // the cooldown elapsed: this request is the probe
+	mu.Unlock()
+
+	// The 200ms client deadline is far under the server default, so it is
+	// short. After commit that still counts as a success, which closes the
+	// breaker; releasing the claim as an abort would leave it open.
+	body := `{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}],"routepilot":{"timeout_ms":200}}`
+	rec := e.post(body)
+
+	if !strings.Contains(rec.Body.String(), "upstream_timeout") {
+		t.Fatalf("stream did not end in the deadline error event: %s", rec.Body.String())
+	}
+	if h := e.gw.health.Snapshot()["dep-a"]; h.State != reliability.Closed || h.ErrorRate != 0 {
+		t.Errorf("dep-a health = %+v, want closed with error rate 0 (success recorded)", h)
+	}
+}
+
+// ignoringStream returns its chunks after the context is canceled, as a
+// provider that does not honor cancellation promptly would.
+type ignoringStream struct {
+	ctx    context.Context
+	chunks []*openai.ChatCompletionChunk
+}
+
+func (s *ignoringStream) Recv() (*openai.ChatCompletionChunk, error) {
+	<-s.ctx.Done()
+	if len(s.chunks) == 0 {
+		return nil, io.EOF
+	}
+	c := s.chunks[0]
+	s.chunks = s.chunks[1:]
+	return c, nil
+}
+
+func (s *ignoringStream) Close() error { return nil }
+
+func textChunk(text string) *openai.ChatCompletionChunk {
+	return &openai.ChatCompletionChunk{Choices: []openai.ChunkChoice{{Delta: openai.Delta{Content: &text}}}}
+}
+
+// TestStreamCommitLosesRaceToTTFTWatchdog makes the TTFT watchdog fire before
+// the first committing chunk is handled, deterministically: the first
+// attempt's Recv blocks until the watchdog has canceled its context and then
+// returns a content chunk anyway. The attempt must be a pre-commit timeout,
+// so the request fails over instead of committing to dep-a.
+func TestStreamCommitLosesRaceToTTFTWatchdog(t *testing.T) {
+	cfg := twoProviderModelConfig(t)
+	p := &fakeProvider{stream: func(ctx context.Context, req *openai.ChatCompletionRequest) (provider.Stream, error) {
+		if req.Model == "ua" {
+			return &ignoringStream{ctx: ctx, chunks: []*openai.ChatCompletionChunk{textChunk("from-a")}}, nil
+		}
+		return &fakeStream{chunks: []*openai.ChatCompletionChunk{textChunk("from-b")}, err: io.EOF}, nil
+	}}
+	logs := &strings.Builder{}
+	gw, err := New(cfg, map[string]provider.Provider{"mockp": p}, Options{
+		Logger: slog.New(slog.NewTextHandler(logs, nil)),
+		Sleep:  func(context.Context, time.Duration) error { return nil },
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	rec := do(gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, streamBody("m"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("x-routepilot-deployment"); got != "dep-b" {
+		t.Errorf("deployment header %q, want dep-b (dep-a lost the TTFT race)", got)
+	}
+	if body := rec.Body.String(); strings.Contains(body, "from-a") || !strings.Contains(body, "from-b") {
+		t.Errorf("body should carry only dep-b's content: %s", body)
+	}
+	if h := gw.health.Snapshot()["dep-a"]; h.ErrorRate == 0 {
+		t.Errorf("dep-a health = %+v, want the TTFT timeout recorded as a failure", h)
+	}
+}
+
+// twoProviderModelConfig is model m with deployments dep-a and dep-b on one
+// provider with a 50 ms TTFT timeout, for tests that script the provider.
+func twoProviderModelConfig(t *testing.T) *config.Config {
+	t.Helper()
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`providers:
+  - name: mockp
+    type: openaicompat
+    base_url: "http://127.0.0.1:1/v1"
+    ttft_timeout_ms: 50
+models:
+  - id: m
+    deployments:
+      - name: dep-a
+        provider: mockp
+        upstream_model: ua
+      - name: dep-b
+        provider: mockp
+        upstream_model: ub
+tenants:
+  - id: tenant-a
+    api_key_sha256: %s
+    allowed_models: ["*"]
+`, keyHash(keyA))))
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	return cfg
 }
