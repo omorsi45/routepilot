@@ -41,6 +41,10 @@ type streamCall struct {
 // opener) are kept back while waiting for the first content.
 const maxHeldChunks = 64
 
+// maxHeldBytes caps the marshaled size of those held chunks in total, so a
+// few chunks that carry large unknown fields cannot grow the buffer either.
+const maxHeldBytes = 1 << 20
+
 // proxyStream forwards a streaming completion to the decision's deployments in
 // order until one commits, like proxyComplete does for a whole response. One
 // deadline, already on ctx, covers every attempt and wait.
@@ -53,7 +57,7 @@ const maxHeldChunks = 64
 // committing chunk: one with content text, tool calls, a finish reason, or
 // usage that will be forwarded, or another delta field with a real value such
 // as reasoning_content. Earlier chunks, such as a role-only opener, are held
-// in order (at most maxHeldChunks) and written just before it, and the TTFT
+// in order (at most maxHeldChunks and maxHeldBytes) and written just before it, and the TTFT
 // watchdog keeps running meanwhile, so time to first token is enforced for
 // every provider.
 //

@@ -86,6 +86,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 	defer stopClose()
 
 	var held [][]byte // encoded non-committing chunks, in arrival order
+	var heldBytes int // their total size, capped at maxHeldBytes
 	for {
 		if c.started {
 			a.watchdog.Reset(idle) // time only the wait for the next upstream chunk
@@ -130,7 +131,11 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 			if len(held) >= maxHeldChunks {
 				return a.fail(&provider.Error{Kind: provider.KindProtocol, Message: "too many chunks without content"})
 			}
+			if heldBytes+len(b) > maxHeldBytes {
+				return a.fail(&provider.Error{Kind: provider.KindProtocol, Message: "too many bytes without content"})
+			}
 			held = append(held, b)
+			heldBytes += len(b)
 			continue
 		}
 		if !c.started {
@@ -148,6 +153,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 				}
 			}
 			held = nil
+			heldBytes = 0
 		}
 		if err := c.send(func() error { return c.sse.WriteData(b) }); err != nil {
 			return a.clientGone()

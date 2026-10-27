@@ -623,6 +623,53 @@ func TestStreamFailoverDiscardsHeldChunks(t *testing.T) {
 	}
 }
 
+// An upstream that sends only non-committing chunks cannot make the gateway
+// buffer without bound: held chunks are capped in bytes as well as in count,
+// and exceeding the byte cap is the same retryable protocol failure.
+func TestStreamHeldBytesCapFailsOver(t *testing.T) {
+	const (
+		padBytes = 128 << 10 // per chunk, kept as an unknown top-level field
+		nChunks  = 12        // 1.5 MiB in total, far fewer than maxHeldChunks
+	)
+	if nChunks >= maxHeldChunks || nChunks*padBytes <= maxHeldBytes {
+		t.Fatalf("test setup must exceed only the byte cap: %d chunks of %d bytes", nChunks, padBytes)
+	}
+	heldChunk := `{"id":"x","object":"chat.completion.chunk","created":1,"model":"ua","choices":[{"index":0,"delta":{"role":"assistant","content":""}}],"x_pad":"` +
+		strings.Repeat("p", padBytes) + `"}`
+
+	mockH := mock.NewHandler(mock.Config{})
+	upstream := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(strings.NewReader(string(b)))
+		if !strings.Contains(string(b), `"ua"`) {
+			mockH.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		for i := 0; i < nChunks; i++ {
+			fmt.Fprint(w, "data: "+heldChunk+"\n\n")
+		}
+		fmt.Fprint(w, "data: "+contentChunk("late")+"\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	})
+	e := newAttemptEnv(t, attemptOpts{upstream: upstream, models: twoDepModel("ua", "ub;tokens=3")})
+	rec := e.post(streamBody("m"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200 from dep-b: %.200s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("x-routepilot-deployment"); got != "dep-b" {
+		t.Errorf("deployment header %q, want dep-b", got)
+	}
+	if strings.Contains(rec.Body.String(), "x_pad") {
+		t.Error("dep-a's held chunks reached the client")
+	}
+	if a, b := e.count("ua"), e.count("ub;tokens=3"); a != 1 || b != 1 {
+		t.Errorf("upstream hits a=%d b=%d, want 1 and 1", a, b)
+	}
+}
+
 // An upstream that ends without any committing chunk is a retryable failure,
 // not an empty 200 stream.
 func TestStreamEmptyUpstreamFailsOver(t *testing.T) {
