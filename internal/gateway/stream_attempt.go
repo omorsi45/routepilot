@@ -160,15 +160,17 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 }
 
 // ttftFired stops the TTFT watchdog and reports whether it had already fired.
-// A timer that cannot be stopped is running its function, which cancels the
-// attempt with errTTFTTimeout; doing that here first makes the cause certain
-// before it is read, and the call is a no-op if something else canceled first.
+// A watchdog that cannot be stopped has run out its budget, so the first token
+// came too late whatever else canceled the attempt first (a disconnect or the
+// request deadline): the caller treats it as a pre-commit timeout. The cancel
+// makes the cause certain when the timer func has not run yet, and is a no-op
+// if something else canceled first.
 func (a *streamAttempt) ttftFired() bool {
 	if a.watchdog.Stop() {
 		return false
 	}
 	a.cancel(errTTFTTimeout)
-	return errors.Is(context.Cause(a.ctx), errTTFTTimeout)
+	return true
 }
 
 // timedOut reports whether the attempt ended because a watchdog fired or the

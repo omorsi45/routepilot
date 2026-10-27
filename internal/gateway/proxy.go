@@ -23,30 +23,16 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 		timedOut bool // a retry wait would have passed the deadline
 	)
 	for {
-		if rs.attempts > 0 {
-			if !plan.more() {
-				break
-			}
-			if err := s.waitBeforeRetry(ctx, rs.attempts-1, lastErr); err != nil {
-				if errors.Is(err, context.DeadlineExceeded) {
-					timedOut = true
-					break
-				}
-				rs.canceled = true // the client went away while we waited
-				return
-			}
-			// The wait itself may have run past the deadline: claim nothing.
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				timedOut = true
-				break
-			}
+		model, dep, up, outcome := s.claimNext(ctx, rs, plan, req, lastErr)
+		if outcome == claimClientGone {
+			return
 		}
-		model, dep, ok := plan.next()
-		if !ok {
+		if outcome == claimDeadline {
+			timedOut = true
+		}
+		if outcome != claimOK {
 			break
 		}
-		rs.attempts++
-		up := s.prepareUpstream(rs, req, model.ID, dep)
 
 		started := s.now()
 		resp, err := s.providers[dep.Provider].Complete(ctx, up)
@@ -79,18 +65,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 		}
 	}
 
-	switch {
-	case rs.attempts == 0:
-		s.fail(w, rs, openai.ErrNoHealthyDeployment())
-	case timedOut || errors.Is(ctx.Err(), context.DeadlineExceeded):
-		s.fail(w, rs, openai.ErrUpstreamTimeout())
-	default:
-		if apiErr := mapUpstreamError(ctx, r.Context(), lastDep.Name, lastErr); apiErr != nil {
-			s.fail(w, rs, apiErr)
-		} else {
-			rs.canceled = true
-		}
-	}
+	s.failAttempts(ctx, w, r, rs, lastDep, lastErr, timedOut)
 }
 
 // prepareUpstream records the attempt for the request log and builds the

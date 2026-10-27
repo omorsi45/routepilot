@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/omorsi45/routepilot/internal/catalog"
@@ -218,4 +219,67 @@ func (s *Server) waitBeforeRetry(ctx context.Context, attempt int, err error) er
 		return nil
 	}
 	return s.sleep(ctx, wait)
+}
+
+// claimOutcome says how claimNext ended.
+type claimOutcome int
+
+const (
+	claimOK         claimOutcome = iota // a pair was claimed and the upstream request built
+	claimNone                           // no deployment is left to try
+	claimDeadline                       // the request deadline passed or would pass during the wait
+	claimClientGone                     // the client disconnected during the wait
+)
+
+// claimNext owns the retry gate shared by the streaming and non-streaming
+// paths. For the first attempt it just claims the next pair. After a failure
+// (lastErr) it checks that another pair can be tried, waits out the backoff or
+// Retry-After, and rechecks the deadline before claiming anything, so a wait
+// that ran past the deadline never takes a half-open probe. On claimOK it has
+// counted the attempt and recorded it for the request log; the caller owes the
+// pair exactly one Record or Abort. A claimClientGone has already marked the
+// request canceled.
+func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan, req *openai.ChatCompletionRequest, lastErr error) (catalog.Model, catalog.Deployment, *openai.ChatCompletionRequest, claimOutcome) {
+	if rs.attempts > 0 {
+		if !plan.more() {
+			return catalog.Model{}, catalog.Deployment{}, nil, claimNone
+		}
+		if err := s.waitBeforeRetry(ctx, rs.attempts-1, lastErr); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return catalog.Model{}, catalog.Deployment{}, nil, claimDeadline
+			}
+			rs.canceled = true // the client went away while we waited
+			return catalog.Model{}, catalog.Deployment{}, nil, claimClientGone
+		}
+		// The wait itself may have run past the deadline: claim nothing.
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return catalog.Model{}, catalog.Deployment{}, nil, claimDeadline
+		}
+	}
+	model, dep, ok := plan.next()
+	if !ok {
+		return catalog.Model{}, catalog.Deployment{}, nil, claimNone
+	}
+	rs.attempts++
+	return model, dep, s.prepareUpstream(rs, req, model.ID, dep), claimOK
+}
+
+// failAttempts writes the error for a request whose attempts are over without
+// a response: 503 if nothing was sent upstream, 504 if the deadline passed or
+// timedOut says the last attempt (or the next wait) ran out of time, else the
+// mapped error of lastErr, which lastDep produced. Nothing is written when
+// the client is gone.
+func (s *Server) failAttempts(ctx context.Context, w http.ResponseWriter, r *http.Request, rs *reqState, lastDep catalog.Deployment, lastErr error, timedOut bool) {
+	switch {
+	case rs.attempts == 0:
+		s.fail(w, rs, openai.ErrNoHealthyDeployment())
+	case timedOut || errors.Is(ctx.Err(), context.DeadlineExceeded):
+		s.fail(w, rs, openai.ErrUpstreamTimeout())
+	default:
+		if apiErr := mapUpstreamError(ctx, r.Context(), lastDep.Name, lastErr); apiErr != nil {
+			s.fail(w, rs, apiErr)
+		} else {
+			rs.canceled = true
+		}
+	}
 }

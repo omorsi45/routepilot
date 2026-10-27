@@ -19,6 +19,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/mock"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/provider"
+	"github.com/omorsi45/routepilot/internal/provider/openaicompat"
 	"github.com/omorsi45/routepilot/internal/reliability"
 )
 
@@ -597,6 +598,10 @@ func TestStreamFailoverDiscardsHeldChunks(t *testing.T) {
 		if ev == "[DONE]" {
 			continue
 		}
+		// created:1 is the marker of dep-a's held chunk; dep-b stamps its own.
+		if strings.Contains(ev, `"created":1,`) || strings.HasSuffix(ev, `"created":1}`) {
+			t.Errorf("event %d carries dep-a's held chunk: %s", i, ev)
+		}
 		c := decodeChunk(t, ev)
 		for _, ch := range c.Choices {
 			if ch.Delta.Role != "" {
@@ -845,4 +850,173 @@ tenants:
 		t.Fatalf("parse config: %v", err)
 	}
 	return cfg
+}
+
+// A non-retryable pre-commit error ends the request with its own JSON error:
+// the second deployment is never tried.
+func TestStreamNonRetryableErrorBeforeCommitStops(t *testing.T) {
+	e := newAttemptEnv(t, attemptOpts{models: twoDepModel("ua;fail=http400", "ub;tokens=3")})
+	rec := e.post(streamBody("m"))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type %q, want application/json", ct)
+	}
+	if strings.Contains(rec.Body.String(), "data: ") {
+		t.Errorf("SSE written before commit: %s", rec.Body.String())
+	}
+	if n := e.count("ub;tokens=3"); n != 0 {
+		t.Errorf("dep-b saw %d requests, want 0 (a 400 is not retried)", n)
+	}
+}
+
+// Each attempt runs under its own provider's TTFT timeout: dep-a's provider
+// gives up after 100 ms while dep-b's would wait 5 s.
+func TestStreamPerProviderTTFTTimeout(t *testing.T) {
+	srv := httptest.NewServer(mock.NewHandler(mock.Config{}))
+	t.Cleanup(srv.Close)
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`providers:
+  - name: fastp
+    type: openaicompat
+    base_url: %q
+    ttft_timeout_ms: 100
+  - name: slowp
+    type: openaicompat
+    base_url: %q
+    ttft_timeout_ms: 5000
+models:
+  - id: m
+    deployments:
+      - name: dep-a
+        provider: fastp
+        upstream_model: "ua;ttft_ms=2000"
+      - name: dep-b
+        provider: slowp
+        upstream_model: "ub;tokens=3"
+tenants:
+  - id: tenant-a
+    api_key_sha256: %s
+    allowed_models: ["*"]
+`, srv.URL+"/v1", srv.URL+"/v1", keyHash(keyA))))
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	gw, err := New(cfg, map[string]provider.Provider{
+		"fastp": openaicompat.New(cfg.Providers[0], "", srv.Client()),
+		"slowp": openaicompat.New(cfg.Providers[1], "", srv.Client()),
+	}, Options{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Sleep:  func(context.Context, time.Duration) error { return nil },
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	start := time.Now()
+	rec := do(gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, streamBody("m"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("x-routepilot-deployment"); got != "dep-b" {
+		t.Errorf("deployment header %q, want dep-b", got)
+	}
+	if d := time.Since(start); d < 90*time.Millisecond || d > time.Second {
+		t.Errorf("took %v, want about dep-a's 100 ms TTFT timeout and well under dep-b's 5 s", d)
+	}
+	if h := gw.health.Snapshot()["dep-a"]; h.ErrorRate == 0 {
+		t.Errorf("dep-a health = %+v, want the TTFT timeout recorded as a failure", h)
+	}
+}
+
+// lateStream blocks until the attempt context is canceled, waits a further
+// delay, then returns content anyway, like a provider that ignores cancel.
+type lateStream struct {
+	ctx   context.Context
+	delay time.Duration
+	sent  bool
+}
+
+func (s *lateStream) Recv() (*openai.ChatCompletionChunk, error) {
+	<-s.ctx.Done()
+	time.Sleep(s.delay)
+	if s.sent {
+		return nil, io.EOF
+	}
+	s.sent = true
+	return textChunk("late"), nil
+}
+
+func (s *lateStream) Close() error { return nil }
+
+// TestStreamDeadlineBeforeTTFTThenLateContentIsTimeout covers Ruling M2-R15.
+// The request deadline (100 ms) is shorter than the TTFT budget (300 ms), so
+// the deadline cancels the attempt first. The provider then returns content
+// after both have expired. The watchdog could not be stopped, so the TTFT
+// budget ran out: this is a pre-commit timeout (504 JSON), not a 200 stream,
+// and the deadline was short, so the half-open probe is released, not
+// recorded as a success.
+func TestStreamDeadlineBeforeTTFTThenLateContentIsTimeout(t *testing.T) {
+	cfg, err := config.Parse([]byte(fmt.Sprintf(`providers:
+  - name: mockp
+    type: openaicompat
+    base_url: "http://127.0.0.1:1/v1"
+    ttft_timeout_ms: 300
+models:
+  - id: m
+    deployments:
+      - name: dep-a
+        provider: mockp
+        upstream_model: ua
+tenants:
+  - id: tenant-a
+    api_key_sha256: %s
+    allowed_models: ["*"]
+`, keyHash(keyA))))
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	p := &fakeProvider{stream: func(ctx context.Context, _ *openai.ChatCompletionRequest) (provider.Stream, error) {
+		return &lateStream{ctx: ctx, delay: 350 * time.Millisecond}, nil
+	}}
+	now := time.Unix(1700000000, 0)
+	var mu sync.Mutex
+	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	gw, err := New(cfg, map[string]provider.Provider{"mockp": p}, Options{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Now:    clock,
+		Sleep:  func(context.Context, time.Duration) error { return nil },
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	gw.health.Trip("dep-a", time.Second)
+	mu.Lock()
+	now = now.Add(2 * time.Second) // the cooldown elapsed: this request is the probe
+	mu.Unlock()
+
+	body := `{"model":"m","stream":true,"messages":[{"role":"user","content":"hi"}],"routepilot":{"timeout_ms":100}}`
+	rec := do(gw.Handler(), http.MethodPost, "/v1/chat/completions", keyA, body)
+
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("status %d, want 504: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type %q, want application/json", ct)
+	}
+	if got := decodeErr(t, rec).Error.Code; got != "upstream_timeout" {
+		t.Errorf("code %q, want upstream_timeout", got)
+	}
+	if strings.Contains(rec.Body.String(), "late") {
+		t.Errorf("late content reached the client: %s", rec.Body.String())
+	}
+	h := gw.health.Snapshot()["dep-a"]
+	if h.State == reliability.Closed {
+		t.Errorf("dep-a health = %+v, want not closed (a success would have closed the breaker)", h)
+	}
+	if !gw.health.Available("dep-a") {
+		t.Error("the half-open probe was left claimed")
+	}
 }
