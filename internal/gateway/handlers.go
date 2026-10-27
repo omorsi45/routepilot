@@ -69,25 +69,41 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	}
 	rs.tenant = tenant.ID
 
-	// The global in-flight slot is taken before the body is read and held for
-	// the whole request, including a stream.
+	// Admission order: the global in-flight slot, then the tenant's
+	// concurrency lease, both before the body is read and both held for the
+	// whole request, including a stream. Taking the lease first stops one
+	// tenant's slow bodies from occupying every global slot. After the body is
+	// parsed and routed, admit refreshes the lease and applies the request and
+	// token rates.
 	if !s.acquireSlot(w, rs, r) {
 		return
 	}
 	defer s.releaseSlot()
 
+	lease, ok := s.acquireLease(w, rs, r, tenant)
+	defer lease.release() // a no-op once admit's finish (or failEarly) released it
+	if !ok {
+		return
+	}
+	// failEarly answers a failure that happens before admission. It hands the
+	// lease back first, so a client that retries at once is not refused.
+	failEarly := func(e *openai.APIError) {
+		lease.release()
+		s.fail(w, rs, e)
+	}
+
 	body, apiErr := s.readBody(w, r)
 	if apiErr != nil {
-		s.fail(w, rs, apiErr)
+		failEarly(apiErr)
 		return
 	}
 	req, apiErr := openai.ParseChatCompletionRequest(body)
 	if apiErr != nil {
-		s.fail(w, rs, apiErr)
+		failEarly(apiErr)
 		return
 	}
 	if apiErr := mergeRoutingHeaders(r.Header, req); apiErr != nil {
-		s.fail(w, rs, apiErr)
+		failEarly(apiErr)
 		return
 	}
 	// Log a bounded prefix until the model resolves to a catalog entry: the
@@ -112,14 +128,14 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 			// The router echoes the whole client model; cap what we send back.
 			apiErr = openai.ErrModelNotFound(truncateBytes(req.Model, maxLoggedModelBytes))
 		}
-		s.fail(w, rs, apiErr)
+		failEarly(apiErr)
 		return
 	}
 	rs.model = dec.Candidates[0].Model.ID
 
 	timeout := s.deadline(tenant, req)
 	rs.blameBudget = s.blameBudget(tenant)
-	finish, ok := s.admit(w, rs, r, tenant, int64(reqs.InUpper)+int64(dec.Candidates[0].K), timeout+leaseGrace)
+	finish, ok := s.admit(w, rs, r, tenant, lease, int64(reqs.InUpper)+int64(dec.Candidates[0].K), timeout+leaseGrace)
 	if !ok {
 		return
 	}
@@ -273,6 +289,16 @@ func truncateBytes(s string, n int) string {
 	return s[:cut]
 }
 
+// maxDeadline is the longest deadline a request of the tenant can be given:
+// the tenant's max_timeout_ms when set, else the server's.
+func (s *Server) maxDeadline(tenant *config.TenantConfig) time.Duration {
+	ms := s.cfg.Server.MaxTimeoutMs
+	if tenant.MaxTimeoutMs > 0 {
+		ms = tenant.MaxTimeoutMs
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
 // deadline is the request timeout: routepilot.timeout_ms if set, else the
 // server default, clamped to the tenant maximum when set, else the server's.
 func (s *Server) deadline(tenant *config.TenantConfig, req *openai.ChatCompletionRequest) time.Duration {
@@ -280,14 +306,7 @@ func (s *Server) deadline(tenant *config.TenantConfig, req *openai.ChatCompletio
 	if rp := req.RoutePilot; rp != nil && rp.TimeoutMs != nil {
 		ms = *rp.TimeoutMs
 	}
-	limit := s.cfg.Server.MaxTimeoutMs
-	if tenant.MaxTimeoutMs > 0 {
-		limit = tenant.MaxTimeoutMs
-	}
-	if ms > limit {
-		ms = limit
-	}
-	return time.Duration(ms) * time.Millisecond
+	return min(time.Duration(ms)*time.Millisecond, s.maxDeadline(tenant))
 }
 
 // blameBudget is the deadline a request of the tenant gets when the client
@@ -295,11 +314,7 @@ func (s *Server) deadline(tenant *config.TenantConfig, req *openai.ChatCompletio
 // set, else the server's. A deadline expiry blames a deployment only once an
 // attempt has used 90% of it (M2-R14c).
 func (s *Server) blameBudget(tenant *config.TenantConfig) time.Duration {
-	limit := s.cfg.Server.MaxTimeoutMs
-	if tenant.MaxTimeoutMs > 0 {
-		limit = tenant.MaxTimeoutMs
-	}
-	return time.Duration(min(s.cfg.Server.DefaultTimeoutMs, limit)) * time.Millisecond
+	return min(time.Duration(s.cfg.Server.DefaultTimeoutMs)*time.Millisecond, s.maxDeadline(tenant))
 }
 
 // promptBytes sums the text bytes of every message. It is logged in place of

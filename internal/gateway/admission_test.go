@@ -344,6 +344,162 @@ func TestConcurrencyLimit(t *testing.T) {
 	})
 }
 
+// startTrickle posts a chat request whose body arrives only when the test
+// writes to the returned pipe, so the handler sits in its body read. The
+// recorder it served arrives on the channel once the handler returns.
+func startTrickle(gw *Server, key string) (*io.PipeWriter, <-chan *httptest.ResponseRecorder) {
+	pr, pw := io.Pipe()
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", pr)
+	req.Header.Set("Authorization", "Bearer "+key)
+	rec := httptest.NewRecorder()
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		gw.Handler().ServeHTTP(rec, req)
+		done <- rec
+	}()
+	return pw, done
+}
+
+// TestTenantConcurrencyIsTakenBeforeTheBodyRead: the tenant's concurrency
+// lease is taken right after the global slot, before the body is read, so a
+// tenant whose bodies trickle in cannot hold every global slot. Here the
+// gateway has two slots and tenant-a may run one request.
+func TestTenantConcurrencyIsTakenBeforeTheBodyRead(t *testing.T) {
+	lim := quota.NewMemory()
+	gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+		cfg.Server.MaxInflight, cfg.Server.QueueWaitMs = 2, 50
+		tenantA(cfg).MaxConcurrency = 1
+	}, okProvider(), lim)
+	bg := context.Background()
+
+	// Tenant-a's first request trickles its body, holding a slot and its lease.
+	pw1, done1 := startTrickle(gw, keyA)
+	defer pw1.Close()
+	waitFor(t, time.Second, "tenant-a's first request to hold its lease while its body is unsent", func() bool {
+		ok, err := lim.Concurrency.Acquire(bg, "tenant-a", "probe", 1, time.Minute, admissionNow)
+		if err == nil && ok {
+			_ = lim.Concurrency.Release(bg, "tenant-a", "probe")
+			return false
+		}
+		return err == nil
+	})
+
+	// Its second request is over the tenant limit: answered before any body.
+	pw2, done2 := startTrickle(gw, keyA)
+	defer pw2.Close()
+	select {
+	case rec := <-done2:
+		wantRateLimited(t, rec, "tenant concurrency limit reached", "1")
+	case <-time.After(2 * time.Second):
+		t.Fatal("tenant-a's second request is still waiting for its body, holding a global slot")
+	}
+
+	// So tenant-b is admitted: tenant-a holds one global slot, not both.
+	if rec := chat(gw, keyB, chatBody("model-a", "hi")); rec.Code != http.StatusOK {
+		t.Fatalf("tenant-b: status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+
+	// The first request completes once its body arrives and frees the lease.
+	if _, err := io.WriteString(pw1, chatBody("model-a", "hi")); err != nil {
+		t.Fatalf("write body: %v", err)
+	}
+	_ = pw1.Close()
+	if rec := <-done1; rec.Code != http.StatusOK {
+		t.Fatalf("first request: status %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	waitFor(t, time.Second, "the lease to be released", func() bool {
+		ok, err := lim.Concurrency.Acquire(bg, "tenant-a", "probe", 1, time.Minute, admissionNow)
+		return err == nil && ok
+	})
+}
+
+// TestBodyFailuresReleaseTheEarlyLease: a request that fails after taking its
+// lease but before admission (bad body, unknown model) hands the lease back
+// before answering, so the tenant's next request is not refused.
+func TestBodyFailuresReleaseTheEarlyLease(t *testing.T) {
+	for name, body := range map[string]string{
+		"unparsable body": "not json",
+		"unknown model":   chatBody("no-such-model", "hi"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			stub := &errLimiters{mem: quota.NewMemory(), which: "none"}
+			gw, _ := newAdmissionGateway(t, func(cfg *config.Config) { tenantA(cfg).MaxConcurrency = 1 }, okProvider(), stub.limiters())
+
+			rec := chat(gw, keyA, body)
+			if rec.Code < 400 || rec.Code >= 500 {
+				t.Fatalf("status %d, want a 4xx: %s", rec.Code, rec.Body.String())
+			}
+
+			id := rec.Header().Get(requestIDHeader)
+			if got := stub.releasedLeases(); len(got) != 1 || got[0] != id || id == "" {
+				t.Errorf("Release leases = %v, want exactly the request ID %q", got, id)
+			}
+			if rec := chat(gw, keyA, chatBody("model-a", "hi")); rec.Code != http.StatusOK {
+				t.Errorf("next request: status %d, want 200: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+// acquireCall is one Acquire seen by acquireRecorder.
+type acquireCall struct {
+	lease string
+	ttl   time.Duration
+}
+
+// acquireRecorder records the lease ID and TTL of every Acquire.
+type acquireRecorder struct {
+	quota.ConcurrencyLimiter
+	mu    sync.Mutex
+	calls []acquireCall
+}
+
+func (a *acquireRecorder) Acquire(ctx context.Context, key, lease string, limit int, ttl time.Duration, now time.Time) (bool, error) {
+	a.mu.Lock()
+	a.calls = append(a.calls, acquireCall{lease, ttl})
+	a.mu.Unlock()
+	return a.ConcurrencyLimiter.Acquire(ctx, key, lease, limit, ttl, now)
+}
+
+// TestConcurrencyLeaseIsRefreshedToTheRealDeadline: the lease taken before the
+// body is read lives for the longest deadline the tenant may be given plus 60
+// s. Once the request is parsed the same lease is refreshed to the request's
+// real deadline plus 60 s.
+func TestConcurrencyLeaseIsRefreshedToTheRealDeadline(t *testing.T) {
+	withTimeout := `{"model":"model-a","messages":[{"role":"user","content":"hi"}],"routepilot":{"timeout_ms":5000}}`
+	tests := []struct {
+		name        string
+		tenantMaxMs int
+		body        string
+		early, real time.Duration
+	}{
+		{"tenant cap and client timeout", 20_000, withTimeout, 80 * time.Second, 65 * time.Second},
+		{"server defaults", 0, chatBody("model-a", "hi"), 660 * time.Second, 180 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &acquireRecorder{ConcurrencyLimiter: quota.NewMemory().Concurrency}
+			gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+				tn := tenantA(cfg)
+				tn.MaxConcurrency, tn.MaxTimeoutMs = 1, tt.tenantMaxMs
+			}, okProvider(), quota.Limiters{Concurrency: rec})
+
+			resp := chat(gw, keyA, tt.body)
+			if resp.Code != http.StatusOK {
+				t.Fatalf("status %d, want 200: %s", resp.Code, resp.Body.String())
+			}
+
+			id := resp.Header().Get(requestIDHeader)
+			want := []acquireCall{{id, tt.early}, {id, tt.real}}
+			rec.mu.Lock()
+			defer rec.mu.Unlock()
+			if id == "" || len(rec.calls) != len(want) || rec.calls[0] != want[0] || rec.calls[1] != want[1] {
+				t.Errorf("Acquire calls = %+v, want %+v (same lease, early TTL then refreshed TTL)", rec.calls, want)
+			}
+		})
+	}
+}
+
 func TestGlobalSemaphoreOverload(t *testing.T) {
 	release := make(chan struct{})
 	started := make(chan struct{}, 4)
