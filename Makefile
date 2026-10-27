@@ -34,8 +34,25 @@ test: ## run the hermetic test suite (loopback only, no network)
 test-race: ## run the suite under the race detector
 	go test -race -count=1 ./...
 
+# Python training pipeline. The venv lives at the repo root; its interpreter is
+# Scripts/python.exe on Windows and bin/python elsewhere. PY is recursive so it
+# is resolved when a recipe line runs, after py-setup has created the venv.
+PYTHON_BOOTSTRAP ?= python
+PY = $(shell if [ -f .venv/Scripts/python.exe ]; then echo .venv/Scripts/python.exe; else echo .venv/bin/python; fi)
+
+.PHONY: py-setup
+py-setup: ## create .venv and install the pinned Python dependencies
+	$(PYTHON_BOOTSTRAP) -m venv .venv
+	$(PY) -m pip install -e "python[dev]"
+
+.PHONY: py-check
+py-check: ## ruff lint, ruff format check and pytest for the Python project
+	$(PY) -m ruff check python
+	$(PY) -m ruff format --check python
+	$(PY) -m pytest -q python/tests
+
 .PHONY: verify
-verify: check test test-race ## everything the CI lane runs
+verify: check test test-race py-check ## everything the CI lane runs
 
 .PHONY: clean
 clean: ## remove build output

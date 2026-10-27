@@ -15,6 +15,9 @@ request.
   `catalog`, `config`, `gateway`, `mock`, `money`, `openai`, `provider` (with
   the `openaicompat`, `anthropic` and `factory` subpackages), `quota` (with the
   `quotatest` conformance suite), `reliability`, `router`, and `version`.
+- `python/`: the offline training and evaluation pipeline (package
+  `routepilot_train`, tests in `python/tests`). `make py-setup` creates the
+  repo-root `.venv`; `make py-check` runs ruff and pytest.
 
 The planned directory layout is described in section 11 of the design spec.
 Add a directory only when the task that needs it lands.
