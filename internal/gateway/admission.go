@@ -20,7 +20,19 @@ const (
 	// releaseTimeout bounds the cleanup calls to the limiters, which run
 	// after the request context may already be canceled.
 	releaseTimeout = 2 * time.Second
+	// limiterCallTimeout bounds each Acquire, Allow and Reserve call, so a
+	// stalled limiter backend costs a request at most this long per call
+	// instead of holding it (and its global slot) for the whole deadline.
+	limiterCallTimeout = 250 * time.Millisecond
 )
+
+// limiterCtx derives the context of one limiter call from the request
+// context. The caller must call the cancel function once the call returns.
+// A call the bound cuts off returns an error while the request context is
+// still live, which admit treats as a limiter error.
+func limiterCtx(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, limiterCallTimeout)
+}
 
 // fillLimiters returns lim with every nil limiter replaced by its in-process
 // memory implementation.
@@ -78,7 +90,8 @@ func (s *Server) releaseSlot() {
 
 // admit applies the tenant's limits in order: concurrency, request rate, token
 // rate. n is the token reservation (InUpper plus the first candidate's K) and
-// ttl the lifetime of the concurrency lease.
+// ttl the lifetime of the concurrency lease. Each limiter call is bounded by
+// limiterCallTimeout; one that runs out of time is a limiter error (503).
 //
 // On false the request is answered (or the client is gone) and nothing is
 // held. On true the caller must run finish exactly once, on every exit path:
@@ -124,7 +137,9 @@ func (s *Server) admit(w http.ResponseWriter, rs *reqState, r *http.Request, ten
 	}
 
 	if tenant.MaxConcurrency > 0 {
-		got, err := s.limits.Concurrency.Acquire(ctx, tenant.ID, rs.id, tenant.MaxConcurrency, ttl, now)
+		cctx, cancel := limiterCtx(ctx)
+		got, err := s.limits.Concurrency.Acquire(cctx, tenant.ID, rs.id, tenant.MaxConcurrency, ttl, now)
+		cancel()
 		if err != nil {
 			// The script may have run before the reply failed (a timeout),
 			// leaving a lease that would block the tenant for deadline + 60 s.
@@ -138,7 +153,9 @@ func (s *Server) admit(w http.ResponseWriter, rs *reqState, r *http.Request, ten
 		leased = true
 	}
 	if tenant.RPM > 0 {
-		res, err := s.limits.Requests.Allow(ctx, tenant.ID, quota.RateLimit{PerMinute: int64(tenant.RPM), Burst: int64(tenant.RPMBurst)}, now)
+		cctx, cancel := limiterCtx(ctx)
+		res, err := s.limits.Requests.Allow(cctx, tenant.ID, quota.RateLimit{PerMinute: int64(tenant.RPM), Burst: int64(tenant.RPMBurst)}, now)
+		cancel()
 		if err != nil {
 			return failed("request rate check", err)
 		}
@@ -147,7 +164,9 @@ func (s *Server) admit(w http.ResponseWriter, rs *reqState, r *http.Request, ten
 		}
 	}
 	if tenant.TPM > 0 {
-		res, err := s.limits.Tokens.Reserve(ctx, tenant.ID, tpm, n, now)
+		cctx, cancel := limiterCtx(ctx)
+		res, err := s.limits.Tokens.Reserve(cctx, tenant.ID, tpm, n, now)
+		cancel()
 		if err != nil {
 			return failed("token reserve", err)
 		}

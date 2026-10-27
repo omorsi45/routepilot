@@ -487,6 +487,7 @@ type errLimiters struct {
 	mem   quota.Limiters
 	err   error
 	which string // "requests", "tokens", "concurrency", "refund", "release"; anything else never fails
+	hang  string // "requests", "tokens" or "concurrency": that call blocks until its context is done
 	calls atomic.Int32
 
 	mu       sync.Mutex
@@ -511,7 +512,19 @@ func (e *errLimiters) fail(kind string) error {
 	return nil
 }
 
+// block waits for ctx when kind is the hanging call, as a stalled backend would.
+func (e *errLimiters) block(ctx context.Context, kind string) error {
+	if kind != e.hang {
+		return nil
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
 func (e *errLimiters) Allow(ctx context.Context, key string, lim quota.RateLimit, now time.Time) (quota.Result, error) {
+	if err := e.block(ctx, "requests"); err != nil {
+		return quota.Result{}, err
+	}
 	if err := e.fail("requests"); err != nil {
 		return quota.Result{}, err
 	}
@@ -519,6 +532,9 @@ func (e *errLimiters) Allow(ctx context.Context, key string, lim quota.RateLimit
 }
 
 func (e *errLimiters) Reserve(ctx context.Context, key string, lim quota.RateLimit, n int64, now time.Time) (quota.Result, error) {
+	if err := e.block(ctx, "tokens"); err != nil {
+		return quota.Result{}, err
+	}
 	if err := e.fail("tokens"); err != nil {
 		return quota.Result{}, err
 	}
@@ -533,6 +549,9 @@ func (e *errLimiters) Refund(ctx context.Context, key string, lim quota.RateLimi
 }
 
 func (e *errLimiters) Acquire(ctx context.Context, key, lease string, limit int, ttl time.Duration, now time.Time) (bool, error) {
+	if err := e.block(ctx, "concurrency"); err != nil {
+		return false, err
+	}
 	if err := e.fail("concurrency"); err != nil {
 		return false, err
 	}
@@ -584,6 +603,31 @@ func TestLimiterErrorIs503(t *testing.T) {
 			ok, err := stub.mem.Concurrency.Acquire(context.Background(), "tenant-a", "probe", 1, time.Minute, admissionNow)
 			if err != nil || !ok {
 				t.Errorf("Acquire after the failure = %v, %v; want the slot free", ok, err)
+			}
+		})
+	}
+}
+
+// TestLimiterCallsAreTimeBounded: a limiter that never answers must not hold
+// the request for its whole deadline; each call is cut off after 250 ms and
+// answered as a limiter error.
+func TestLimiterCallsAreTimeBounded(t *testing.T) {
+	for _, which := range []string{"concurrency", "requests", "tokens"} {
+		t.Run(which, func(t *testing.T) {
+			stub := &errLimiters{mem: quota.NewMemory(), hang: which}
+			gw, _ := newAdmissionGateway(t, func(cfg *config.Config) {
+				tn := tenantA(cfg)
+				tn.MaxConcurrency, tn.RPM, tn.RPMBurst, tn.TPM, tn.TPMBurst = 1, 60, 2, 1000, 1000
+			}, okProvider(), stub.limiters())
+
+			start := time.Now()
+			rec := chat(gw, keyA, chatBody("model-a", "hi"))
+
+			if elapsed := time.Since(start); elapsed > time.Second {
+				t.Errorf("took %v, want a response within 1s", elapsed)
+			}
+			if rec.Code != http.StatusServiceUnavailable || decodeErr(t, rec).Error.Code != "overloaded" {
+				t.Fatalf("status %d body %s, want 503 overloaded", rec.Code, rec.Body.String())
 			}
 		})
 	}
