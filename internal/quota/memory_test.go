@@ -46,10 +46,26 @@ func TestUnlimitedRateAlwaysAllowsAndStoresNothing(t *testing.T) {
 			t.Fatalf("PerMinute %d reserve: want allowed, got %+v err=%v", lim.PerMinute, r, err)
 		}
 	}
-	// Nothing was stored: a real limit on the same key starts from an empty bucket.
-	lim := quota.RateLimit{PerMinute: 60, Burst: 1}
-	if r, _ := l.Requests.Allow(ctx, "k", lim, base); !r.Allowed {
-		t.Fatalf("unlimited calls must not leave state behind, got %+v", r)
+	// Nothing was stored: unlimited calls at a much later instant must not
+	// move the key's clock, or this limited key would look fully refilled.
+	lim := quota.RateLimit{PerMinute: 60, Burst: 1} // T = 1s
+	if r, _ := l.Requests.Allow(ctx, "limited", lim, base); !r.Allowed {
+		t.Fatalf("first limited call: want allowed, got %+v", r)
+	}
+	later := base.Add(time.Hour)
+	unlimited := quota.RateLimit{PerMinute: 0, Burst: 1}
+	if r, _ := l.Requests.Allow(ctx, "limited", unlimited, later); !r.Allowed {
+		t.Fatalf("unlimited call at a later instant: want allowed, got %+v", r)
+	}
+	if r, _ := l.Tokens.Reserve(ctx, "limited", unlimited, 5, later); !r.Allowed {
+		t.Fatalf("unlimited reserve at a later instant: want allowed, got %+v", r)
+	}
+	just := base.Add(time.Second - time.Microsecond)
+	if r, _ := l.Requests.Allow(ctx, "limited", lim, just); r.Allowed || r.RetryAfter != time.Microsecond {
+		t.Fatalf("1us before refill: want {false 1us}, got %+v", r)
+	}
+	if r, _ := l.Requests.Allow(ctx, "limited", lim, base.Add(time.Second)); !r.Allowed {
+		t.Fatalf("at base+T: want allowed, got %+v", r)
 	}
 }
 
@@ -83,6 +99,22 @@ func TestNonPositiveCostIsNoOp(t *testing.T) {
 	}
 	if r, _ := l.Tokens.Reserve(ctx, "k", lim, 2, base); !r.Allowed {
 		t.Fatalf("no-ops must leave the bucket full, got %+v", r)
+	}
+}
+
+func TestNonPositiveRefundIsNoOp(t *testing.T) {
+	ctx := context.Background()
+	l := quota.NewMemory()
+	lim := quota.RateLimit{PerMinute: 60, Burst: 2}
+	if r, _ := l.Tokens.Reserve(ctx, "k", lim, 1, base); !r.Allowed {
+		t.Fatal("first reserve: want allowed")
+	}
+	// A negative refund must not push the TAT forward (which would charge).
+	if err := l.Tokens.Refund(ctx, "k", lim, -4, base); err != nil {
+		t.Fatalf("Refund(-4): %v", err)
+	}
+	if r, _ := l.Tokens.Reserve(ctx, "k", lim, 1, base); !r.Allowed {
+		t.Fatalf("reserve after Refund(-4): want allowed (Burst 2), got %+v", r)
 	}
 }
 

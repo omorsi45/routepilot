@@ -23,14 +23,18 @@ var t0 = time.Unix(1_700_000_000, 0)
 
 func key(t *testing.T, name string) string { return t.Name() + "/" + name }
 
-// parallel runs fn(0..calls-1) spread over workers goroutines.
+// parallel runs fn(0..calls-1) spread over workers goroutines. Workers wait on
+// a start barrier that is closed once all of them are spawned, so the calls
+// overlap as much as possible instead of draining in the first worker.
 func parallel(workers, calls int, fn func(i int)) {
 	var wg sync.WaitGroup
 	var next atomic.Int64
+	start := make(chan struct{})
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			<-start
 			for {
 				i := int(next.Add(1)) - 1
 				if i >= calls {
@@ -40,6 +44,7 @@ func parallel(workers, calls int, fn func(i int)) {
 			}
 		}()
 	}
+	close(start)
 	wg.Wait()
 }
 
@@ -116,15 +121,30 @@ func RunRequestLimiter(t *testing.T, newL func(t *testing.T) quota.RequestLimite
 			}
 		}
 		atLater := allow(t, l, k, later)
-		if atLater.Allowed {
-			t.Fatalf("exhausted at later: want rejected, got %+v", atLater)
+		if atLater.Allowed || atLater.RetryAfter != time.Second {
+			t.Fatalf("exhausted at later: want {Allowed:false RetryAfter:1s}, got %+v", atLater)
 		}
+		// The key's clock is the latest instant seen, so an earlier now is
+		// evaluated as `later`: the wait is 1s, not 6s.
 		earlier := allow(t, l, k, t0)
-		if earlier.Allowed {
-			t.Fatalf("earlier clock must not be more permissive, got %+v", earlier)
+		if earlier.Allowed || earlier.RetryAfter != time.Second {
+			t.Fatalf("earlier now: want {Allowed:false RetryAfter:1s}, got %+v", earlier)
 		}
-		if earlier.RetryAfter < atLater.RetryAfter {
-			t.Fatalf("earlier RetryAfter %v is shorter than at later %v", earlier.RetryAfter, atLater.RetryAfter)
+	})
+
+	t.Run("DenyRecordsLatestInstant", func(t *testing.T) {
+		l, k := newL(t), key(t, "k")
+		for i := 0; i < 10; i++ {
+			allow(t, l, k, t0)
+		}
+		// A rejection at a later instant still advances the key's clock.
+		mid := t0.Add(500 * time.Millisecond)
+		if r := allow(t, l, k, mid); r.Allowed || r.RetryAfter != 500*time.Millisecond {
+			t.Fatalf("deny at +500ms: want {Allowed:false RetryAfter:500ms}, got %+v", r)
+		}
+		// An earlier now is evaluated at +500ms, not at t0 (which would give 1s).
+		if r := allow(t, l, k, t0); r.Allowed || r.RetryAfter != 500*time.Millisecond {
+			t.Fatalf("earlier now after a later deny: want {Allowed:false RetryAfter:500ms}, got %+v", r)
 		}
 	})
 
@@ -236,6 +256,40 @@ func RunTokenLimiter(t *testing.T, newL func(t *testing.T) quota.TokenLimiter) {
 		}
 		if r := reserve(t, l, fresh, 1, t0); r.Allowed {
 			t.Fatalf("refund on a fresh key granted more than Burst, got %+v", r)
+		}
+	})
+
+	t.Run("NoOpsDoNotAdvanceClock", func(t *testing.T) {
+		l, k := newL(t), key(t, "k")
+		if r := reserve(t, l, k, 100, t0); !r.Allowed {
+			t.Fatalf("reserve 100: want allowed, got %+v", r)
+		}
+		// None of these writes state, so none may move the key's clock to
+		// `later`: that would refill the bucket.
+		later := t0.Add(time.Hour)
+		unlimited := quota.RateLimit{PerMinute: 0, Burst: 1}
+		if r := reserve(t, l, k, 101, later); r.Allowed {
+			t.Fatalf("over-burst reserve: want rejected, got %+v", r)
+		}
+		if r := reserve(t, l, k, 0, later); !r.Allowed {
+			t.Fatalf("reserve 0: want allowed no-op, got %+v", r)
+		}
+		if r, err := l.Reserve(ctx, k, unlimited, 5, later); err != nil || !r.Allowed {
+			t.Fatalf("unlimited reserve: want allowed, got %+v err=%v", r, err)
+		}
+		refund(t, l, k, 0, later)
+		if err := l.Refund(ctx, k, unlimited, 5, later); err != nil {
+			t.Fatalf("unlimited refund: %v", err)
+		}
+		if err := l.Refund(ctx, key(t, "no-state"), lim, 5, later); err != nil {
+			t.Fatalf("refund without state: %v", err)
+		}
+		just := t0.Add(100*time.Millisecond - time.Microsecond)
+		if r := reserve(t, l, k, 1, just); r.Allowed || r.RetryAfter != time.Microsecond {
+			t.Fatalf("1us before refill: want {Allowed:false RetryAfter:1us}, got %+v", r)
+		}
+		if r := reserve(t, l, k, 1, t0.Add(100*time.Millisecond)); !r.Allowed {
+			t.Fatalf("at refill: want allowed, got %+v", r)
 		}
 	})
 

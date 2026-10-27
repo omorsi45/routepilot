@@ -10,15 +10,23 @@
 //	tau = T * (Burst - 1)                  burst tolerance
 //	now = now.UnixMicro()
 //
-// A request of cost n (n is 1 for RequestLimiter) is evaluated as
+// Each key keeps a stored TAT (theoretical arrival time) and a last-seen
+// instant, the latest effective clock it was evaluated at. A request of cost n
+// (n is 1 for RequestLimiter) is evaluated as
 //
-//	tat0    = max(stored TAT, now)
+//	eff     = max(now, last seen)          effective clock, never goes backwards
+//	tat0    = max(stored TAT, eff)
 //	newTAT  = tat0 + n*T
-//	allowed = newTAT - now <= tau + T
+//	allowed = newTAT - eff <= tau + T
 //
-// On allow, newTAT is stored. On deny nothing is stored and RetryAfter is
-// (newTAT - now) - (tau + T) microseconds. All products and sums saturate at
-// math.MaxInt64 rather than wrapping.
+// On allow, newTAT is stored. On deny the stored TAT is unchanged and
+// RetryAfter is (newTAT - eff) - (tau + T) microseconds. Last seen is set to
+// eff on allow, on deny, and on a refund of a key that has state. It is not
+// written, and nothing else is stored, for an unlimited limit, n <= 0, a
+// reservation over the burst, or a refund of a key with no state. A key with
+// no state is evaluated as if its TAT and last seen were now. All products and
+// sums saturate at math.MaxInt64 rather than wrapping; the Redis backend
+// documents the narrower range in which it is exact.
 package quota
 
 import (
