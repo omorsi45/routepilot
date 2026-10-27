@@ -47,6 +47,24 @@ type RoutingOptions struct {
 	TimeoutMs  *int     `json:"timeout_ms,omitempty"`
 }
 
+// Validate checks the options that are set. The error param is the body path,
+// such as "routepilot.timeout_ms".
+func (o *RoutingOptions) Validate() *APIError {
+	if o.MinQuality != nil && (*o.MinQuality < 0 || *o.MinQuality > 1) {
+		return ErrInvalidRequest("min_quality must be between 0 and 1", "routepilot.min_quality")
+	}
+	if o.SLOTTFTMs != nil && *o.SLOTTFTMs <= 0 {
+		return ErrInvalidRequest("slo_ttft_ms must be greater than 0", "routepilot.slo_ttft_ms")
+	}
+	if o.SLOE2EMs != nil && *o.SLOE2EMs <= 0 {
+		return ErrInvalidRequest("slo_e2e_ms must be greater than 0", "routepilot.slo_e2e_ms")
+	}
+	if o.TimeoutMs != nil && *o.TimeoutMs <= 0 {
+		return ErrInvalidRequest("timeout_ms must be greater than 0", "routepilot.timeout_ms")
+	}
+	return nil
+}
+
 // ResponseFormat selects the output format.
 type ResponseFormat struct {
 	Type       string          `json:"type"`
@@ -279,17 +297,8 @@ func (r *ChatCompletionRequest) Validate() *APIError {
 		return ErrInvalidRequest("max_completion_tokens must be greater than 0", "max_completion_tokens")
 	}
 	if rp := r.RoutePilot; rp != nil {
-		if rp.MinQuality != nil && (*rp.MinQuality < 0 || *rp.MinQuality > 1) {
-			return ErrInvalidRequest("min_quality must be between 0 and 1", "routepilot.min_quality")
-		}
-		if rp.SLOTTFTMs != nil && *rp.SLOTTFTMs <= 0 {
-			return ErrInvalidRequest("slo_ttft_ms must be greater than 0", "routepilot.slo_ttft_ms")
-		}
-		if rp.SLOE2EMs != nil && *rp.SLOE2EMs <= 0 {
-			return ErrInvalidRequest("slo_e2e_ms must be greater than 0", "routepilot.slo_e2e_ms")
-		}
-		if rp.TimeoutMs != nil && *rp.TimeoutMs <= 0 {
-			return ErrInvalidRequest("timeout_ms must be greater than 0", "routepilot.timeout_ms")
+		if apiErr := rp.Validate(); apiErr != nil {
+			return apiErr
 		}
 	}
 	if rf := r.ResponseFormat; rf != nil {

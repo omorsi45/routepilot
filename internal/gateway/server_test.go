@@ -580,6 +580,32 @@ func TestHeaderRoutingControls(t *testing.T) {
 			}
 		})
 	}
+	// A header the body overrides is still validated on its own: the request
+	// is the client's, and a bad header is a client error whether or not it
+	// would have been used.
+	overridden := []struct{ header, value, bodyOpts string }{
+		{"x-routepilot-min-quality", "1.5", `{"min_quality":0.5}`},
+		{"x-routepilot-slo-ttft-ms", "0", `{"slo_ttft_ms":100}`},
+		{"x-routepilot-slo-e2e-ms", "-5", `{"slo_e2e_ms":100}`},
+		{"x-routepilot-timeout-ms", "0", `{"timeout_ms":100}`},
+	}
+	for _, tc := range overridden {
+		t.Run("bad "+tc.header+"="+tc.value+" even when the body sets it", func(t *testing.T) {
+			e := newMockEnv(t, cfgOpts{})
+			body := `{"model":"model-a","messages":[{"role":"user","content":"hi"}],"routepilot":` + tc.bodyOpts + `}`
+			rec := doHeaders(e.gw.Handler(), keyA, body, map[string]string{tc.header: tc.value})
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status %d, want 400: %s", rec.Code, rec.Body.String())
+			}
+			got := decodeErr(t, rec)
+			if got.Error.Code != "invalid_request" || got.Error.Param == nil || *got.Error.Param != tc.header {
+				t.Errorf("code %q param %v, want invalid_request / %q", got.Error.Code, got.Error.Param, tc.header)
+			}
+			if n := e.mock.Stats().Requests; n != 0 {
+				t.Errorf("rejected request reached the upstream: %d", n)
+			}
+		})
+	}
 }
 
 func TestMergeRoutingHeaders(t *testing.T) {
@@ -625,6 +651,18 @@ func TestMergeRoutingHeaders(t *testing.T) {
 		req := valid(nil)
 		if err := mergeRoutingHeaders(http.Header{}, req); err != nil || req.RoutePilot != nil {
 			t.Errorf("err=%v RoutePilot=%+v, want nil and nil", err, req.RoutePilot)
+		}
+	})
+	t.Run("invalid header is rejected although the body sets the field", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("x-routepilot-timeout-ms", "0")
+		req := valid(&openai.RoutingOptions{TimeoutMs: i(100)})
+		err := mergeRoutingHeaders(h, req)
+		if err == nil || err.Param != "x-routepilot-timeout-ms" {
+			t.Fatalf("err = %+v, want a 400 for x-routepilot-timeout-ms", err)
+		}
+		if *req.RoutePilot.TimeoutMs != 100 {
+			t.Errorf("body timeout_ms changed to %d", *req.RoutePilot.TimeoutMs)
 		}
 	})
 }

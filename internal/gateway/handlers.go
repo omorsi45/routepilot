@@ -202,13 +202,11 @@ const (
 
 // mergeRoutingHeaders fills the routing options the body left unset from the
 // x-routepilot-* headers, so the body wins field by field. Every header that
-// is present must parse; a header that fills a field must also pass the body
-// validation. Both failures are a 400 whose param is the header name.
+// is present must parse and be in range on its own, whether or not the body
+// also sets that field; a bad one is a 400 whose param is the header name.
 func mergeRoutingHeaders(h http.Header, req *openai.ChatCompletionRequest) *openai.APIError {
 	var opts openai.RoutingOptions
 	var found bool
-	// sourced maps the body-style param of a header-filled field to its header.
-	sourced := map[string]string{}
 
 	raw := func(name string) (string, bool) {
 		vals, ok := h[http.CanonicalHeaderKey(name)]
@@ -251,32 +249,41 @@ func mergeRoutingHeaders(h http.Header, req *openai.ChatCompletionRequest) *open
 		return nil
 	}
 
-	if req.RoutePilot == nil {
-		req.RoutePilot = &openai.RoutingOptions{}
-	}
-	rp := req.RoutePilot
-	if rp.MinQuality == nil && opts.MinQuality != nil {
-		rp.MinQuality, sourced["routepilot.min_quality"] = opts.MinQuality, headerMinQuality
-	}
-	if rp.SLOTTFTMs == nil && opts.SLOTTFTMs != nil {
-		rp.SLOTTFTMs, sourced["routepilot.slo_ttft_ms"] = opts.SLOTTFTMs, headerSLOTTFTMs
-	}
-	if rp.SLOE2EMs == nil && opts.SLOE2EMs != nil {
-		rp.SLOE2EMs, sourced["routepilot.slo_e2e_ms"] = opts.SLOE2EMs, headerSLOE2EMs
-	}
-	if rp.TimeoutMs == nil && opts.TimeoutMs != nil {
-		rp.TimeoutMs, sourced["routepilot.timeout_ms"] = opts.TimeoutMs, headerTimeoutMs
-	}
-
-	// The body already passed Validate, so any failure now came from a header.
-	if apiErr := req.Validate(); apiErr != nil {
-		if name, ok := sourced[apiErr.Param]; ok {
+	// Range-check the header values alone, before the body gets a say.
+	if apiErr := opts.Validate(); apiErr != nil {
+		if name, ok := headerForParam[apiErr.Param]; ok {
 			apiErr.Param = name
 			apiErr.Message = fmt.Sprintf("%s: %s", name, apiErr.Message)
 		}
 		return apiErr
 	}
+
+	if req.RoutePilot == nil {
+		req.RoutePilot = &openai.RoutingOptions{}
+	}
+	rp := req.RoutePilot
+	if rp.MinQuality == nil {
+		rp.MinQuality = opts.MinQuality
+	}
+	if rp.SLOTTFTMs == nil {
+		rp.SLOTTFTMs = opts.SLOTTFTMs
+	}
+	if rp.SLOE2EMs == nil {
+		rp.SLOE2EMs = opts.SLOE2EMs
+	}
+	if rp.TimeoutMs == nil {
+		rp.TimeoutMs = opts.TimeoutMs
+	}
 	return nil
+}
+
+// headerForParam maps the body param of a routing option to the header that
+// can set it, so an error found in a header names the header.
+var headerForParam = map[string]string{
+	"routepilot.min_quality": headerMinQuality,
+	"routepilot.slo_ttft_ms": headerSLOTTFTMs,
+	"routepilot.slo_e2e_ms":  headerSLOE2EMs,
+	"routepilot.timeout_ms":  headerTimeoutMs,
 }
 
 // maxLoggedModelBytes caps how much of a client-supplied model is logged or

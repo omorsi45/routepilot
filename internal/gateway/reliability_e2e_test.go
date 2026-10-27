@@ -572,17 +572,22 @@ func TestConcurrencyNeverOvershoots(t *testing.T) {
 		clients = 64
 	)
 	var inflight, peak atomic.Int64
-	slow := mock.NewHandler(mock.Config{TTFT: mock.Dist{MedianMs: 100}}) // 100 ms per unary request
+	fast := mock.NewHandler(mock.Config{})
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The counted interval is the 100 ms of simulated work and ends before
+		// any response byte is written. The gateway releases its slot only
+		// after it has read the response, so the interval lies strictly inside
+		// the slot and a fresh request can never overlap the old count.
 		v := inflight.Add(1)
-		defer inflight.Add(-1)
 		for {
 			p := peak.Load()
 			if v <= p || peak.CompareAndSwap(p, v) {
 				break
 			}
 		}
-		slow.ServeHTTP(w, r)
+		time.Sleep(100 * time.Millisecond)
+		inflight.Add(-1)
+		fast.ServeHTTP(w, r)
 	}))
 	t.Cleanup(up.Close)
 
