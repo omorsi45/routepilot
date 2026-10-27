@@ -312,6 +312,30 @@ func TestRetryAfterLongTripsBreaker(t *testing.T) {
 	}
 }
 
+func TestRetryAfterQuarantineIsCapped(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	var mu sync.Mutex
+	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	advance := func(d time.Duration) { mu.Lock(); now = now.Add(d); mu.Unlock() }
+	e := newAttemptEnv(t, attemptOpts{
+		clock: clock,
+		models: []modelSpec{
+			{id: "m", deps: []depSpec{{"dep-a", "ua;fail=http429;retry_after=86400"}, {"dep-b", "ub"}}},
+		},
+	})
+	if rec := e.post(chatBody("m", "hi")); rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	advance(reliability.MaxOpenFor - time.Second)
+	if e.gw.health.Available("dep-a") {
+		t.Error("dep-a is available at 119s, want still quarantined")
+	}
+	advance(time.Second)
+	if !e.gw.health.Available("dep-a") {
+		t.Error("dep-a is unavailable at 120s after a 86400s Retry-After, want the trip capped at MaxOpenFor")
+	}
+}
+
 func TestUpstream401Quarantines(t *testing.T) {
 	ok := mock.NewHandler(mock.Config{})
 	up401 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

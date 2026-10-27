@@ -165,7 +165,8 @@ const deadlineBlameNum, deadlineBlameDen = 9, 10
 // Retry-After, is still the deployment's.
 //
 // An upstream 401 or 403 also quarantines the deployment, and a Retry-After
-// longer than maxInlineRetryAfter trips its breaker for that long.
+// longer than maxInlineRetryAfter trips its breaker for that long, capped at
+// reliability.MaxOpenFor so one upstream value cannot park it for hours.
 func (s *Server) settle(ctx context.Context, dep string, err error, elapsed time.Duration) {
 	if err == nil || healthyOutcome(err) {
 		s.health.Record(dep, true)
@@ -186,7 +187,7 @@ func (s *Server) settle(ctx context.Context, dep string, err error, elapsed time
 		return
 	}
 	if perr.RetryAfter > maxInlineRetryAfter {
-		s.health.Trip(dep, perr.RetryAfter)
+		s.health.Trip(dep, min(perr.RetryAfter, reliability.MaxOpenFor))
 	}
 	if perr.Kind == provider.KindHTTP && (perr.Status == 401 || perr.Status == 403) {
 		s.health.Trip(dep, authQuarantine)
