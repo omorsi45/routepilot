@@ -51,6 +51,11 @@ py-check: ## ruff lint, ruff format check and pytest for the Python project
 	$(PY) -m ruff format --check python
 	$(PY) -m pytest -q python/tests
 
+.PHONY: data
+data: ## download and verify the dataset, then ingest it into data/derived
+	$(PY) -m routepilot_train.data.download --dest data/raw/bench-release.tar.gz
+	$(PY) -m routepilot_train.data.ingest --tar data/raw/bench-release.tar.gz --out data/derived
+
 .PHONY: verify
 verify: check test test-race py-check ## everything the CI lane runs
 
