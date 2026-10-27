@@ -42,7 +42,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 		}
 		switch {
 		case err == nil:
-			s.settle(ctx, dep.Name, nil, elapsed)
+			s.settle(ctx, rs, dep.Name, nil, elapsed)
 			rs.usage = resp.Usage
 			resp.ID = "chatcmpl-" + rs.id
 			resp.Object = openai.ObjectChatCompletion
@@ -59,7 +59,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 			return
 		}
 
-		s.settle(ctx, dep.Name, err, elapsed)
+		s.settle(ctx, rs, dep.Name, err, elapsed)
 		lastErr, lastDep = err, dep
 		if !retryable(err, ctx) {
 			break

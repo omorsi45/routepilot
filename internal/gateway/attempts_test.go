@@ -50,6 +50,8 @@ type attemptOpts struct {
 	defaultTimeoutMs int
 	// ttftMs overrides the provider's ttft_timeout_ms when positive.
 	ttftMs int
+	// tenantMaxTimeoutMs sets the tenant's max_timeout_ms when positive.
+	tenantMaxTimeoutMs int
 }
 
 // attemptEnv is a gateway over one provider whose upstream counts requests by
@@ -134,6 +136,9 @@ func newAttemptEnv(t *testing.T, o attemptOpts) *attemptEnv {
 		}
 	}
 	fmt.Fprintf(&sb, "tenants:\n  - id: tenant-a\n    api_key_sha256: %s\n    allowed_models: [\"*\"]\n", keyHash(keyA))
+	if o.tenantMaxTimeoutMs > 0 {
+		fmt.Fprintf(&sb, "    max_timeout_ms: %d\n", o.tenantMaxTimeoutMs)
+	}
 	cfg, err := config.Parse([]byte(sb.String()))
 	if err != nil {
 		t.Fatalf("parse config: %v\n%s", err, sb.String())
@@ -333,6 +338,30 @@ func TestRetryAfterQuarantineIsCapped(t *testing.T) {
 	advance(time.Second)
 	if !e.gw.health.Available("dep-a") {
 		t.Error("dep-a is unavailable at 120s after a 86400s Retry-After, want the trip capped at MaxOpenFor")
+	}
+}
+
+// The blame budget is the deadline a request gets without a client timeout_ms,
+// so a tenant whose max_timeout_ms is below the server default still feeds
+// deadline expiries to the breaker (M2-R14c).
+func TestDeadlineBlameUsesTenantEffectiveDefault(t *testing.T) {
+	e := newAttemptEnv(t, attemptOpts{
+		defaultTimeoutMs:   400,
+		tenantMaxTimeoutMs: 300,
+		models:             []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua;fail=stall"}, {"dep-b", "ub"}}}},
+	})
+	for i := range reliability.ConsecutiveFailures {
+		rec := e.post(chatBody("m", "hi"))
+		if rec.Code != http.StatusGatewayTimeout {
+			t.Fatalf("request %d: status %d, want 504: %s", i, rec.Code, rec.Body.String())
+		}
+	}
+	if e.gw.health.Available("dep-a") {
+		t.Fatal("dep-a is still available after 5 deadline expiries, want its breaker open")
+	}
+	rec := e.post(chatBody("m", "hi"))
+	if rec.Code != http.StatusOK || rec.Header().Get("x-routepilot-deployment") != "dep-b" {
+		t.Fatalf("request after the trip: status %d deployment %q: %s", rec.Code, rec.Header().Get("x-routepilot-deployment"), rec.Body.String())
 	}
 }
 
@@ -857,7 +886,7 @@ func TestSettleDeadlineBlameThreshold(t *testing.T) {
 			if !e.gw.health.Allow("dep-a") {
 				t.Fatal("Allow refused a fresh deployment")
 			}
-			e.gw.settle(expiredCtx(t), "dep-a", timeout, tc.elapsed)
+			e.gw.settle(expiredCtx(t), &reqState{blameBudget: time.Second}, "dep-a", timeout, tc.elapsed)
 			// A recorded failure sets the error rate; an abort leaves it 0.
 			if blamed := e.gw.health.Snapshot()["dep-a"].ErrorRate > 0; blamed != tc.blamed {
 				t.Errorf("failure recorded = %v, want %v", blamed, tc.blamed)
@@ -881,7 +910,7 @@ func TestSettleDeadlineBranchOnlyForTimeoutKinds(t *testing.T) {
 			if !e.gw.health.Allow("dep-a") {
 				t.Fatal("Allow refused a fresh deployment")
 			}
-			e.gw.settle(expiredCtx(t), "dep-a", err, 10*time.Millisecond)
+			e.gw.settle(expiredCtx(t), &reqState{blameBudget: time.Second}, "dep-a", err, 10*time.Millisecond)
 			if e.gw.health.Snapshot()["dep-a"].ErrorRate == 0 {
 				t.Error("no failure recorded: the claim was released as a short deadline")
 			}

@@ -194,7 +194,7 @@ func (a *streamAttempt) settle(err error) {
 		return
 	}
 	a.settled = true
-	a.c.s.settle(a.ctx, a.dep.Name, err, a.c.s.now().Sub(a.start))
+	a.c.s.settle(a.ctx, a.c.rs, a.dep.Name, err, a.c.s.now().Sub(a.start))
 }
 
 // abort releases the attempt's claim without an outcome, once, because the

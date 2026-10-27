@@ -148,8 +148,8 @@ func timeoutOrCancel(err error) bool {
 	return errors.As(err, &perr) && (perr.Kind == provider.KindTimeout || perr.Kind == provider.KindCanceled)
 }
 
-// deadlineBlameNum and deadlineBlameDen make the share of the server's default
-// timeout (9/10) an attempt must have used for a deadline expiry to count
+// deadlineBlameNum and deadlineBlameDen make the share of the request's blame
+// budget (9/10) an attempt must have used for a deadline expiry to count
 // against its deployment.
 const deadlineBlameNum, deadlineBlameDen = 9, 10
 
@@ -158,7 +158,8 @@ const deadlineBlameNum, deadlineBlameDen = 9, 10
 // the attempt took, from just before the provider call to its return.
 //
 // A timeout or cancel caused by the request deadline blames the deployment
-// only when the attempt ran for at least 90% of the server's default timeout.
+// only when the attempt ran for at least 90% of rs.blameBudget, the deadline
+// the request would have had without a client timeout_ms (see blameBudget).
 // A shorter run was cut off by a client-chosen deadline, which says nothing
 // about the deployment, so the claim is released instead. Any other failure
 // that happens to arrive near the deadline, such as a 401 or a long
@@ -167,14 +168,13 @@ const deadlineBlameNum, deadlineBlameDen = 9, 10
 // An upstream 401 or 403 also quarantines the deployment, and a Retry-After
 // longer than maxInlineRetryAfter trips its breaker for that long, capped at
 // reliability.MaxOpenFor so one upstream value cannot park it for hours.
-func (s *Server) settle(ctx context.Context, dep string, err error, elapsed time.Duration) {
+func (s *Server) settle(ctx context.Context, rs *reqState, dep string, err error, elapsed time.Duration) {
 	if err == nil || healthyOutcome(err) {
 		s.health.Record(dep, true)
 		return
 	}
 	if deadlineExpired(ctx) && timeoutOrCancel(err) {
-		budget := time.Duration(s.cfg.Server.DefaultTimeoutMs) * time.Millisecond
-		if elapsed*deadlineBlameDen >= budget*deadlineBlameNum {
+		if elapsed*deadlineBlameDen >= rs.blameBudget*deadlineBlameNum {
 			s.health.Record(dep, false)
 		} else {
 			s.health.Abort(dep)

@@ -118,6 +118,7 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	rs.model = dec.Candidates[0].Model.ID
 
 	timeout := s.deadline(tenant, req)
+	rs.blameBudget = s.blameBudget(tenant)
 	finish, ok := s.admit(w, rs, r, tenant, int64(reqs.InUpper)+int64(dec.Candidates[0].K), timeout+leaseGrace)
 	if !ok {
 		return
@@ -287,6 +288,18 @@ func (s *Server) deadline(tenant *config.TenantConfig, req *openai.ChatCompletio
 		ms = limit
 	}
 	return time.Duration(ms) * time.Millisecond
+}
+
+// blameBudget is the deadline a request of the tenant gets when the client
+// sets no timeout_ms: the server default, clamped to the tenant maximum when
+// set, else the server's. A deadline expiry blames a deployment only once an
+// attempt has used 90% of it (M2-R14c).
+func (s *Server) blameBudget(tenant *config.TenantConfig) time.Duration {
+	limit := s.cfg.Server.MaxTimeoutMs
+	if tenant.MaxTimeoutMs > 0 {
+		limit = tenant.MaxTimeoutMs
+	}
+	return time.Duration(min(s.cfg.Server.DefaultTimeoutMs, limit)) * time.Millisecond
 }
 
 // promptBytes sums the text bytes of every message. It is logged in place of

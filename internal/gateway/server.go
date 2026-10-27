@@ -172,6 +172,9 @@ type reqState struct {
 	promptBytes int
 	policy      string
 	attempts    int // upstream attempts sent
+	// blameBudget is the deadline the request would get without a client
+	// timeout_ms. A deadline expiry blames the deployment only after 90% of it.
+	blameBudget time.Duration
 	// usage is the token usage reported by the attempt that produced the
 	// response, nil when none was reported. It drives the TPM refund.
 	usage    *openai.Usage
