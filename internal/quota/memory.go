@@ -36,7 +36,7 @@ type gcraStore struct {
 // comment. The effective clock is max(now, lastSeen) so a backwards now is
 // never more permissive than the latest one.
 func (s *gcraStore) reserve(key string, lim RateLimit, n int64, now time.Time) Result {
-	t, tau, unlimited := gcraParams(lim)
+	cost, limit, unlimited := gcraParams(lim, n)
 	if unlimited || n <= 0 {
 		return Result{Allowed: true}
 	}
@@ -53,22 +53,22 @@ func (s *gcraStore) reserve(key string, lim RateLimit, n int64, now time.Time) R
 	}
 	eff := max(nowUS, e.lastSeen)
 	tat0 := max(e.tat, eff)
-	// newTAT - eff, computed as (tat0 - eff) + n*T so it stays in range.
-	span := satAdd(satSub(tat0, eff), satMul(n, t))
-	limit := satAdd(tau, t)
+	// newTAT - eff, computed as (tat0 - eff) + cost so it stays in range.
+	span := satAdd(satSub(tat0, eff), cost)
 	if span > limit {
 		e.lastSeen = eff
 		return Result{RetryAfter: microsToDuration(span - limit)}
 	}
-	e.tat = satAdd(tat0, satMul(n, t))
+	e.tat = satAdd(tat0, cost)
 	e.lastSeen = eff
 	s.entries[key] = e
 	return Result{Allowed: true}
 }
 
-// refund moves the key's TAT back by n*T, never to before the effective now.
+// refund moves the key's TAT back by the cost of n, never to before the
+// effective now.
 func (s *gcraStore) refund(key string, lim RateLimit, n int64, now time.Time) {
-	t, _, unlimited := gcraParams(lim)
+	cost, _, unlimited := gcraParams(lim, n)
 	if unlimited || n <= 0 {
 		return
 	}
@@ -82,11 +82,11 @@ func (s *gcraStore) refund(key string, lim RateLimit, n int64, now time.Time) {
 	}
 	eff := max(nowUS, e.lastSeen)
 	e.lastSeen = eff
-	if e.tat <= eff || satSub(e.tat, eff) <= satMul(n, t) {
+	if e.tat <= eff || satSub(e.tat, eff) <= cost {
 		e.tat = eff
 		return
 	}
-	e.tat -= satMul(n, t)
+	e.tat -= cost
 }
 
 type memRequests struct{ s *gcraStore }

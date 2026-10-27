@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/omorsi45/routepilot/internal/money"
+	"github.com/omorsi45/routepilot/internal/quota"
 )
 
 // Provider types accepted in ProviderConfig.Type.
@@ -539,16 +540,14 @@ func (c *Config) validateTenants(models map[string]bool, add addFunc) {
 const maxBurstWindowMicros = 86_400_000_000
 
 // burstWindowTooLong reports whether a limit of perMinute with the given burst
-// has a GCRA window (emission interval times burst) over 24 hours. The
-// emission interval is the quota package's max(60_000_000/perMinute, 1)
-// microseconds. A zero limit is unlimited and never too long.
+// has a GCRA window over 24 hours. The window is the quota package's exact
+// burst*60_000_000/perMinute microseconds (quota.WindowMicros), the same value
+// the limiters enforce. A zero limit is unlimited and never too long.
 func burstWindowTooLong(perMinute, burst int) bool {
 	if perMinute <= 0 || burst <= 0 {
 		return false
 	}
-	interval := max(60_000_000/int64(perMinute), 1)
-	// interval*burst > max without overflowing the product.
-	return int64(burst) > maxBurstWindowMicros/interval
+	return quota.WindowMicros(int64(burst), int64(perMinute)) > maxBurstWindowMicros
 }
 
 func (c *Config) validateRouting(models map[string]bool, add addFunc) {

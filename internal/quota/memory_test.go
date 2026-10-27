@@ -118,23 +118,24 @@ func TestNonPositiveRefundIsNoOp(t *testing.T) {
 	}
 }
 
-func TestEmissionIntervalIsIntegerMicroseconds(t *testing.T) {
+func TestCostRoundsUpToWholeMicroseconds(t *testing.T) {
 	ctx := context.Background()
-	// 7 per minute: T = floor(60_000_000 / 7) = 8_571_428us.
+	// 7 per minute: one request costs ceil(60_000_000 / 7) = 8_571_429us. The
+	// wait is rounded up so a retry after it is never early.
 	l := quota.NewMemory()
 	lim := quota.RateLimit{PerMinute: 7, Burst: 1}
 	l.Requests.Allow(ctx, "k", lim, base)
 	r, _ := l.Requests.Allow(ctx, "k", lim, base)
-	if r.Allowed || r.RetryAfter != 8_571_428*time.Microsecond {
-		t.Fatalf("want RetryAfter 8571428us, got %+v", r)
+	if r.Allowed || r.RetryAfter != 8_571_429*time.Microsecond {
+		t.Fatalf("want RetryAfter 8571429us, got %+v", r)
 	}
 
-	// Rates above one per microsecond clamp T to 1us instead of dividing by zero.
+	// Rates above one per microsecond cost 1us per request instead of 0.
 	fast := quota.RateLimit{PerMinute: 600_000_000, Burst: 1}
 	l.Requests.Allow(ctx, "fast", fast, base)
 	r, _ = l.Requests.Allow(ctx, "fast", fast, base)
 	if r.Allowed || r.RetryAfter != time.Microsecond {
-		t.Fatalf("want RetryAfter 1us for clamped T, got %+v", r)
+		t.Fatalf("want RetryAfter 1us for the minimum cost, got %+v", r)
 	}
 }
 

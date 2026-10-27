@@ -4,23 +4,28 @@
 // (see the quotatest package).
 //
 // Rate limits use GCRA (generic cell rate algorithm) over integer
-// microseconds, identically in every backend:
+// microseconds, identically in every backend. Costs and the burst window are
+// computed exactly, with 128-bit intermediates, so no rate is rounded to a
+// whole emission interval:
 //
-//	T   = max(60_000_000 / PerMinute, 1)   emission interval, floor division
-//	tau = T * (Burst - 1)                  burst tolerance
-//	now = now.UnixMicro()
+//	cost(n) = ceil(n * 60_000_000 / PerMinute)           time n units take
+//	limit   = floor(Burst * 60_000_000 / PerMinute)      burst window
+//	now     = now.UnixMicro()
 //
-// Each key keeps a stored TAT (theoretical arrival time) and a last-seen
-// instant, the latest effective clock it was evaluated at. A request of cost n
-// (n is 1 for RequestLimiter) is evaluated as
+// with Burst <= 0 treated as 1, limit raised to cost(Burst) when rounding
+// leaves it lower (so a reservation within the burst fits an idle key), and
+// both saturating at math.MaxInt64. Each key keeps a stored TAT (theoretical
+// arrival time) and a last-seen instant, the latest effective clock it was
+// evaluated at. A request of n units (n is 1 for RequestLimiter) is evaluated
+// as
 //
 //	eff     = max(now, last seen)          effective clock, never goes backwards
 //	tat0    = max(stored TAT, eff)
-//	newTAT  = tat0 + n*T
-//	allowed = newTAT - eff <= tau + T
+//	newTAT  = tat0 + cost(n)
+//	allowed = newTAT - eff <= limit
 //
 // On allow, newTAT is stored. On deny the stored TAT is unchanged and
-// RetryAfter is (newTAT - eff) - (tau + T) microseconds. Last seen is set to
+// RetryAfter is (newTAT - eff) - limit microseconds. Last seen is set to
 // eff on allow, on deny, and on a refund of a key that has state. It is not
 // written, and nothing else is stored, for an unlimited limit, n <= 0, a
 // reservation over the burst, or a refund of a key with no state. A key with
@@ -32,6 +37,7 @@ package quota
 import (
 	"context"
 	"math"
+	"math/bits"
 	"time"
 )
 
@@ -63,12 +69,13 @@ type RequestLimiter interface {
 // TokenLimiter limits token throughput for a key. The same clock rule as
 // RequestLimiter applies.
 type TokenLimiter interface {
-	// Reserve takes n tokens, costing n*T. A reservation with n > Burst can
+	// Reserve takes n tokens, costing cost(n) (see the package comment). A
+	// reservation with n > Burst can
 	// never succeed: it returns Result{Allowed: false, RetryAfter: 0} and
 	// stores nothing, so the caller can answer 429 without a Retry-After.
 	// n <= 0 is an allowed no-op.
 	Reserve(ctx context.Context, key string, lim RateLimit, n int64, now time.Time) (Result, error)
-	// Refund returns n tokens by moving the stored TAT back by n*T, never to
+	// Refund returns n tokens by moving the stored TAT back by cost(n), never to
 	// before now. A key with no stored state, an unlimited limit, or n <= 0
 	// is a no-op.
 	Refund(ctx context.Context, key string, lim RateLimit, n int64, now time.Time) error
@@ -93,28 +100,70 @@ type Limiters struct {
 	Concurrency ConcurrencyLimiter
 }
 
-// gcraParams returns the emission interval and burst tolerance in
+// gcraParams returns the cost of n units and the burst limit for lim, both in
 // microseconds. unlimited reports PerMinute <= 0.
-func gcraParams(lim RateLimit) (t, tau int64, unlimited bool) {
+//
+// The limit is gcraLimit raised to the cost of a full burst. Cost rounds up
+// and the limit rounds down, so when Burst*60_000_000/PerMinute is not a whole
+// number the floor alone would sit one microsecond below the cost of Burst
+// units, and a reservation within the burst could never fit an idle key.
+func gcraParams(lim RateLimit, n int64) (cost, limit int64, unlimited bool) {
 	if lim.PerMinute <= 0 {
 		return 0, 0, true
 	}
-	t = 60_000_000 / lim.PerMinute
-	if t < 1 {
-		t = 1
-	}
-	return t, satMul(t, max(lim.Burst, 1)-1), false
+	burst := max(lim.Burst, 1)
+	limit = max(gcraLimit(burst, lim.PerMinute), gcraCost(burst, lim.PerMinute))
+	return gcraCost(n, lim.PerMinute), limit, false
 }
 
-// satMul multiplies non-negative values, saturating at math.MaxInt64.
-func satMul(a, b int64) int64 {
-	if a == 0 || b == 0 {
+// microsPerMinute converts a per-minute rate to microseconds per unit.
+const microsPerMinute = 60_000_000
+
+// gcraCost is the time n units take at perMinute units per minute, in
+// microseconds: ceil(n * 60_000_000 / perMinute), computed exactly with a
+// 128-bit product and saturating at math.MaxInt64. It is 0 for n <= 0 or
+// perMinute <= 0.
+func gcraCost(n, perMinute int64) int64 {
+	return mulDivSat(n, perMinute, true)
+}
+
+// gcraLimit is the burst window of burst units (at least 1) at perMinute units
+// per minute, in microseconds: floor(burst * 60_000_000 / perMinute), computed
+// exactly and saturating at math.MaxInt64. It is 0 for perMinute <= 0.
+func gcraLimit(burst, perMinute int64) int64 {
+	return mulDivSat(max(burst, 1), perMinute, false)
+}
+
+// WindowMicros is the GCRA burst window of a limit, in microseconds: the span
+// of time the full burst takes at the limit's rate. The config check that
+// bounds a stored arrival time to a day uses it, so it and the limiters agree.
+func WindowMicros(burst, perMinute int64) int64 {
+	return gcraLimit(burst, perMinute)
+}
+
+// mulDivSat returns n * 60_000_000 / perMinute, rounded up or down, using the
+// full 128-bit product. A result that does not fit an int64 saturates at
+// math.MaxInt64. It returns 0 for n <= 0 or perMinute <= 0.
+func mulDivSat(n, perMinute int64, roundUp bool) int64 {
+	if n <= 0 || perMinute <= 0 {
 		return 0
 	}
-	if a > math.MaxInt64/b {
+	d := uint64(perMinute)
+	hi, lo := bits.Mul64(uint64(n), microsPerMinute)
+	if hi >= d { // Div64 would overflow: the quotient needs more than 64 bits
 		return math.MaxInt64
 	}
-	return a * b
+	q, r := bits.Div64(hi, lo, d)
+	if q > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	if roundUp && r != 0 {
+		if q == math.MaxInt64 {
+			return math.MaxInt64
+		}
+		q++
+	}
+	return int64(q)
 }
 
 // satAdd adds non-negative values, saturating at math.MaxInt64.

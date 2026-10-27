@@ -11,7 +11,7 @@ import (
 
 // redisMaxExact bounds every microsecond value sent to a Lua script. Lua
 // numbers are doubles, exact for integers up to 2^53, and the scripts only add
-// and compare. With |now|, cost n*T and limit tau+T each held to at most 2^52
+// and compare. With |now|, cost and limit each held to at most 2^52
 // microseconds (about 142 years), every stored TAT and every sum the scripts
 // form stays within 2^53, so decisions are exact and match the memory backend.
 //
@@ -59,7 +59,7 @@ func clampNow(now time.Time) int64 {
 
 // reserve is the shared GCRA decision for requests (n = 1) and tokens.
 func (b *redisBackend) reserve(ctx context.Context, kind, key string, lim RateLimit, n int64, now time.Time) (Result, error) {
-	t, tau, unlimited := gcraParams(lim)
+	cost, limit, unlimited := gcraParams(lim, n)
 	if unlimited || n <= 0 {
 		return Result{Allowed: true}, nil
 	}
@@ -67,8 +67,7 @@ func (b *redisBackend) reserve(ctx context.Context, kind, key string, lim RateLi
 		// Can never be allowed (M2-R8). Decided here: no round trip, no state.
 		return Result{}, nil
 	}
-	cost := min(satMul(n, t), redisMaxExact)
-	limit := min(satAdd(tau, t), redisMaxExact)
+	cost, limit = min(cost, redisMaxExact), min(limit, redisMaxExact)
 
 	res, err := reserveScript.Run(ctx, b.client, []string{b.key(kind, key)}, clampNow(now), cost, limit).Int64Slice()
 	if err != nil {
@@ -96,11 +95,11 @@ func (r redisTokens) Reserve(ctx context.Context, key string, lim RateLimit, n i
 }
 
 func (r redisTokens) Refund(ctx context.Context, key string, lim RateLimit, n int64, now time.Time) error {
-	t, _, unlimited := gcraParams(lim)
+	cost, _, unlimited := gcraParams(lim, n)
 	if unlimited || n <= 0 {
 		return nil
 	}
-	cost := min(satMul(n, t), redisMaxExact)
+	cost = min(cost, redisMaxExact)
 	if err := refundScript.Run(ctx, r.b.client, []string{r.b.key("tpm", key)}, clampNow(now), cost).Err(); err != nil {
 		return fmt.Errorf("quota: redis tpm refund: %w", err)
 	}

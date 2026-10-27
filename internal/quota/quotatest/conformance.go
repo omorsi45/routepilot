@@ -148,6 +148,23 @@ func RunRequestLimiter(t *testing.T, newL func(t *testing.T) quota.RequestLimite
 		}
 	})
 
+	// A single request must fit an idle key even when the emission interval
+	// (60_000_000 / 7 us) is not a whole number of microseconds.
+	t.Run("SingleBurstFitsWithInexactInterval", func(t *testing.T) {
+		inexact := quota.RateLimit{PerMinute: 7, Burst: 1}
+		l, k := newL(t), key(t, "k")
+		if r, err := l.Allow(ctx, k, inexact, t0); err != nil || !r.Allowed {
+			t.Fatalf("first call at 7/min burst 1: want allowed, got %+v err=%v", r, err)
+		}
+		r, err := l.Allow(ctx, k, inexact, t0)
+		if err != nil || r.Allowed || r.RetryAfter <= 0 {
+			t.Fatalf("second call: want rejected with a wait, got %+v err=%v", r, err)
+		}
+		if r, err := l.Allow(ctx, k, inexact, t0.Add(r.RetryAfter)); err != nil || !r.Allowed {
+			t.Fatalf("call after the advised wait: want allowed, got %+v err=%v", r, err)
+		}
+	})
+
 	t.Run("Concurrent", func(t *testing.T) {
 		l, k := newL(t), key(t, "k")
 		var allowed atomic.Int64
@@ -290,6 +307,50 @@ func RunTokenLimiter(t *testing.T, newL func(t *testing.T) quota.TokenLimiter) {
 		}
 		if r := reserve(t, l, k, 1, t0.Add(100*time.Millisecond)); !r.Allowed {
 			t.Fatalf("at refill: want allowed, got %+v", r)
+		}
+	})
+
+	// At 40M tokens per minute one token takes 1.5 us, which a floored
+	// emission interval would round down to 1 us and refill 50% too fast.
+	t.Run("RefillAtHighRateIsExact", func(t *testing.T) {
+		high := quota.RateLimit{PerMinute: 40_000_000, Burst: 40_000_000}
+		const refilled = 20_000_000 // 30 s of a 40M/min rate
+		fill := func(t *testing.T, l quota.TokenLimiter, k string) {
+			t.Helper()
+			r, err := l.Reserve(ctx, k, high, 40_000_000, t0)
+			if err != nil || !r.Allowed {
+				t.Fatalf("reserve the full burst: want allowed, got %+v err=%v", r, err)
+			}
+		}
+		at := t0.Add(30 * time.Second)
+
+		l, k := newL(t), key(t, "exact")
+		fill(t, l, k)
+		if r, err := l.Reserve(ctx, k, high, refilled, at); err != nil || !r.Allowed {
+			t.Fatalf("reserve %d after 30s: want allowed, got %+v err=%v", refilled, r, err)
+		}
+		if r, err := l.Reserve(ctx, k, high, 2, at); err != nil || r.Allowed {
+			t.Fatalf("reserve 2 more after the refill is used: want rejected, got %+v err=%v", r, err)
+		}
+
+		// One more than refilled+1 must not fit, so the grant is exact to +/- 1.
+		k2 := key(t, "over")
+		fill(t, l, k2)
+		if r, err := l.Reserve(ctx, k2, high, refilled+2, at); err != nil || r.Allowed {
+			t.Fatalf("reserve %d after 30s: want rejected, got %+v err=%v", refilled+2, r, err)
+		}
+	})
+
+	// A reservation of exactly Burst must fit an idle key even when
+	// Burst*60_000_000/PerMinute is not a whole number of microseconds.
+	t.Run("FullBurstFitsWithInexactInterval", func(t *testing.T) {
+		inexact := quota.RateLimit{PerMinute: 7, Burst: 3}
+		l, k := newL(t), key(t, "k")
+		if r, err := l.Reserve(ctx, k, inexact, 3, t0); err != nil || !r.Allowed {
+			t.Fatalf("reserve a full burst of 3 at 7/min: want allowed, got %+v err=%v", r, err)
+		}
+		if r, err := l.Reserve(ctx, k, inexact, 1, t0); err != nil || r.Allowed || r.RetryAfter <= 0 {
+			t.Fatalf("reserve 1 on the full bucket: want rejected with a wait, got %+v err=%v", r, err)
 		}
 	})
 

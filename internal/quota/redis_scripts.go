@@ -15,8 +15,8 @@ import "github.com/redis/go-redis/v9"
 //
 //	KEYS[1] GCRA hash
 //	ARGV[1] now in microseconds
-//	ARGV[2] cost: n*T in microseconds
-//	ARGV[3] limit: tau+T in microseconds
+//	ARGV[2] cost: cost(n) in microseconds
+//	ARGV[3] limit: the burst window in microseconds
 //
 // Returns {allowed (1 or 0), retry-after in microseconds}. The key's TTL is
 // (tat - eff) rounded up to ms, plus one second.
@@ -64,7 +64,7 @@ return {1, 0}
 //
 //	KEYS[1] GCRA hash
 //	ARGV[1] now in microseconds
-//	ARGV[2] cost: n*T in microseconds
+//	ARGV[2] cost: cost(n) in microseconds
 //
 // Returns 1 when state was updated, 0 when there was none.
 var refundScript = redis.NewScript(`

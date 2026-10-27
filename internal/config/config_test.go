@@ -479,3 +479,17 @@ func TestParseAcceptsBurstWindowAt24h(t *testing.T) {
 		t.Fatalf("burst window of exactly 24h rejected: %v", err)
 	}
 }
+
+func TestParseBurstWindowIsExactAtHighRates(t *testing.T) {
+	// 40M tokens per minute is 1.5 us per token (not a floored 1 us), so a
+	// day holds 57.6e9 tokens of burst and one more is over 24 h.
+	at := baseYAML(t, "allowed_models:", "tpm: 40000000\n    tpm_burst: 57600000000\n    allowed_models:")
+	if _, err := Parse([]byte(at)); err != nil {
+		t.Fatalf("burst window of exactly 24h at 40M/min rejected: %v", err)
+	}
+	over := baseYAML(t, "allowed_models:", "tpm: 40000000\n    tpm_burst: 57600000001\n    allowed_models:")
+	_, err := Parse([]byte(over))
+	if err == nil || !strings.Contains(err.Error(), "tenants[0].tpm_burst: window exceeds 24h") {
+		t.Fatalf("burst window just over 24h at 40M/min: want a window error, got %v", err)
+	}
+}
