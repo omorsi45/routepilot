@@ -164,10 +164,21 @@ def test_parity_file_is_canonical_lf_and_reproducible(rebuilt):
     canonical = json.dumps(document, sort_keys=True, indent=1, ensure_ascii=True) + "\n"
     assert raw == canonical.encode("ascii")
 
-    manifest, blob = artifact.load_artifact(rebuilt)
+    # Exact: the committed artifact's predictions are the committed parity file.
+    manifest, blob = artifact.load_artifact(committed_dir())
     again = make_tiny.parity_document(manifest, blob)
     assert again["artifact_version"] == document["artifact_version"]
     assert without_noise(again) == without_noise(document)
+
+    # Within tolerance: a refit on another platform's BLAS may move the last bits of a
+    # weight (and so the version) but not the predictions.
+    fresh, fresh_blob = artifact.load_artifact(rebuilt)
+    refit = make_tiny.parity_document(fresh, fresh_blob)
+    assert len(refit["cases"]) == len(document["cases"])
+    for got, want in zip(refit["cases"], document["cases"], strict=True):
+        assert got["ood_score"] == pytest.approx(want["ood_score"], abs=1e-3)
+        for model_id, expected in want["models"].items():
+            assert got["models"][model_id]["p"] == pytest.approx(expected["p"], abs=1e-3)
 
 
 def without_noise(document: dict) -> dict:
