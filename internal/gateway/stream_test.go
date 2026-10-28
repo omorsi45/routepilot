@@ -414,8 +414,10 @@ func TestStreamBackpressure(t *testing.T) {
 	// The client now stops reading. Socket buffers fill and the gateway must
 	// stop pulling from the upstream instead of buffering without bound. How
 	// long the buffers take to fill depends on machine load, so wait until the
-	// producer has stalled: two samples 300ms apart are equal.
-	stalled := waitForStall(t, e, 100*time.Millisecond, 300*time.Millisecond, 5*time.Second)
+	// producer has stalled: two samples 300ms apart are equal. Under -race on a
+	// two-core CI runner filling the autotuned loopback buffers took about 5s
+	// (the stall landed exactly at an earlier 5s limit), so allow 20s.
+	stalled := waitForStall(t, e, 100*time.Millisecond, 300*time.Millisecond, 20*time.Second)
 
 	// Then it must stay stalled while the client keeps not reading.
 	time.Sleep(500 * time.Millisecond)
