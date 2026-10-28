@@ -326,7 +326,7 @@ def _figure(results: Mapping[str, Any]) -> Figure:
         title = "test" if split == "test" else "calibration (in-sample, for reference)"
         ax.set_title(f"{results['pool']} pool, {title}", fontsize=9)
         ax.set_xlabel("quality floor")
-        ax.set_ylabel("realized success among non-relaxed decisions (Wilson 95%)")
+        ax.set_ylabel("realized success, non-relaxed (Wilson 95%)", fontsize=8)
         ax.grid(alpha=0.3)
         ax.legend(fontsize=7)
     fig.tight_layout()

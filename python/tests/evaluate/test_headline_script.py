@@ -13,6 +13,8 @@ import yaml
 from matplotlib.figure import Figure
 
 from routepilot_train import replaytool
+from routepilot_train.evaluate import rescore
+from routepilot_train.export import artifact
 from routepilot_train.runinfo import repo_root
 from routepilot_train.train import crossfit
 
@@ -391,6 +393,50 @@ def test_the_crossfit_artifact_never_sees_the_outcomes_of_half_b(tmp_path: Path,
 
     assert a["crossfit"]["artifact_version"] == b["crossfit"]["artifact_version"]
     assert a["crossfit"]["best_single_b_success"] != b["crossfit"]["best_single_b_success"]
+
+
+def test_crossfit_lambda_is_judged_on_half_b_only(tmp_path: Path, binary: Path):
+    """Rebuild the cross-fit artifact independently and measure half B by hand."""
+    derived = fixture_pool.make_pool(tmp_path / "derived")
+    policy = policy_file(tmp_path)
+    results = results_of(run(derived, binary, tmp_path / "out", policy))
+    xf = results["crossfit"]
+
+    manifest, blob = artifact.load_artifact(TINY_ARTIFACT)
+    replay_input = derived / "replay" / "tiny.jsonl"
+    rows = rescore.read_split(replay_input, "calib", list(fixture_pool.MODELS))
+    raw = rescore.quality_scores(manifest, blob, rows.items["prompt"].tolist())
+    in_a, in_b = crossfit.split_halves(rows.items["item_id"])
+    xf_dir = crossfit.refit_artifact(
+        manifest, blob, rows.items, raw, rows.success, in_a, tmp_path / "xf", "tiny"
+    )
+    assert xf_dir.name == xf["artifact_version"]
+    b_ids = set(rows.items.loc[in_b, "item_id"])
+
+    best_b = rows.success["tiny-strong"][in_b].mean()
+    assert xf["best_single_b_success"] == pytest.approx(best_b)
+    assert xf["target_b"] == pytest.approx(best_b - 0.01)
+    frame = replaytool.replay(
+        binary,
+        derived / "pools" / "tiny.config.yaml",
+        replay_input,
+        "calib",
+        "learned",
+        tmp_path / "zero.jsonl",
+        [
+            "--artifact",
+            str(xf_dir),
+            "--policy-config",
+            str(policy),
+            "--mode",
+            "dual",
+            "--lambda",
+            "0.0",
+        ],
+    )
+    on_b = frame.loc[frame["item_id"].isin(b_ids)]
+    assert xf["success_b_at_zero"] == pytest.approx(on_b["success"].mean())
+    assert on_b["success"].mean() != pytest.approx(frame["success"].mean())  # not the whole split
 
 
 def test_without_crossfit_there_is_no_cross_fitted_row(tmp_path: Path, binary: Path):

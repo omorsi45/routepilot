@@ -823,13 +823,15 @@ def _pareto_figure(points: pd.DataFrame, pool_name: str) -> Figure:
     ax = fig.subplots()
     ax.scatter(points["mean_cost_usd"], points["success_rate"], color="tab:blue", zorder=3)
     middle = float(np.sqrt(points["mean_cost_usd"].min() * points["mean_cost_usd"].max()))
-    for cost, success, label in baselines.merged_labels(points):
+    # Labels in cost order take turns above and below their points so that a cluster of
+    # nearby points (the strong baselines) stays readable.
+    for k, (cost, success, label) in enumerate(sorted(baselines.merged_labels(points))):
         right = cost > middle
         ax.annotate(
             label,
             (cost, success),
             fontsize=6,
-            xytext=(-4, 4) if right else (4, 4),
+            xytext=(-4 if right else 4, (5, -11, 15, -21)[k % 4]),
             ha="right" if right else "left",
             textcoords="offset points",
         )
