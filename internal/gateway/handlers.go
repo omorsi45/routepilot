@@ -390,14 +390,24 @@ func promptBytes(req *openai.ChatCompletionRequest) int {
 // writeJSON writes a complete JSON response under a write deadline, so a
 // client that stops reading cannot hold the handler. A server that cannot set
 // deadlines (such as a test recorder) just writes.
+//
+// The response is flushed with its length declared (Ruling V1-R30), so the client has all of
+// it right away. The work that follows the handler's write, such as the budget commit, the
+// usage ledger and the decision log, then happens after the client is served and no longer
+// adds to the latency it sees.
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	b, err := json.Marshal(v)
 	if err != nil {
 		openai.WriteError(w, openai.ErrInternal())
 		return
 	}
-	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(clientWriteTimeout))
+	rc := http.NewResponseController(w)
+	_ = rc.SetWriteDeadline(time.Now().Add(clientWriteTimeout))
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(b)))
 	w.WriteHeader(status)
 	_, _ = w.Write(b)
+	// A writer that cannot flush (ErrNotSupported) or a client that is gone changes nothing:
+	// the response was written, and there is nobody to report a failed flush to.
+	_ = rc.Flush()
 }

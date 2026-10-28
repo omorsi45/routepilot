@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 // APIError is an OpenAI-compatible error. Status is the HTTP status; the
@@ -50,11 +51,19 @@ func (e *APIError) Body() []byte {
 	return b
 }
 
-// WriteError writes e as a JSON response with its HTTP status.
+// WriteError writes e as a JSON response with its HTTP status, and flushes it. The body
+// length is declared, so a client has the complete response as soon as the flush reaches
+// it and does not wait for the handler to return (Ruling V1-R30): whatever the handler
+// does afterwards, such as accounting, cannot delay it.
 func WriteError(w http.ResponseWriter, e *APIError) {
+	body := e.Body()
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(e.Status)
-	_, _ = w.Write(e.Body())
+	_, _ = w.Write(body)
+	// A writer that cannot flush (ErrNotSupported) or a client that is gone changes nothing:
+	// the response was written, and there is nobody to report a failed flush to.
+	_ = http.NewResponseController(w).Flush()
 }
 
 // ErrInvalidRequest is a 400 for a malformed or invalid request.
