@@ -19,7 +19,8 @@ request.
   `quota` (with the `quotatest` conformance suite), `reliability`, `router`, and
   `version`.
 - `bench/`: benchmark scripts (`bench/scripts`), the configs they start the
-  gateway with (`bench/configs`) and the published results
+  gateway with (`bench/configs`), the pinned LiteLLM proxy the comparison runs
+  against (`bench/litellm`) and the published results
   (`bench/results/<experiment>/<run-id>`).
 - `python/`: the offline training and evaluation pipeline (package
   `routepilot_train`, tests in `python/tests`). `make py-setup` creates the
