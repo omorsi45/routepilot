@@ -40,7 +40,7 @@
         "headers": {}
       },
       "load": {
-        "url": "http://127.0.0.1:51135/v1/chat/completions",
+        "url": "http://127.0.0.1:50929/v1/chat/completions",
         "model": "bench-model",
         "stream": false,
         "rps_target": 100,
@@ -54,31 +54,31 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0337065,
+        "elapsed_s": 60.033904739,
         "offered_rps": 97.93333333333334,
         "throughput_rps": 97.93333333333334,
         "latency_ms": {
           "count": 5876,
-          "min": 36.064,
-          "mean": 36.62882505105514,
-          "p50": 36.639,
-          "p90": 36.927,
-          "p95": 37.023,
-          "p99": 37.247,
-          "p99.9": 37.663,
-          "max": 39.103
+          "min": 36.288,
+          "mean": 37.50882505105514,
+          "p50": 37.535,
+          "p90": 38.111,
+          "p95": 38.271,
+          "p99": 38.463,
+          "p99.9": 38.655,
+          "max": 38.879
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 5876,
-          "min": 0.002,
-          "mean": 0.30272277059223995,
-          "p50": 0.3,
-          "p90": 0.507,
-          "p95": 0.535,
-          "p99": 0.673,
-          "p99.9": 0.95,
-          "max": 2.393
+          "min": 0.001,
+          "mean": 0.5646400612661678,
+          "p50": 0.571,
+          "p90": 0.982,
+          "p95": 1.043,
+          "p99": 1.091,
+          "p99.9": 1.119,
+          "max": 1.191
         }
       },
       "server": null
@@ -92,15 +92,15 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_9d8c31fa32c3c24c2121a930",
+          "x-routepilot-decision-id": "dec_19a7ee155e929f142a30a06f",
           "x-routepilot-deployment": "bench-model-mock",
           "x-routepilot-model": "bench-model",
           "x-routepilot-policy-version": "pinned",
-          "x-routepilot-request-id": "9d8c31fa32c3c24c2121a930"
+          "x-routepilot-request-id": "19a7ee155e929f142a30a06f"
         }
       },
       "load": {
-        "url": "http://127.0.0.1:55259/v1/chat/completions",
+        "url": "http://127.0.0.1:34525/v1/chat/completions",
         "model": "bench-model",
         "stream": false,
         "rps_target": 100,
@@ -114,68 +114,68 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0334242,
+        "elapsed_s": 60.034727503,
         "offered_rps": 97.93333333333334,
         "throughput_rps": 97.93333333333334,
         "latency_ms": {
           "count": 5876,
-          "min": 36.032,
-          "mean": 36.686567733151804,
-          "p50": 36.703,
-          "p90": 37.023,
-          "p95": 37.119,
-          "p99": 37.343,
-          "p99.9": 38.399,
-          "max": 44.831
+          "min": 36.64,
+          "mean": 37.93580939414568,
+          "p50": 37.951,
+          "p90": 38.559,
+          "p95": 38.719,
+          "p99": 39.007,
+          "p99.9": 40.735,
+          "max": 43.167
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 5876,
           "min": 0.001,
-          "mean": 0.3316308713410477,
-          "p50": 0.33,
-          "p90": 0.543,
-          "p95": 0.641,
-          "p99": 0.773,
-          "p99.9": 1.057,
-          "max": 1.399
+          "mean": 0.5594074200136145,
+          "p50": 0.566,
+          "p90": 0.98,
+          "p95": 1.042,
+          "p99": 1.086,
+          "p99.9": 1.113,
+          "max": 1.361
         }
       },
       "server": {
         "overhead": {
-          "count": 5881.0,
-          "mean_ms": 0.009224910729467777,
+          "count": 5883.0,
+          "mean_ms": 0.5838535476797564,
           "p50": {
-            "value_ms": 0.0050204883045927955,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.6626873293903549,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
           },
           "p95": {
-            "value_ms": 0.009538927778726312,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.9853556938125567,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
           },
           "p99": {
-            "value_ms": 0.009940566843093733,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 1.9701181021897818,
+            "lower_ms": 1.0,
+            "upper_ms": 2.154
           }
         },
         "decision": {
-          "count": 5876.0,
-          "mean_ms": 0.0,
+          "count": 5879.0,
+          "mean_ms": 0.0019845790100357064,
           "p50": {
-            "value_ms": 0.005,
+            "value_ms": 0.005013644891693673,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p95": {
-            "value_ms": 0.0095,
+            "value_ms": 0.009525925294217977,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p99": {
-            "value_ms": 0.0099,
+            "value_ms": 0.009927016885553471,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           }
@@ -193,7 +193,7 @@
         "headers": {}
       },
       "load": {
-        "url": "http://127.0.0.1:56124/v1/chat/completions",
+        "url": "http://127.0.0.1:51503/v1/chat/completions",
         "model": "bench-model",
         "stream": true,
         "rps_target": 100,
@@ -207,41 +207,41 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0400622,
+        "elapsed_s": 60.035159949,
         "offered_rps": 97.93333333333334,
         "throughput_rps": 97.93333333333334,
         "latency_ms": {
           "count": 5876,
-          "min": 35.744,
-          "mean": 41.42460993873382,
-          "p50": 41.503,
-          "p90": 42.975,
-          "p95": 43.391,
-          "p99": 45.663,
-          "p99.9": 58.527,
-          "max": 63.647
+          "min": 37.376,
+          "mean": 39.42468618107552,
+          "p50": 39.199,
+          "p90": 40.159,
+          "p95": 40.511,
+          "p99": 47.519,
+          "p99.9": 61.215,
+          "max": 77.631
         },
         "ttft_ms": {
           "count": 5876,
-          "min": 20.016,
-          "mean": 20.643703199455423,
-          "p50": 20.623,
-          "p90": 20.943,
-          "p95": 21.039,
-          "p99": 21.471,
-          "p99.9": 26.975,
-          "max": 29.663
+          "min": 20.192,
+          "mean": 21.4216963921035,
+          "p50": 21.391,
+          "p90": 22.079,
+          "p95": 22.239,
+          "p99": 22.703,
+          "p99.9": 28.719,
+          "max": 34.399
         },
         "launch_lag_ms": {
           "count": 5876,
           "min": 0.001,
-          "mean": 0.31629016337644655,
-          "p50": 0.31,
-          "p90": 0.518,
-          "p95": 0.561,
-          "p99": 0.714,
-          "p99.9": 2.453,
-          "max": 6.911
+          "mean": 0.5373878488767869,
+          "p50": 0.523,
+          "p90": 0.991,
+          "p95": 1.048,
+          "p99": 1.102,
+          "p99.9": 3.437,
+          "max": 13.471
         }
       },
       "server": null
@@ -255,15 +255,15 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_63ebe74fa2c2fe2d481d3afe",
+          "x-routepilot-decision-id": "dec_3ac5d348a690b94ce779b226",
           "x-routepilot-deployment": "bench-model-mock",
           "x-routepilot-model": "bench-model",
           "x-routepilot-policy-version": "pinned",
-          "x-routepilot-request-id": "63ebe74fa2c2fe2d481d3afe"
+          "x-routepilot-request-id": "3ac5d348a690b94ce779b226"
         }
       },
       "load": {
-        "url": "http://127.0.0.1:49849/v1/chat/completions",
+        "url": "http://127.0.0.1:52469/v1/chat/completions",
         "model": "bench-model",
         "stream": true,
         "rps_target": 100,
@@ -277,78 +277,78 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.040209,
+        "elapsed_s": 60.035503639,
         "offered_rps": 97.93333333333334,
         "throughput_rps": 97.93333333333334,
         "latency_ms": {
           "count": 5876,
-          "min": 36,
-          "mean": 41.370908100748814,
-          "p50": 41.535,
-          "p90": 42.943,
-          "p95": 43.295,
-          "p99": 43.903,
-          "p99.9": 50.783,
-          "max": 53.087
+          "min": 37.728,
+          "mean": 39.67727705922395,
+          "p50": 39.615,
+          "p90": 40.703,
+          "p95": 41.087,
+          "p99": 41.695,
+          "p99.9": 42.495,
+          "max": 43.103
         },
         "ttft_ms": {
           "count": 5876,
-          "min": 20,
-          "mean": 20.66270932607217,
-          "p50": 20.655,
-          "p90": 20.991,
-          "p95": 21.103,
-          "p99": 21.375,
-          "p99.9": 22.863,
-          "max": 25.967
+          "min": 20.528,
+          "mean": 21.65038801906059,
+          "p50": 21.647,
+          "p90": 22.303,
+          "p95": 22.479,
+          "p99": 22.719,
+          "p99.9": 23.007,
+          "max": 23.279
         },
         "launch_lag_ms": {
           "count": 5876,
           "min": 0.001,
-          "mean": 0.3398965282505104,
-          "p50": 0.333,
-          "p90": 0.578,
-          "p95": 0.632,
-          "p99": 0.757,
-          "p99.9": 1.042,
-          "max": 1.347
+          "mean": 0.4807642954390737,
+          "p50": 0.451,
+          "p90": 0.943,
+          "p95": 1.019,
+          "p99": 1.083,
+          "p99.9": 1.114,
+          "max": 1.144
         }
       },
       "server": {
         "overhead": {
           "count": 5883.0,
-          "mean_ms": 0.009029593744688084,
+          "mean_ms": 0.4835852133265346,
           "p50": {
-            "value_ms": 0.005048052170928437,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.42777527568195006,
+            "lower_ms": 0.2154,
+            "upper_ms": 0.4642
           },
           "p95": {
-            "value_ms": 0.00959129912476403,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.9472202061421959,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
           },
           "p99": {
-            "value_ms": 0.009995143298438307,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 1.0281287500000016,
+            "lower_ms": 1.0,
+            "upper_ms": 2.154
           }
         },
         "decision": {
-          "count": 5876.0,
-          "mean_ms": 0.0,
+          "count": 5877.0,
+          "mean_ms": 0.0017525880551301648,
           "p50": {
-            "value_ms": 0.005,
+            "value_ms": 0.005013649547858728,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p95": {
-            "value_ms": 0.0095,
+            "value_ms": 0.009525934140931582,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p99": {
-            "value_ms": 0.0099,
+            "value_ms": 0.00992702610476028,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           }
@@ -366,7 +366,7 @@
         "headers": {}
       },
       "load": {
-        "url": "http://127.0.0.1:59979/v1/chat/completions",
+        "url": "http://127.0.0.1:41187/v1/chat/completions",
         "model": "bench-model",
         "stream": false,
         "rps_target": 500,
@@ -380,31 +380,31 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0365106,
+        "elapsed_s": 60.037015609,
         "offered_rps": 498.3333333333333,
         "throughput_rps": 498.3333333333333,
         "latency_ms": {
           "count": 29900,
-          "min": 36,
-          "mean": 36.607865150501674,
-          "p50": 36.607,
-          "p90": 36.927,
-          "p95": 36.991,
-          "p99": 37.247,
-          "p99.9": 40.415,
-          "max": 44.159
+          "min": 36.192,
+          "mean": 37.352222608695655,
+          "p50": 37.343,
+          "p90": 37.983,
+          "p95": 38.143,
+          "p99": 38.431,
+          "p99.9": 42.431,
+          "max": 47.679
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 29900,
           "min": 0.001,
-          "mean": 0.28970581939799295,
-          "p50": 0.285,
-          "p90": 0.493,
-          "p95": 0.523,
-          "p99": 0.679,
-          "p99.9": 1.342,
-          "max": 4.771
+          "mean": 0.4996113712374584,
+          "p50": 0.484,
+          "p90": 0.954,
+          "p95": 1.015,
+          "p99": 1.083,
+          "p99.9": 1.343,
+          "max": 5.555
         }
       },
       "server": null
@@ -418,15 +418,15 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_0fb02bdf3f690de4c6a9c2b2",
+          "x-routepilot-decision-id": "dec_1cf442bcb191d7878ec325d0",
           "x-routepilot-deployment": "bench-model-mock",
           "x-routepilot-model": "bench-model",
           "x-routepilot-policy-version": "pinned",
-          "x-routepilot-request-id": "0fb02bdf3f690de4c6a9c2b2"
+          "x-routepilot-request-id": "1cf442bcb191d7878ec325d0"
         }
       },
       "load": {
-        "url": "http://127.0.0.1:60828/v1/chat/completions",
+        "url": "http://127.0.0.1:45535/v1/chat/completions",
         "model": "bench-model",
         "stream": false,
         "rps_target": 500,
@@ -440,68 +440,68 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0362949,
+        "elapsed_s": 60.037704659,
         "offered_rps": 498.3333333333333,
         "throughput_rps": 498.3333333333333,
         "latency_ms": {
           "count": 29900,
-          "min": 36,
-          "mean": 36.65399652173911,
-          "p50": 36.671,
-          "p90": 36.991,
-          "p95": 37.087,
-          "p99": 37.311,
-          "p99.9": 38.207,
-          "max": 43.807
+          "min": 36.448,
+          "mean": 37.84249578595314,
+          "p50": 37.759,
+          "p90": 38.495,
+          "p95": 38.783,
+          "p99": 41.567,
+          "p99.9": 48.831,
+          "max": 61.439
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 29900,
           "min": 0.001,
-          "mean": 0.3264137792642143,
-          "p50": 0.323,
-          "p90": 0.543,
-          "p95": 0.639,
-          "p99": 0.763,
-          "p99.9": 0.995,
-          "max": 2.519
+          "mean": 0.5000573578595315,
+          "p50": 0.471,
+          "p90": 0.95,
+          "p95": 1.021,
+          "p99": 1.105,
+          "p99.9": 4.005,
+          "max": 7.475
         }
       },
       "server": {
         "overhead": {
-          "count": 29915.0,
-          "mean_ms": 0.008225435400300855,
+          "count": 29921.0,
+          "mean_ms": 0.7840711629958849,
           "p50": {
-            "value_ms": 0.005024015853822384,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.7244735231175037,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
           },
           "p95": {
-            "value_ms": 0.00954563012226253,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 1.9419521240552506,
+            "lower_ms": 1.0,
+            "upper_ms": 2.154
           },
           "p99": {
-            "value_ms": 0.00994755139056832,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 4.3196168495575265,
+            "lower_ms": 2.154,
+            "upper_ms": 4.642
           }
         },
         "decision": {
-          "count": 29900.0,
-          "mean_ms": 1.732107023411371e-05,
+          "count": 29902.0,
+          "mean_ms": 0.0016533282054712298,
           "p50": {
-            "value_ms": 0.005000167229673234,
+            "value_ms": 0.005012740561925837,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p95": {
-            "value_ms": 0.009500317736379145,
+            "value_ms": 0.00952420706765909,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p99": {
-            "value_ms": 0.009900331114753002,
+            "value_ms": 0.009925226312613156,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           }
@@ -519,7 +519,7 @@
         "headers": {}
       },
       "load": {
-        "url": "http://127.0.0.1:63016/v1/chat/completions",
+        "url": "http://127.0.0.1:42379/v1/chat/completions",
         "model": "bench-model",
         "stream": true,
         "rps_target": 500,
@@ -533,41 +533,41 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0423777,
+        "elapsed_s": 60.038055908,
         "offered_rps": 498.3333333333333,
         "throughput_rps": 498.3333333333333,
         "latency_ms": {
           "count": 29900,
-          "min": 35.68,
-          "mean": 38.95259076923074,
-          "p50": 38.911,
-          "p90": 40.511,
-          "p95": 41.023,
-          "p99": 42.047,
-          "p99.9": 46.015,
-          "max": 54.335
+          "min": 38.176,
+          "mean": 41.46018568561877,
+          "p50": 41.375,
+          "p90": 42.815,
+          "p95": 43.327,
+          "p99": 44.543,
+          "p99.9": 56.767,
+          "max": 69.055
         },
         "ttft_ms": {
           "count": 29900,
-          "min": 20,
-          "mean": 20.61090140468228,
-          "p50": 20.607,
-          "p90": 20.911,
-          "p95": 20.991,
-          "p99": 21.231,
-          "p99.9": 22.671,
-          "max": 30.799
+          "min": 20.16,
+          "mean": 21.280216722408042,
+          "p50": 21.263,
+          "p90": 21.983,
+          "p95": 22.175,
+          "p99": 22.511,
+          "p99.9": 25.711,
+          "max": 42.527
         },
         "launch_lag_ms": {
           "count": 29900,
           "min": 0.001,
-          "mean": 0.29249314381270947,
-          "p50": 0.288,
-          "p90": 0.5,
-          "p95": 0.538,
-          "p99": 0.635,
-          "p99.9": 0.987,
-          "max": 4.987
+          "mean": 0.42866575250836053,
+          "p50": 0.372,
+          "p90": 0.929,
+          "p95": 1.015,
+          "p99": 1.13,
+          "p99.9": 1.401,
+          "max": 3.559
         }
       },
       "server": null
@@ -581,15 +581,15 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_03394deb858fd7db144c69cc",
+          "x-routepilot-decision-id": "dec_e22fc362fa8941202b5abe0f",
           "x-routepilot-deployment": "bench-model-mock",
           "x-routepilot-model": "bench-model",
           "x-routepilot-policy-version": "pinned",
-          "x-routepilot-request-id": "03394deb858fd7db144c69cc"
+          "x-routepilot-request-id": "e22fc362fa8941202b5abe0f"
         }
       },
       "load": {
-        "url": "http://127.0.0.1:59398/v1/chat/completions",
+        "url": "http://127.0.0.1:51991/v1/chat/completions",
         "model": "bench-model",
         "stream": true,
         "rps_target": 500,
@@ -603,78 +603,78 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0423143,
+        "elapsed_s": 60.038951253,
         "offered_rps": 498.3333333333333,
         "throughput_rps": 498.3333333333333,
         "latency_ms": {
           "count": 29900,
-          "min": 35.616,
-          "mean": 38.97828762541809,
-          "p50": 38.879,
-          "p90": 40.543,
-          "p95": 41.023,
-          "p99": 42.239,
-          "p99.9": 55.647,
-          "max": 72.447
+          "min": 38.368,
+          "mean": 42.63189725752506,
+          "p50": 42.559,
+          "p90": 44.383,
+          "p95": 44.959,
+          "p99": 46.207,
+          "p99.9": 54.111,
+          "max": 63.327
         },
         "ttft_ms": {
           "count": 29900,
-          "min": 20,
-          "mean": 20.686922274247486,
-          "p50": 20.655,
-          "p90": 21.023,
-          "p95": 21.183,
-          "p99": 21.551,
-          "p99.9": 27.007,
-          "max": 35.647
+          "min": 20.464,
+          "mean": 21.68049204013374,
+          "p50": 21.615,
+          "p90": 22.399,
+          "p95": 22.671,
+          "p99": 23.359,
+          "p99.9": 31.503,
+          "max": 41.439
         },
         "launch_lag_ms": {
           "count": 29900,
           "min": 0.001,
-          "mean": 0.3112979933110369,
-          "p50": 0.308,
-          "p90": 0.52,
-          "p95": 0.605,
-          "p99": 0.733,
-          "p99.9": 1.057,
-          "max": 4.535
+          "mean": 0.28689020066889587,
+          "p50": 0.188,
+          "p90": 0.735,
+          "p95": 0.86,
+          "p99": 1.025,
+          "p99.9": 1.339,
+          "max": 4.519
         }
       },
       "server": {
         "overhead": {
-          "count": 29915.0,
-          "mean_ms": 0.023717603209092452,
+          "count": 29922.0,
+          "mean_ms": 0.7104968759441239,
           "p50": {
-            "value_ms": 0.00518331773919673,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
-          },
-          "p95": {
-            "value_ms": 0.009848303704473786,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
-          },
-          "p99": {
-            "value_ms": 0.8667661683168308,
+            "value_ms": 0.6759391957283497,
             "lower_ms": 0.4642,
             "upper_ms": 1.0
+          },
+          "p95": {
+            "value_ms": 1.7956089941458215,
+            "lower_ms": 1.0,
+            "upper_ms": 2.154
+          },
+          "p99": {
+            "value_ms": 2.4706352136752012,
+            "lower_ms": 2.154,
+            "upper_ms": 4.642
           }
         },
         "decision": {
-          "count": 29900.0,
-          "mean_ms": 5.177591973244147e-05,
+          "count": 29902.0,
+          "mean_ms": 0.0017262188482376093,
           "p50": {
-            "value_ms": 0.0050005017225808615,
+            "value_ms": 0.005019977839707216,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p95": {
-            "value_ms": 0.009500953272903637,
+            "value_ms": 0.009537957895443708,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p99": {
-            "value_ms": 0.009900993410710107,
+            "value_ms": 0.009939556122620288,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           }
@@ -692,7 +692,7 @@
         "headers": {}
       },
       "load": {
-        "url": "http://127.0.0.1:60417/v1/chat/completions",
+        "url": "http://127.0.0.1:49933/v1/chat/completions",
         "model": "bench-model",
         "stream": false,
         "rps_target": 1000,
@@ -706,31 +706,31 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0355553,
+        "elapsed_s": 60.035999177,
         "offered_rps": 995.1333333333333,
         "throughput_rps": 995.1333333333333,
         "latency_ms": {
           "count": 59708,
-          "min": 36,
-          "mean": 36.60162015140351,
-          "p50": 36.607,
-          "p90": 36.927,
-          "p95": 36.991,
-          "p99": 37.279,
-          "p99.9": 39.903,
-          "max": 46.879
+          "min": 36.128,
+          "mean": 37.28515682990553,
+          "p50": 37.247,
+          "p90": 37.919,
+          "p95": 38.111,
+          "p99": 38.591,
+          "p99.9": 45.471,
+          "max": 56.863
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 59708,
           "min": 0.001,
-          "mean": 0.28778731493267284,
-          "p50": 0.28,
-          "p90": 0.495,
-          "p95": 0.525,
-          "p99": 0.692,
-          "p99.9": 1.515,
-          "max": 7.723
+          "mean": 0.4689010517853555,
+          "p50": 0.431,
+          "p90": 0.942,
+          "p95": 1.009,
+          "p99": 1.089,
+          "p99.9": 3.359,
+          "max": 7.659
         }
       },
       "server": null
@@ -744,15 +744,15 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_ce643b43c306d087381e8000",
+          "x-routepilot-decision-id": "dec_c74115e54b13b0e463eb710c",
           "x-routepilot-deployment": "bench-model-mock",
           "x-routepilot-model": "bench-model",
           "x-routepilot-policy-version": "pinned",
-          "x-routepilot-request-id": "ce643b43c306d087381e8000"
+          "x-routepilot-request-id": "c74115e54b13b0e463eb710c"
         }
       },
       "load": {
-        "url": "http://127.0.0.1:53234/v1/chat/completions",
+        "url": "http://127.0.0.1:59595/v1/chat/completions",
         "model": "bench-model",
         "stream": false,
         "rps_target": 1000,
@@ -766,68 +766,68 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0354001,
+        "elapsed_s": 60.036402016,
         "offered_rps": 995.1333333333333,
         "throughput_rps": 995.1333333333333,
         "latency_ms": {
           "count": 59708,
-          "min": 36,
-          "mean": 36.646303208950165,
-          "p50": 36.639,
-          "p90": 36.991,
-          "p95": 37.087,
-          "p99": 37.439,
-          "p99.9": 40.447,
-          "max": 48.607
+          "min": 36.448,
+          "mean": 37.59941582367524,
+          "p50": 37.567,
+          "p90": 38.271,
+          "p95": 38.495,
+          "p99": 39.199,
+          "p99.9": 45.343,
+          "max": 65.471
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 59708,
           "min": 0.001,
-          "mean": 0.31637877671333836,
-          "p50": 0.311,
-          "p90": 0.528,
-          "p95": 0.631,
-          "p99": 0.779,
-          "p99.9": 1.276,
-          "max": 6.991
+          "mean": 0.4491107221812826,
+          "p50": 0.409,
+          "p90": 0.919,
+          "p95": 0.993,
+          "p99": 1.07,
+          "p99.9": 1.147,
+          "max": 5.839
         }
       },
       "server": {
         "overhead": {
-          "count": 59737.0,
-          "mean_ms": 0.004108547466394358,
+          "count": 59761.0,
+          "mean_ms": 0.7432020019745282,
           "p50": {
-            "value_ms": 0.005036931482824331,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.6283408031088084,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
           },
           "p95": {
-            "value_ms": 0.009570169817366228,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 1.913199563064375,
+            "lower_ms": 1.0,
+            "upper_ms": 2.154
           },
           "p99": {
-            "value_ms": 0.009973124335992177,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 3.133736247960846,
+            "lower_ms": 2.154,
+            "upper_ms": 4.642
           }
         },
         "decision": {
-          "count": 59698.0,
-          "mean_ms": 3.479346041743442e-05,
+          "count": 59712.0,
+          "mean_ms": 0.0012477671322348638,
           "p50": {
-            "value_ms": 0.005000335042047777,
+            "value_ms": 0.005007379578693145,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p95": {
-            "value_ms": 0.009500636579890778,
+            "value_ms": 0.009514021199516972,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p99": {
-            "value_ms": 0.009900663383254599,
+            "value_ms": 0.009914611565812425,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           }
@@ -845,7 +845,7 @@
         "headers": {}
       },
       "load": {
-        "url": "http://127.0.0.1:62693/v1/chat/completions",
+        "url": "http://127.0.0.1:42613/v1/chat/completions",
         "model": "bench-model",
         "stream": true,
         "rps_target": 1000,
@@ -859,41 +859,41 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0419305,
+        "elapsed_s": 60.037430126,
         "offered_rps": 995.1333333333333,
         "throughput_rps": 995.1333333333333,
         "latency_ms": {
           "count": 59708,
-          "min": 35.584,
-          "mean": 37.66782715883967,
-          "p50": 37.599,
-          "p90": 38.815,
-          "p95": 39.231,
-          "p99": 40.191,
-          "p99.9": 46.879,
-          "max": 53.279
+          "min": 38.4,
+          "mean": 43.179255309171275,
+          "p50": 43.167,
+          "p90": 44.895,
+          "p95": 45.375,
+          "p99": 46.367,
+          "p99.9": 47.807,
+          "max": 55.423
         },
         "ttft_ms": {
           "count": 59708,
-          "min": 20,
-          "mean": 20.609393448114158,
-          "p50": 20.607,
-          "p90": 20.895,
-          "p95": 20.991,
-          "p99": 21.279,
-          "p99.9": 22.319,
-          "max": 26.991
+          "min": 20.144,
+          "mean": 21.191986333489663,
+          "p50": 21.151,
+          "p90": 21.919,
+          "p95": 22.159,
+          "p99": 22.607,
+          "p99.9": 23.231,
+          "max": 31.295
         },
         "launch_lag_ms": {
           "count": 59708,
           "min": 0.001,
-          "mean": 0.28055521873115885,
-          "p50": 0.279,
-          "p90": 0.486,
-          "p95": 0.513,
-          "p99": 0.616,
-          "p99.9": 1.005,
-          "max": 3.287
+          "mean": 0.3215335633415961,
+          "p50": 0.199,
+          "p90": 0.819,
+          "p95": 0.966,
+          "p99": 1.215,
+          "p99.9": 1.724,
+          "max": 6.039
         }
       },
       "server": null
@@ -907,15 +907,15 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_f7719ef0a67b8edf44aab5bd",
+          "x-routepilot-decision-id": "dec_f4c2f17cb4f80c90f6669d2b",
           "x-routepilot-deployment": "bench-model-mock",
           "x-routepilot-model": "bench-model",
           "x-routepilot-policy-version": "pinned",
-          "x-routepilot-request-id": "f7719ef0a67b8edf44aab5bd"
+          "x-routepilot-request-id": "f4c2f17cb4f80c90f6669d2b"
         }
       },
       "load": {
-        "url": "http://127.0.0.1:49225/v1/chat/completions",
+        "url": "http://127.0.0.1:42837/v1/chat/completions",
         "model": "bench-model",
         "stream": true,
         "rps_target": 1000,
@@ -929,78 +929,78 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.041933,
+        "elapsed_s": 60.042769452,
         "offered_rps": 995.1333333333333,
         "throughput_rps": 995.1333333333333,
         "latency_ms": {
           "count": 59708,
-          "min": 35.584,
-          "mean": 37.78900783814568,
-          "p50": 37.727,
-          "p90": 38.975,
-          "p95": 39.391,
-          "p99": 40.255,
-          "p99.9": 42.175,
-          "max": 48.927
+          "min": 38.048,
+          "mean": 44.99226180746292,
+          "p50": 42.975,
+          "p90": 45.887,
+          "p95": 51.071,
+          "p99": 104.447,
+          "p99.9": 203.903,
+          "max": 272.383
         },
         "ttft_ms": {
           "count": 59708,
-          "min": 20,
-          "mean": 20.709083405908757,
-          "p50": 20.687,
-          "p90": 21.103,
-          "p95": 21.311,
-          "p99": 21.679,
-          "p99.9": 22.271,
-          "max": 29.279
+          "min": 20.432,
+          "mean": 22.892787298184498,
+          "p50": 21.615,
+          "p90": 22.799,
+          "p95": 24.655,
+          "p99": 56.831,
+          "p99.9": 163.455,
+          "max": 237.951
         },
         "launch_lag_ms": {
           "count": 59708,
           "min": 0.001,
-          "mean": 0.2887651570978766,
-          "p50": 0.286,
-          "p90": 0.498,
-          "p95": 0.542,
-          "p99": 0.701,
-          "p99.9": 0.886,
-          "max": 5.299
+          "mean": 0.3012678368057886,
+          "p50": 0.102,
+          "p90": 0.511,
+          "p95": 0.767,
+          "p99": 2.455,
+          "p99.9": 22.447,
+          "max": 80.703
         }
       },
       "server": {
         "overhead": {
-          "count": 59759.0,
-          "mean_ms": 0.030894678625813618,
+          "count": 59765.0,
+          "mean_ms": 52.44865505762639,
           "p50": {
-            "value_ms": 0.0053012614658552604,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.9304111851548083,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
           },
           "p95": {
-            "value_ms": 0.5299345730607329,
-            "lower_ms": 0.4642,
-            "upper_ms": 1.0
+            "value_ms": 382.65191675794085,
+            "lower_ms": 215.4,
+            "upper_ms": 464.2
           },
           "p99": {
-            "value_ms": 0.9150082014431743,
-            "lower_ms": 0.4642,
-            "upper_ms": 1.0
+            "value_ms": 1000.0,
+            "lower_ms": 1000.0,
+            "upper_ms": null
           }
         },
         "decision": {
-          "count": 59708.0,
-          "mean_ms": 0.00010441816841964225,
+          "count": 59712.0,
+          "mean_ms": 0.002102714261789945,
           "p50": {
-            "value_ms": 0.005001005092468507,
+            "value_ms": 0.005019333579906527,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p95": {
-            "value_ms": 0.009501909675690163,
+            "value_ms": 0.009536733801822399,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p99": {
-            "value_ms": 0.009901990083087644,
+            "value_ms": 0.009938280488214924,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           }
@@ -1018,7 +1018,7 @@
         "headers": {}
       },
       "load": {
-        "url": "http://127.0.0.1:63807/v1/chat/completions",
+        "url": "http://127.0.0.1:45611/v1/chat/completions",
         "model": "bench-model",
         "stream": false,
         "rps_target": 2000,
@@ -1032,31 +1032,31 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0360069,
+        "elapsed_s": 60.037592014,
         "offered_rps": 1991.7166666666667,
         "throughput_rps": 1991.7166666666667,
         "latency_ms": {
           "count": 119503,
-          "min": 36,
-          "mean": 36.562125067989896,
-          "p50": 36.575,
-          "p90": 36.895,
-          "p95": 36.959,
-          "p99": 37.119,
-          "p99.9": 37.535,
-          "max": 39.903
+          "min": 36.128,
+          "mean": 37.17197700476139,
+          "p50": 37.151,
+          "p90": 37.791,
+          "p95": 37.983,
+          "p99": 38.335,
+          "p99.9": 43.103,
+          "max": 62.207
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 119503,
           "min": 0.001,
-          "mean": 0.2744945147820562,
-          "p50": 0.271,
-          "p90": 0.484,
-          "p95": 0.511,
-          "p99": 0.604,
-          "p99.9": 1.034,
-          "max": 3.185
+          "mean": 0.43885894914772,
+          "p50": 0.396,
+          "p90": 0.931,
+          "p95": 1.002,
+          "p99": 1.078,
+          "p99.9": 1.493,
+          "max": 10.175
         }
       },
       "server": null
@@ -1070,15 +1070,15 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_d0e7ef8573509df88f33f5d1",
+          "x-routepilot-decision-id": "dec_232855246e4a30903ceac556",
           "x-routepilot-deployment": "bench-model-mock",
           "x-routepilot-model": "bench-model",
           "x-routepilot-policy-version": "pinned",
-          "x-routepilot-request-id": "d0e7ef8573509df88f33f5d1"
+          "x-routepilot-request-id": "232855246e4a30903ceac556"
         }
       },
       "load": {
-        "url": "http://127.0.0.1:58065/v1/chat/completions",
+        "url": "http://127.0.0.1:40091/v1/chat/completions",
         "model": "bench-model",
         "stream": false,
         "rps_target": 2000,
@@ -1092,68 +1092,68 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0363636,
+        "elapsed_s": 60.037119702,
         "offered_rps": 1991.7166666666667,
         "throughput_rps": 1991.7166666666667,
         "latency_ms": {
           "count": 119503,
-          "min": 36,
-          "mean": 36.587691756692266,
-          "p50": 36.575,
-          "p90": 36.927,
-          "p95": 37.023,
-          "p99": 37.311,
-          "p99.9": 39.903,
-          "max": 45.407
+          "min": 36.384,
+          "mean": 246.88512509309342,
+          "p50": 38.207,
+          "p90": 877.567,
+          "p95": 1065.983,
+          "p99": 1520.639,
+          "p99.9": 1620.991,
+          "max": 2729.983
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 119503,
           "min": 0.001,
-          "mean": 0.29185459779252393,
-          "p50": 0.289,
-          "p90": 0.5,
-          "p95": 0.545,
-          "p99": 0.739,
-          "p99.9": 1.106,
-          "max": 4.037
+          "mean": 0.40588497359898834,
+          "p50": 0.276,
+          "p90": 0.829,
+          "p95": 0.949,
+          "p99": 1.092,
+          "p99.9": 17.583,
+          "max": 33.215
         }
       },
       "server": {
         "overhead": {
-          "count": 119571.0,
-          "mean_ms": 0.006517699107643162,
+          "count": 119589.0,
+          "mean_ms": 222.89431036357777,
           "p50": {
-            "value_ms": 0.005030586314832891,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 2.074337829976002,
+            "lower_ms": 1.0,
+            "upper_ms": 2.154
           },
           "p95": {
-            "value_ms": 0.009558113998182492,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 1000.0,
+            "lower_ms": 1000.0,
+            "upper_ms": null
           },
           "p99": {
-            "value_ms": 0.009960560903369123,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 1000.0,
+            "lower_ms": 1000.0,
+            "upper_ms": null
           }
         },
         "decision": {
-          "count": 119504.0,
-          "mean_ms": 2.626439282367117e-05,
+          "count": 119512.0,
+          "mean_ms": 0.0013134292874355563,
           "p50": {
-            "value_ms": 0.005000251050226783,
+            "value_ms": 0.005008675244122208,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p95": {
-            "value_ms": 0.009500476995430886,
+            "value_ms": 0.009516482963832196,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p99": {
-            "value_ms": 0.009900497079449028,
+            "value_ms": 0.009917176983361971,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           }
@@ -1171,7 +1171,7 @@
         "headers": {}
       },
       "load": {
-        "url": "http://127.0.0.1:62232/v1/chat/completions",
+        "url": "http://127.0.0.1:46439/v1/chat/completions",
         "model": "bench-model",
         "stream": true,
         "rps_target": 2000,
@@ -1185,41 +1185,41 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0428561,
+        "elapsed_s": 60.039745426,
         "offered_rps": 1991.7166666666667,
         "throughput_rps": 1991.7166666666667,
         "latency_ms": {
           "count": 119503,
-          "min": 35.392,
-          "mean": 37.047634820883204,
-          "p50": 36.959,
-          "p90": 37.983,
-          "p95": 38.303,
-          "p99": 39.103,
-          "p99.9": 45.663,
-          "max": 53.151
+          "min": 37.824,
+          "mean": 43.34412290904829,
+          "p50": 43.327,
+          "p90": 45.311,
+          "p95": 45.887,
+          "p99": 46.975,
+          "p99.9": 48.255,
+          "max": 50.207
         },
         "ttft_ms": {
           "count": 119503,
-          "min": 20,
-          "mean": 20.6021211182983,
-          "p50": 20.591,
-          "p90": 20.927,
-          "p95": 21.023,
-          "p99": 21.391,
-          "p99.9": 22.527,
-          "max": 33.247
+          "min": 20.096,
+          "mean": 21.125782013840645,
+          "p50": 21.055,
+          "p90": 21.903,
+          "p95": 22.175,
+          "p99": 22.719,
+          "p99.9": 23.487,
+          "max": 25.359
         },
         "launch_lag_ms": {
           "count": 119503,
           "min": 0.001,
-          "mean": 0.27017148523468054,
-          "p50": 0.267,
-          "p90": 0.478,
-          "p95": 0.504,
-          "p99": 0.585,
-          "p99.9": 0.972,
-          "max": 10.895
+          "mean": 0.2499963933959817,
+          "p50": 0.121,
+          "p90": 0.728,
+          "p95": 0.914,
+          "p99": 1.21,
+          "p99.9": 1.766,
+          "max": 3.255
         }
       },
       "server": null
@@ -1233,15 +1233,15 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_fc041608529948b8412d3f25",
+          "x-routepilot-decision-id": "dec_b11b8305f1fffa326241d1ba",
           "x-routepilot-deployment": "bench-model-mock",
           "x-routepilot-model": "bench-model",
           "x-routepilot-policy-version": "pinned",
-          "x-routepilot-request-id": "fc041608529948b8412d3f25"
+          "x-routepilot-request-id": "b11b8305f1fffa326241d1ba"
         }
       },
       "load": {
-        "url": "http://127.0.0.1:62983/v1/chat/completions",
+        "url": "http://127.0.0.1:38207/v1/chat/completions",
         "model": "bench-model",
         "stream": true,
         "rps_target": 2000,
@@ -1255,78 +1255,78 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0408295,
+        "elapsed_s": 60.050122917,
         "offered_rps": 1991.7166666666667,
         "throughput_rps": 1991.7166666666667,
         "latency_ms": {
           "count": 119503,
-          "min": 35.552,
-          "mean": 37.318392609390614,
-          "p50": 37.151,
-          "p90": 38.303,
-          "p95": 38.719,
-          "p99": 40.735,
-          "p99.9": 58.655,
-          "max": 76.543
+          "min": 37.024,
+          "mean": 41.81110432374078,
+          "p50": 41.663,
+          "p90": 43.551,
+          "p95": 44.159,
+          "p99": 45.823,
+          "p99.9": 65.311,
+          "max": 83.327
         },
         "ttft_ms": {
           "count": 119503,
-          "min": 20,
-          "mean": 20.768034007514455,
-          "p50": 20.671,
-          "p90": 21.247,
-          "p95": 21.487,
-          "p99": 22.335,
-          "p99.9": 32.143,
-          "max": 50.559
+          "min": 20.384,
+          "mean": 21.592567483661487,
+          "p50": 21.439,
+          "p90": 22.415,
+          "p95": 22.767,
+          "p99": 23.967,
+          "p99.9": 34.847,
+          "max": 58.079
         },
         "launch_lag_ms": {
           "count": 119503,
           "min": 0.001,
-          "mean": 0.2741920621239633,
-          "p50": 0.27,
-          "p90": 0.481,
-          "p95": 0.508,
-          "p99": 0.659,
-          "p99.9": 1.093,
-          "max": 12.863
+          "mean": 0.1072479603022518,
+          "p50": 0.059,
+          "p90": 0.25,
+          "p95": 0.344,
+          "p99": 0.743,
+          "p99.9": 1.81,
+          "max": 6.159
         }
       },
       "server": {
         "overhead": {
-          "count": 119533.0,
-          "mean_ms": 0.04217471158592155,
+          "count": 119594.0,
+          "mean_ms": 13.046186184106089,
           "p50": {
-            "value_ms": 0.005405602185159728,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 6.765464229655725,
+            "lower_ms": 4.642,
+            "upper_ms": 10.0
           },
           "p95": {
-            "value_ms": 0.6504677908329449,
-            "lower_ms": 0.4642,
-            "upper_ms": 1.0
+            "value_ms": 56.785694440668664,
+            "lower_ms": 46.42,
+            "upper_ms": 100.0
           },
           "p99": {
-            "value_ms": 0.9484937629129827,
-            "lower_ms": 0.4642,
-            "upper_ms": 1.0
+            "value_ms": 91.62514813103166,
+            "lower_ms": 46.42,
+            "upper_ms": 100.0
           }
         },
         "decision": {
-          "count": 119463.0,
-          "mean_ms": 0.00026516327231025503,
+          "count": 119510.0,
+          "mean_ms": 0.0016581048196803612,
           "p50": {
-            "value_ms": 0.0050023030282728125,
+            "value_ms": 0.00501754945756222,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p95": {
-            "value_ms": 0.009504375753718344,
+            "value_ms": 0.00953334396936822,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           },
           "p99": {
-            "value_ms": 0.00990455999598017,
+            "value_ms": 0.009934747925973198,
             "lower_ms": 0.0,
             "upper_ms": 0.01
           }
@@ -1342,17 +1342,17 @@
       "preflight": {
         "status": 200,
         "headers": {
-          "x-routepilot-decision-id": "dec_c3b01e71954bea816a895458",
+          "x-routepilot-decision-id": "dec_a6edcd25ffd796e03ca7af5b",
           "x-routepilot-deployment": "gpt-5-mock",
           "x-routepilot-estimated-cost-usd": "0.00017380132",
           "x-routepilot-model": "gpt-5",
           "x-routepilot-policy-version": "dea4486d7575+ef0a989c",
-          "x-routepilot-request-id": "c3b01e71954bea816a895458"
+          "x-routepilot-request-id": "a6edcd25ffd796e03ca7af5b"
         },
         "policy_version": "dea4486d7575+ef0a989c"
       },
       "load": {
-        "url": "http://127.0.0.1:49789/v1/chat/completions",
+        "url": "http://127.0.0.1:40265/v1/chat/completions",
         "model": "auto",
         "stream": false,
         "rps_target": 1000,
@@ -1366,70 +1366,70 @@
         "errors": 0,
         "dropped": 0,
         "errors_by_kind": {},
-        "elapsed_s": 60.0356223,
+        "elapsed_s": 60.036489895,
         "offered_rps": 995.1333333333333,
         "throughput_rps": 995.1333333333333,
         "latency_ms": {
           "count": 59708,
-          "min": 36,
-          "mean": 36.654834862999955,
-          "p50": 36.639,
-          "p90": 36.991,
-          "p95": 37.119,
-          "p99": 37.407,
-          "p99.9": 40.319,
-          "max": 48.031
+          "min": 36.48,
+          "mean": 37.65220017418103,
+          "p50": 37.599,
+          "p90": 38.335,
+          "p95": 38.559,
+          "p99": 39.327,
+          "p99.9": 45.599,
+          "max": 53.535
         },
         "ttft_ms": null,
         "launch_lag_ms": {
           "count": 59708,
           "min": 0.001,
-          "mean": 0.3158862129027935,
-          "p50": 0.312,
-          "p90": 0.528,
-          "p95": 0.631,
-          "p99": 0.778,
-          "p99.9": 1.101,
-          "max": 6.447
+          "mean": 0.449563442084813,
+          "p50": 0.416,
+          "p90": 0.913,
+          "p95": 0.989,
+          "p99": 1.068,
+          "p99.9": 1.12,
+          "max": 3.815
         }
       },
       "server": {
         "overhead": {
-          "count": 59755.0,
-          "mean_ms": 0.007642674253200575,
+          "count": 59761.0,
+          "mean_ms": 0.802145809859273,
           "p50": {
-            "value_ms": 0.005071375224904098,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
-          },
-          "p95": {
-            "value_ms": 0.009635612927317785,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
-          },
-          "p99": {
-            "value_ms": 0.6219273397823439,
+            "value_ms": 0.7444913577255472,
             "lower_ms": 0.4642,
             "upper_ms": 1.0
+          },
+          "p95": {
+            "value_ms": 1.9540401927233426,
+            "lower_ms": 1.0,
+            "upper_ms": 2.154
+          },
+          "p99": {
+            "value_ms": 3.659030246433202,
+            "lower_ms": 2.154,
+            "upper_ms": 4.642
           }
         },
         "decision": {
-          "count": 59708.0,
-          "mean_ms": 0.0018386732096201518,
+          "count": 59712.0,
+          "mean_ms": 0.053346456290192266,
           "p50": {
-            "value_ms": 0.005015708741452597,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.06454002848551987,
+            "lower_ms": 0.046419999999999996,
+            "upper_ms": 0.1
           },
           "p95": {
-            "value_ms": 0.009529846608759933,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.09708848850405805,
+            "lower_ms": 0.046419999999999996,
+            "upper_ms": 0.1
           },
           "p99": {
-            "value_ms": 0.009931103308076143,
-            "lower_ms": 0.0,
-            "upper_ms": 0.01
+            "value_ms": 0.09998168495015033,
+            "lower_ms": 0.046419999999999996,
+            "upper_ms": 0.1
           }
         }
       }
@@ -1443,31 +1443,31 @@
       "base": "direct-100rps-nonstream",
       "other": "gateway-100rps-nonstream",
       "client_diff_ms": {
-        "p50": 0.064,
-        "p90": 0.096,
-        "p95": 0.096,
-        "p99": 0.096,
-        "p99.9": 0.736
+        "p50": 0.416,
+        "p90": 0.448,
+        "p95": 0.448,
+        "p99": 0.544,
+        "p99.9": 2.08
       },
       "ttft_diff_ms": null,
       "client_verdict": "met",
       "server": {
-        "count": 5881.0,
-        "mean_ms": 0.009224910729467777,
+        "count": 5883.0,
+        "mean_ms": 0.5838535476797564,
         "p50": {
-          "value_ms": 0.0050204883045927955,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 0.6626873293903549,
+          "lower_ms": 0.4642,
+          "upper_ms": 1.0
         },
         "p95": {
-          "value_ms": 0.009538927778726312,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 0.9853556938125567,
+          "lower_ms": 0.4642,
+          "upper_ms": 1.0
         },
         "p99": {
-          "value_ms": 0.009940566843093733,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 1.9701181021897818,
+          "lower_ms": 1.0,
+          "upper_ms": 2.154
         }
       },
       "server_verdict": "met"
@@ -1479,37 +1479,37 @@
       "base": "direct-100rps-stream",
       "other": "gateway-100rps-stream",
       "client_diff_ms": {
-        "p50": 0.032,
-        "p90": -0.032,
-        "p95": -0.096,
-        "p99": -1.76,
-        "p99.9": -7.744
+        "p50": 0.416,
+        "p90": 0.544,
+        "p95": 0.576,
+        "p99": -5.824,
+        "p99.9": -18.72
       },
       "ttft_diff_ms": {
-        "p50": 0.032,
-        "p90": 0.048,
-        "p95": 0.064,
-        "p99": -0.096,
-        "p99.9": -4.112
+        "p50": 0.256,
+        "p90": 0.224,
+        "p95": 0.24,
+        "p99": 0.016,
+        "p99.9": -5.712
       },
       "client_verdict": "met",
       "server": {
         "count": 5883.0,
-        "mean_ms": 0.009029593744688084,
+        "mean_ms": 0.4835852133265346,
         "p50": {
-          "value_ms": 0.005048052170928437,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 0.42777527568195006,
+          "lower_ms": 0.2154,
+          "upper_ms": 0.4642
         },
         "p95": {
-          "value_ms": 0.00959129912476403,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 0.9472202061421959,
+          "lower_ms": 0.4642,
+          "upper_ms": 1.0
         },
         "p99": {
-          "value_ms": 0.009995143298438307,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 1.0281287500000016,
+          "lower_ms": 1.0,
+          "upper_ms": 2.154
         }
       },
       "server_verdict": "met"
@@ -1521,31 +1521,31 @@
       "base": "direct-500rps-nonstream",
       "other": "gateway-500rps-nonstream",
       "client_diff_ms": {
-        "p50": 0.064,
-        "p90": 0.064,
-        "p95": 0.096,
-        "p99": 0.064,
-        "p99.9": -2.208
+        "p50": 0.416,
+        "p90": 0.512,
+        "p95": 0.64,
+        "p99": 3.136,
+        "p99.9": 6.4
       },
       "ttft_diff_ms": null,
       "client_verdict": "met",
       "server": {
-        "count": 29915.0,
-        "mean_ms": 0.008225435400300855,
+        "count": 29921.0,
+        "mean_ms": 0.7840711629958849,
         "p50": {
-          "value_ms": 0.005024015853822384,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 0.7244735231175037,
+          "lower_ms": 0.4642,
+          "upper_ms": 1.0
         },
         "p95": {
-          "value_ms": 0.00954563012226253,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 1.9419521240552506,
+          "lower_ms": 1.0,
+          "upper_ms": 2.154
         },
         "p99": {
-          "value_ms": 0.00994755139056832,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 4.3196168495575265,
+          "lower_ms": 2.154,
+          "upper_ms": 4.642
         }
       },
       "server_verdict": "met"
@@ -1557,37 +1557,37 @@
       "base": "direct-500rps-stream",
       "other": "gateway-500rps-stream",
       "client_diff_ms": {
-        "p50": -0.032,
-        "p90": 0.032,
-        "p95": 0.0,
-        "p99": 0.192,
-        "p99.9": 9.632
+        "p50": 1.184,
+        "p90": 1.568,
+        "p95": 1.632,
+        "p99": 1.664,
+        "p99.9": -2.656
       },
       "ttft_diff_ms": {
-        "p50": 0.048,
-        "p90": 0.112,
-        "p95": 0.192,
-        "p99": 0.32,
-        "p99.9": 4.336
+        "p50": 0.352,
+        "p90": 0.416,
+        "p95": 0.496,
+        "p99": 0.848,
+        "p99.9": 5.792
       },
       "client_verdict": "met",
       "server": {
-        "count": 29915.0,
-        "mean_ms": 0.023717603209092452,
+        "count": 29922.0,
+        "mean_ms": 0.7104968759441239,
         "p50": {
-          "value_ms": 0.00518331773919673,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
-        },
-        "p95": {
-          "value_ms": 0.009848303704473786,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
-        },
-        "p99": {
-          "value_ms": 0.8667661683168308,
+          "value_ms": 0.6759391957283497,
           "lower_ms": 0.4642,
           "upper_ms": 1.0
+        },
+        "p95": {
+          "value_ms": 1.7956089941458215,
+          "lower_ms": 1.0,
+          "upper_ms": 2.154
+        },
+        "p99": {
+          "value_ms": 2.4706352136752012,
+          "lower_ms": 2.154,
+          "upper_ms": 4.642
         }
       },
       "server_verdict": "met"
@@ -1599,31 +1599,31 @@
       "base": "direct-1000rps-nonstream",
       "other": "gateway-1000rps-nonstream",
       "client_diff_ms": {
-        "p50": 0.032,
-        "p90": 0.064,
-        "p95": 0.096,
-        "p99": 0.16,
-        "p99.9": 0.544
+        "p50": 0.32,
+        "p90": 0.352,
+        "p95": 0.384,
+        "p99": 0.608,
+        "p99.9": -0.128
       },
       "ttft_diff_ms": null,
       "client_verdict": "met",
       "server": {
-        "count": 59737.0,
-        "mean_ms": 0.004108547466394358,
+        "count": 59761.0,
+        "mean_ms": 0.7432020019745282,
         "p50": {
-          "value_ms": 0.005036931482824331,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 0.6283408031088084,
+          "lower_ms": 0.4642,
+          "upper_ms": 1.0
         },
         "p95": {
-          "value_ms": 0.009570169817366228,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 1.913199563064375,
+          "lower_ms": 1.0,
+          "upper_ms": 2.154
         },
         "p99": {
-          "value_ms": 0.009973124335992177,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 3.133736247960846,
+          "lower_ms": 2.154,
+          "upper_ms": 4.642
         }
       },
       "server_verdict": "met"
@@ -1635,40 +1635,40 @@
       "base": "direct-1000rps-stream",
       "other": "gateway-1000rps-stream",
       "client_diff_ms": {
-        "p50": 0.128,
-        "p90": 0.16,
-        "p95": 0.16,
-        "p99": 0.064,
-        "p99.9": -4.704
+        "p50": -0.192,
+        "p90": 0.992,
+        "p95": 5.696,
+        "p99": 58.08,
+        "p99.9": 156.096
       },
       "ttft_diff_ms": {
-        "p50": 0.08,
-        "p90": 0.208,
-        "p95": 0.32,
-        "p99": 0.4,
-        "p99.9": -0.048
+        "p50": 0.464,
+        "p90": 0.88,
+        "p95": 2.496,
+        "p99": 34.224,
+        "p99.9": 140.224
       },
       "client_verdict": "met",
       "server": {
-        "count": 59759.0,
-        "mean_ms": 0.030894678625813618,
+        "count": 59765.0,
+        "mean_ms": 52.44865505762639,
         "p50": {
-          "value_ms": 0.0053012614658552604,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 0.9304111851548083,
+          "lower_ms": 0.4642,
+          "upper_ms": 1.0
         },
         "p95": {
-          "value_ms": 0.5299345730607329,
-          "lower_ms": 0.4642,
-          "upper_ms": 1.0
+          "value_ms": 382.65191675794085,
+          "lower_ms": 215.4,
+          "upper_ms": 464.2
         },
         "p99": {
-          "value_ms": 0.9150082014431743,
-          "lower_ms": 0.4642,
-          "upper_ms": 1.0
+          "value_ms": 1000.0,
+          "lower_ms": 1000.0,
+          "upper_ms": null
         }
       },
-      "server_verdict": "met"
+      "server_verdict": "not met"
     },
     {
       "kind": "gateway_vs_direct",
@@ -1677,34 +1677,34 @@
       "base": "direct-2000rps-nonstream",
       "other": "gateway-2000rps-nonstream",
       "client_diff_ms": {
-        "p50": 0.0,
-        "p90": 0.032,
-        "p95": 0.064,
-        "p99": 0.192,
-        "p99.9": 2.368
+        "p50": 1.056,
+        "p90": 839.776,
+        "p95": 1028.0,
+        "p99": 1482.304,
+        "p99.9": 1577.888
       },
       "ttft_diff_ms": null,
-      "client_verdict": "met",
+      "client_verdict": "not met",
       "server": {
-        "count": 119571.0,
-        "mean_ms": 0.006517699107643162,
+        "count": 119589.0,
+        "mean_ms": 222.89431036357777,
         "p50": {
-          "value_ms": 0.005030586314832891,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 2.074337829976002,
+          "lower_ms": 1.0,
+          "upper_ms": 2.154
         },
         "p95": {
-          "value_ms": 0.009558113998182492,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 1000.0,
+          "lower_ms": 1000.0,
+          "upper_ms": null
         },
         "p99": {
-          "value_ms": 0.009960560903369123,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 1000.0,
+          "lower_ms": 1000.0,
+          "upper_ms": null
         }
       },
-      "server_verdict": "met"
+      "server_verdict": "not met"
     },
     {
       "kind": "gateway_vs_direct",
@@ -1713,40 +1713,40 @@
       "base": "direct-2000rps-stream",
       "other": "gateway-2000rps-stream",
       "client_diff_ms": {
-        "p50": 0.192,
-        "p90": 0.32,
-        "p95": 0.416,
-        "p99": 1.632,
-        "p99.9": 12.992
+        "p50": -1.664,
+        "p90": -1.76,
+        "p95": -1.728,
+        "p99": -1.152,
+        "p99.9": 17.056
       },
       "ttft_diff_ms": {
-        "p50": 0.08,
-        "p90": 0.32,
-        "p95": 0.464,
-        "p99": 0.944,
-        "p99.9": 9.616
+        "p50": 0.384,
+        "p90": 0.512,
+        "p95": 0.592,
+        "p99": 1.248,
+        "p99.9": 11.36
       },
       "client_verdict": "met",
       "server": {
-        "count": 119533.0,
-        "mean_ms": 0.04217471158592155,
+        "count": 119594.0,
+        "mean_ms": 13.046186184106089,
         "p50": {
-          "value_ms": 0.005405602185159728,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
+          "value_ms": 6.765464229655725,
+          "lower_ms": 4.642,
+          "upper_ms": 10.0
         },
         "p95": {
-          "value_ms": 0.6504677908329449,
-          "lower_ms": 0.4642,
-          "upper_ms": 1.0
+          "value_ms": 56.785694440668664,
+          "lower_ms": 46.42,
+          "upper_ms": 100.0
         },
         "p99": {
-          "value_ms": 0.9484937629129827,
-          "lower_ms": 0.4642,
-          "upper_ms": 1.0
+          "value_ms": 91.62514813103166,
+          "lower_ms": 46.42,
+          "upper_ms": 100.0
         }
       },
-      "server_verdict": "met"
+      "server_verdict": "not met"
     },
     {
       "kind": "learned_vs_direct",
@@ -1755,31 +1755,31 @@
       "base": "direct-1000rps-nonstream",
       "other": "learned-1000rps-nonstream",
       "client_diff_ms": {
-        "p50": 0.032,
-        "p90": 0.064,
-        "p95": 0.128,
-        "p99": 0.128,
-        "p99.9": 0.416
+        "p50": 0.352,
+        "p90": 0.416,
+        "p95": 0.448,
+        "p99": 0.736,
+        "p99.9": 0.128
       },
       "ttft_diff_ms": null,
       "client_verdict": "met",
       "server": {
-        "count": 59755.0,
-        "mean_ms": 0.007642674253200575,
+        "count": 59761.0,
+        "mean_ms": 0.802145809859273,
         "p50": {
-          "value_ms": 0.005071375224904098,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
-        },
-        "p95": {
-          "value_ms": 0.009635612927317785,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
-        },
-        "p99": {
-          "value_ms": 0.6219273397823439,
+          "value_ms": 0.7444913577255472,
           "lower_ms": 0.4642,
           "upper_ms": 1.0
+        },
+        "p95": {
+          "value_ms": 1.9540401927233426,
+          "lower_ms": 1.0,
+          "upper_ms": 2.154
+        },
+        "p99": {
+          "value_ms": 3.659030246433202,
+          "lower_ms": 2.154,
+          "upper_ms": 4.642
         }
       },
       "server_verdict": "met"
@@ -1791,35 +1791,40 @@
       "base": "gateway-1000rps-nonstream",
       "other": "learned-1000rps-nonstream",
       "client_diff_ms": {
-        "p50": 0.0,
-        "p90": 0.0,
-        "p95": 0.032,
-        "p99": -0.032,
-        "p99.9": -0.128
+        "p50": 0.032,
+        "p90": 0.064,
+        "p95": 0.064,
+        "p99": 0.128,
+        "p99.9": 0.256
       },
       "ttft_diff_ms": null,
       "client_verdict": "met",
       "server": {
-        "count": 59755.0,
-        "mean_ms": 0.007642674253200575,
+        "count": 59761.0,
+        "mean_ms": 0.802145809859273,
         "p50": {
-          "value_ms": 0.005071375224904098,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
-        },
-        "p95": {
-          "value_ms": 0.009635612927317785,
-          "lower_ms": 0.0,
-          "upper_ms": 0.01
-        },
-        "p99": {
-          "value_ms": 0.6219273397823439,
+          "value_ms": 0.7444913577255472,
           "lower_ms": 0.4642,
           "upper_ms": 1.0
+        },
+        "p95": {
+          "value_ms": 1.9540401927233426,
+          "lower_ms": 1.0,
+          "upper_ms": 2.154
+        },
+        "p99": {
+          "value_ms": 3.659030246433202,
+          "lower_ms": 2.154,
+          "upper_ms": 4.642
         }
       },
       "server_verdict": "met"
     }
   ],
-  "wall_time_s": 1247.6
+  "clock": {
+    "clock_step_ns": 30,
+    "zero_fraction": 0.0,
+    "coarse": false
+  },
+  "wall_time_s": 1252.3
 }
