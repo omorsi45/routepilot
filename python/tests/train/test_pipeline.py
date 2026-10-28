@@ -249,3 +249,68 @@ def test_main_prints_the_version_and_the_artifact_path(derived, tmp_path, capsys
     assert f"artifact version: {versions[0]}" in printed
     assert "results:" in printed
     assert "alpha bravo" not in printed
+
+
+def calibrator_types(summary) -> set[str]:
+    manifest, _ = artifact.load_artifact(summary["artifact_dir"])
+    return {m["calibrator"]["type"] for m in manifest["models"]}
+
+
+def test_calibrator_option_forces_the_type_and_the_default_is_the_spec_rule(derived, tmp_path):
+    # 90 calibration items per model: the spec rule (isotonic from 1000 samples) gives Platt
+    assert calibrator_types(run_toy(derived, tmp_path / "default")) == {"platt"}
+    assert calibrator_types(run_toy(derived, tmp_path / "switch", calibrator="switch")) == {"platt"}
+    assert calibrator_types(run_toy(derived, tmp_path / "iso", calibrator="isotonic")) == {
+        "isotonic"
+    }
+    assert calibrator_types(run_toy(derived, tmp_path / "platt", calibrator="platt")) == {"platt"}
+
+
+def test_a_forced_calibrator_changes_the_artifact_and_is_recorded(derived, tmp_path):
+    default = run_toy(derived, tmp_path / "default")
+    forced = run_toy(derived, tmp_path / "iso", calibrator="isotonic")
+
+    assert forced["version"] != default["version"]
+    payload = json.loads((forced["results_dir"] / "results.json").read_text(encoding="utf-8"))
+    assert payload["calibrator"] == "isotonic"
+    assert {m["calibrator"] for m in payload["models"].values()} == {"isotonic"}
+    default_payload = json.loads(
+        (default["results_dir"] / "results.json").read_text(encoding="utf-8")
+    )
+    assert default_payload["calibrator"] == "switch"
+    command = json.loads((forced["results_dir"] / "run.json").read_text(encoding="utf-8"))[
+        "command"
+    ]
+    assert command[command.index("--calibrator") + 1] == "isotonic"
+
+
+def test_the_histogram_calibrator_is_an_experiment_and_is_never_exported(
+    derived, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(pipeline, "load_fit_data", pytest.fail)  # refused before any work
+
+    with pytest.raises(ValueError, match="experiment only"):
+        run_toy(derived, tmp_path, calibrator="histogram")
+
+    assert not (tmp_path / "policies").exists() and not (tmp_path / "results").exists()
+
+
+def test_an_unknown_calibrator_is_refused(derived, tmp_path):
+    with pytest.raises(ValueError, match="unknown calibrator"):
+        run_toy(derived, tmp_path, calibrator="spline")
+
+
+def test_main_takes_the_calibrator_flag(derived, tmp_path, capsys):
+    base = ["--pool", "toy", "--derived", str(derived), "--dim", str(DIM)]
+    base += ["--results-root", str(tmp_path / "results"), "--out", str(tmp_path / "policies")]
+
+    assert pipeline.main([*base, "--calibrator", "isotonic"]) == 0
+    (version,) = [p for p in (tmp_path / "policies" / "toy").iterdir()]
+    manifest, _ = artifact.load_artifact(version)
+    assert {m["calibrator"]["type"] for m in manifest["models"]} == {"isotonic"}
+    assert "artifact version" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit):  # argparse: not one of the four names
+        pipeline.main([*base, "--calibrator", "spline"])
+    with pytest.raises(ValueError, match="experiment only"):
+        pipeline.main([*base, "--calibrator", "histogram"])

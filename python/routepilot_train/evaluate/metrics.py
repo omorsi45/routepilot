@@ -162,7 +162,8 @@ def floor_compliance(df: pd.DataFrame) -> dict[str, Any]:
     Only rows with a ``floor`` and an empty ``relaxed`` list count: a request whose floor
     the router had to relax made no promise. Per floor value: the rows, the realized
     success rate and ``met = rate >= floor``. ``reliability`` is the realized success per
-    decile of the predicted lower bound ``l`` over the same rows.
+    decile of the predicted lower bound ``l`` over the same rows (one group per row when
+    there are fewer than ten).
     """
     floor = pd.to_numeric(df["floor"], errors="coerce")
     has_floor = floor.notna()
@@ -194,7 +195,8 @@ def floor_compliance(df: pd.DataFrame) -> dict[str, Any]:
     scored = eligible.loc[pd.to_numeric(eligible["l"], errors="coerce").notna()]
     if len(scored):
         l_values = pd.to_numeric(scored["l"])
-        decile = pd.qcut(l_values.rank(method="first"), DECILES, labels=False) + 1
+        groups = min(DECILES, len(scored))  # fewer rows than deciles: one group per row
+        decile = pd.qcut(l_values.rank(method="first"), groups, labels=False) + 1
         table = (
             pd.DataFrame(
                 {"decile": decile, "l": l_values, "success": scored["success"].astype(bool)}

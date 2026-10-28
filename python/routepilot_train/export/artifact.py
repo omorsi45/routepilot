@@ -406,6 +406,56 @@ def _array(blob: bytes, ref: Mapping[str, Any]) -> np.ndarray:
     return np.frombuffer(blob, dtype=_DTYPES[ref["dtype"]], count=ref["len"], offset=ref["offset"])
 
 
+def read_array(blob: bytes, ref: Mapping[str, Any]) -> np.ndarray:
+    """The array a manifest ref points to in the ``weights.bin`` bytes (a read-only view)."""
+    return _array(blob, ref)
+
+
+def bundle_from_artifact(
+    manifest: Mapping[str, Any], blob: bytes
+) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
+    """The ``(bundle, weights)`` of ``export_artifact`` for an artifact that was loaded.
+
+    The inverse of the export: ``export_artifact`` on the result reproduces the artifact, and
+    changing a part of the bundle (a calibrator, a lower-bound table) before exporting gives
+    the artifact with that part replaced and its own content version. The array names are
+    those ``assemble_bundle`` gives.
+    """
+    weights: dict[str, np.ndarray] = {}
+    models = []
+    for m in manifest["models"]:
+        quality_name, length_name = f"{m['id']}.quality", f"{m['id']}.length"
+        weights[quality_name] = _array(blob, m["quality"]["weights"]).copy()
+        weights[length_name] = _array(blob, m["length"]["weights"]).copy()
+        models.append(
+            {
+                "id": m["id"],
+                "quality": {"weights": quality_name, "bias": m["quality"]["bias"]},
+                "calibrator": json.loads(json.dumps(m["calibrator"])),
+                "lcb": json.loads(json.dumps(m["lcb"])),
+                "length": {**m["length"], "weights": length_name},
+            }
+        )
+    centroids = []
+    for j, c in enumerate(manifest["ood"]["centroids"]):
+        weights[f"ood.{j}.idx"] = _array(blob, c["idx"]).copy()
+        weights[f"ood.{j}.val"] = _array(blob, c["val"]).copy()
+        centroids.append({"idx": f"ood.{j}.idx", "val": f"ood.{j}.val"})
+    bundle = {
+        "dim": manifest["dim"],
+        "dense_mean": list(manifest["dense_mean"]),
+        "dense_std": list(manifest["dense_std"]),
+        "models": models,
+        "ood": {
+            "k": manifest["ood"]["k"],
+            "threshold": manifest["ood"]["threshold"],
+            "centroids": centroids,
+        },
+        "training": json.loads(json.dumps(manifest["training"])),
+    }
+    return bundle, weights
+
+
 def _linear(
     w: np.ndarray, bias: float, idx: np.ndarray, val: np.ndarray, z: np.ndarray, dim: int
 ) -> float:

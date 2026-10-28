@@ -575,3 +575,99 @@ func TestReplayCLIRouteLLMMFInputErrors(t *testing.T) {
 		t.Error("an input error left the out file behind")
 	}
 }
+
+func relaxedCount(t *testing.T, path string) int {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, l := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var rec struct {
+			Relaxed []string `json:"relaxed"`
+		}
+		if err := json.Unmarshal([]byte(l), &rec); err != nil {
+			t.Fatalf("decode %q: %v", l, err)
+		}
+		if len(rec.Relaxed) > 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// TestReplayCLILearnedFloorOn: --floor-on lcb is the default; --floor-on point compares the
+// floor with P instead of L, which never relaxes more items and, on the fixture, fewer at
+// some floor.
+func TestReplayCLILearnedFloorOn(t *testing.T) {
+	dir := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	run1 := func(name string, extra ...string) string {
+		t.Helper()
+		out := filepath.Join(dir, name)
+		args := learnedArgs(out, append([]string{"--mode", "min_cost"}, extra...)...)
+		if code := run(args, &stdout, &stderr); code != 0 {
+			t.Fatalf("run(%v) = %d; stderr = %q", extra, code, stderr.String())
+		}
+		return out
+	}
+
+	// The default and an explicit lcb give the same file.
+	a, _ := os.ReadFile(run1("default.jsonl", "--floor", "0.5"))
+	b, _ := os.ReadFile(run1("lcb.jsonl", "--floor", "0.5", "--floor-on", "lcb"))
+	if !bytes.Equal(a, b) {
+		t.Error("--floor-on lcb differs from the default")
+	}
+
+	// The point arm names itself in the version, the lcb arm does not.
+	pointOut := run1("point.jsonl", "--floor", "0.5", "--floor-on", "point")
+	cfg := policy.Config{Mode: "min_cost", DefaultFloor: 0.5, OODAction: "conservative", OnInfeasible: "best_effort"}
+	for _, rec := range readLearnedLines(t, pointOut) {
+		if want := "0782d801a5a3+" + cfg.Hash8() + "+floor-point"; rec.PolicyVersion == nil || *rec.PolicyVersion != want {
+			t.Errorf("point version = %v, want %s", rec.PolicyVersion, want)
+		}
+	}
+	for _, rec := range readLearnedLines(t, run1("lcb-version.jsonl", "--floor", "0.5")) {
+		if rec.PolicyVersion == nil || strings.Contains(*rec.PolicyVersion, "floor-point") {
+			t.Errorf("lcb version = %v, want no floor-point suffix", rec.PolicyVersion)
+		}
+	}
+
+	fewer := false
+	for _, floor := range []string{"0.3", "0.5", "0.7", "0.9"} {
+		lcb := relaxedCount(t, run1("l-"+floor+".jsonl", "--floor", floor, "--floor-on", "lcb"))
+		point := relaxedCount(t, run1("p-"+floor+".jsonl", "--floor", floor, "--floor-on", "point"))
+		if point > lcb {
+			t.Errorf("floor %s: point arm relaxed %d items, lcb arm %d; reading P instead of L cannot relax more", floor, point, lcb)
+		}
+		fewer = fewer || point < lcb
+	}
+	if !fewer {
+		t.Error("the point arm relaxed as many items as the lcb arm at every floor; the flag changes nothing")
+	}
+}
+
+func TestReplayCLIFloorOnUsageErrors(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "out.jsonl")
+	cfg := filepath.Join(learnedFixtureDir, "config.yaml")
+	in := filepath.Join(learnedFixtureDir, "items.jsonl")
+	cases := map[string][]string{
+		"unknown value":       learnedArgs(out, "--floor-on", "median"),
+		"empty value":         learnedArgs(out, "--floor-on", ""),
+		"with cheapest":       {"replay", "--config", cfg, "--input", in, "--out", out, "--split", "all", "--policy", "cheapest", "--floor-on", "point"},
+		"with cheapest (lcb)": {"replay", "--config", cfg, "--input", in, "--out", out, "--split", "all", "--policy", "cheapest", "--floor-on", "lcb"},
+	}
+	for name, args := range cases {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr); code != 2 {
+			t.Errorf("%s: run = %d, want 2; stderr = %q", name, code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "floor-on") || !strings.Contains(stderr.String(), "usage") {
+			t.Errorf("%s: stderr = %q, want a message naming --floor-on and a usage line", name, stderr.String())
+		}
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("a usage error created the out file")
+	}
+}

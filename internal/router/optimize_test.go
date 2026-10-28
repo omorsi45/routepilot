@@ -862,3 +862,132 @@ func TestLearnedDoesNotNeedAStaticPolicy(t *testing.T) {
 		t.Error("auto without a learned policy and without a static one should still fail")
 	}
 }
+
+// floorOnScores gives each model a point estimate well above its lower bound, so the two
+// ways of reading the quality floor disagree:
+//
+//	cheap P 0.55 L 0.30   mid P 0.70 L 0.45   top P 0.90 L 0.80
+func floorOnScores() map[string]policy.ModelScore {
+	return map[string]policy.ModelScore{
+		"cheap": modelScore(0.55, 0.30),
+		"mid":   modelScore(0.70, 0.45),
+		"top":   modelScore(0.90, 0.80),
+	}
+}
+
+func withOptimizer(o *Optimizer) func(*Input) { return func(in *Input) { in.Learned = o } }
+
+// TestFloorOnPointUsesP: with the point arm the floor is compared with P, the calibrated
+// success probability, instead of the lower confidence bound L. Nothing else changes: the
+// default arm still reads L, the expected costs and the failover order are the same.
+func TestFloorOnPointUsesP(t *testing.T) {
+	r := newOptRig(t, floorOnScores(), defaultPolicyConfig())
+	lcb := NewOptimizer(r.scorer, r.cfg, nil)
+	point := lcb.WithFloorOnPoint()
+
+	// Floor 0.5: only top has L >= 0.5, but every model has P >= 0.5, so min_cost takes cheap.
+	d := mustDecide(t, r, withFloor(0.5), withOptimizer(lcb))
+	if got := candidateIDs(d); got[0] != "top" || len(d.Relaxed) != 0 {
+		t.Errorf("lcb arm, floor 0.5: first = %s relaxed %v, want top and nothing relaxed", got[0], d.Relaxed)
+	}
+	d = mustDecide(t, r, withFloor(0.5), withOptimizer(point))
+	if got := candidateIDs(d); !slices.Equal(got, []string{"cheap", "mid", "top"}) || len(d.Relaxed) != 0 {
+		t.Errorf("point arm, floor 0.5: candidates %v relaxed %v, want [cheap mid top] and nothing relaxed", got, d.Relaxed)
+	}
+	for _, id := range []string{"cheap", "mid", "top"} {
+		if s := scoreOf(t, d, id); !s.Feasible || len(s.Reasons) != 0 {
+			t.Errorf("point arm, floor 0.5: %s = %+v, want feasible with no reasons", id, s)
+		}
+	}
+	// The scores themselves are the same in both arms.
+	cheap := scoreOf(t, d, "cheap")
+	if cheap.P != 0.55 || cheap.L != 0.30 || cheap.CostExp != 140_000_000 {
+		t.Errorf("point arm cheap score = %+v, want P 0.55 L 0.30 cost_exp 140000000", cheap)
+	}
+
+	// Floor 0.6: P rules cheap out (0.55) and keeps mid (0.70); the reason names P.
+	d = mustDecide(t, r, withFloor(0.6), withOptimizer(point))
+	if got := candidateIDs(d); !slices.Equal(got, []string{"mid", "top", "cheap"}) {
+		t.Errorf("point arm, floor 0.6: candidates %v, want [mid top cheap]", got)
+	}
+	if s := scoreOf(t, d, "cheap"); s.Feasible || len(s.Reasons) != 1 || !strings.Contains(s.Reasons[0], "point estimate 0.5500 below the floor 0.6000") {
+		t.Errorf("point arm, floor 0.6: cheap = %+v, want a reason naming the point estimate", s)
+	}
+	if s := scoreOf(t, mustDecide(t, r, withFloor(0.6), withOptimizer(lcb)), "cheap"); len(s.Reasons) != 1 || !strings.Contains(s.Reasons[0], "lower bound 0.3000") {
+		t.Errorf("lcb arm, floor 0.6: cheap reasons = %v, want a reason naming the lower bound", s.Reasons)
+	}
+
+	// Floor 0.95 is above every P too: the point arm relaxes quality like the lcb arm does.
+	d = mustDecide(t, r, withFloor(0.95), withOptimizer(point))
+	if !slices.Equal(d.Relaxed, []string{"quality"}) {
+		t.Errorf("point arm, floor 0.95: relaxed = %v, want [quality]", d.Relaxed)
+	}
+
+	// Dual mode reads the floor the same way.
+	dual := r.cfg
+	dual.Mode = policy.ModeDual
+	dual.Lambda = 1e4 // a dollar-scale price of cost: the 140 and 280 million picodollar models win
+	pointDual := NewOptimizer(r.scorer, dual, nil).WithFloorOnPoint()
+	if got := candidateIDs(mustDecide(t, r, withFloor(0.5), withOptimizer(pointDual)))[0]; got != "cheap" {
+		t.Errorf("point arm dual, floor 0.5: first = %s, want cheap (P 0.55 clears the floor)", got)
+	}
+	if got := candidateIDs(mustDecide(t, r, withFloor(0.5), withOptimizer(NewOptimizer(r.scorer, dual, nil))))[0]; got != "top" {
+		t.Errorf("lcb arm dual, floor 0.5: first = %s, want top (only L 0.80 clears the floor)", got)
+	}
+}
+
+// TestFloorOnPointUsesThePooledRateOutOfDistribution: an out-of-distribution request under
+// the conservative action is scored with the pooled rate and pooled bound, and the point arm
+// compares the floor with the pooled rate, the P the policy actually used.
+func TestFloorOnPointUsesThePooledRateOutOfDistribution(t *testing.T) {
+	scores := floorOnScores() // pooled rate 0.3 and pooled bound 0.2 for every model
+	r := newOptRig(t, scores, defaultPolicyConfig())
+	r.scorer.scores.OOD = true
+	lcb := NewOptimizer(r.scorer, r.cfg, nil)
+	point := lcb.WithFloorOnPoint()
+
+	d := mustDecide(t, r, withFloor(0.25), withOptimizer(point))
+	if len(d.Relaxed) != 0 || candidateIDs(d)[0] != "cheap" {
+		t.Errorf("point arm: first %s relaxed %v, want cheap and nothing relaxed (pooled rate 0.3 clears 0.25)", candidateIDs(d)[0], d.Relaxed)
+	}
+	if d := mustDecide(t, r, withFloor(0.25), withOptimizer(lcb)); !slices.Equal(d.Relaxed, []string{"quality"}) {
+		t.Errorf("lcb arm: relaxed = %v, want [quality] (pooled bound 0.2 is below 0.25)", d.Relaxed)
+	}
+}
+
+func TestFloorOnPointShowsInTheVersion(t *testing.T) {
+	cfg := defaultPolicyConfig()
+	lcb := NewOptimizer(&fakeScorer{version: "abc123"}, cfg, nil)
+	point := lcb.WithFloorOnPoint()
+	if lcb.Version() != "abc123+"+cfg.Hash8() {
+		t.Errorf("default version = %q, want abc123+%s", lcb.Version(), cfg.Hash8())
+	}
+	if want := "abc123+" + cfg.Hash8() + "+floor-point"; point.Version() != want {
+		t.Errorf("point version = %q, want %q", point.Version(), want)
+	}
+	if point.Name() != "learned" {
+		t.Errorf("point name = %q, want learned", point.Name())
+	}
+	// WithFloorOnPoint returns a copy: the optimizer it was called on keeps reading L.
+	if lcb.Version() == point.Version() {
+		t.Error("WithFloorOnPoint changed the receiver")
+	}
+}
+
+// TestFloorOnPointRejectMessageNamesPointEstimate: when nothing clears the floor and the
+// tenant asks for a rejection, the message names what the floor was compared with.
+func TestFloorOnPointRejectMessageNamesPointEstimate(t *testing.T) {
+	cfg := defaultPolicyConfig()
+	cfg.OnInfeasible = config.OnInfeasibleReject
+	r := newOptRig(t, floorOnScores(), cfg)
+	lcb := NewOptimizer(r.scorer, r.cfg, nil)
+
+	_, err := r.decide(withFloor(0.95), withOptimizer(lcb))
+	if err == nil || !strings.Contains(err.Message, "quality floor 0.95 above best lower bound 0.80") {
+		t.Fatalf("lcb arm error = %v, want the best lower bound", err)
+	}
+	_, err = r.decide(withFloor(0.95), withOptimizer(lcb.WithFloorOnPoint()))
+	if err == nil || !strings.Contains(err.Message, "quality floor 0.95 above best point estimate 0.90") {
+		t.Fatalf("point arm error = %v, want the best point estimate", err)
+	}
+}

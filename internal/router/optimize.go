@@ -98,6 +98,9 @@ type Optimizer struct {
 	scorer Scorer
 	cfg    policy.Config
 	est    *latency.Estimator
+	// floorOnPoint compares the quality floor with P instead of the lower bound L. It is an
+	// experiment switch (WithFloorOnPoint), not part of the policy configuration.
+	floorOnPoint bool
 }
 
 // NewOptimizer returns an Optimizer. A nil est means there are no latency estimates, so a
@@ -106,11 +109,37 @@ func NewOptimizer(s Scorer, cfg policy.Config, est *latency.Estimator) *Optimize
 	return &Optimizer{scorer: s, cfg: cfg, est: est}
 }
 
+// WithFloorOnPoint returns a copy of o that compares the quality floor with P, the
+// calibrated success probability, instead of its lower confidence bound L. Nothing else
+// changes. It exists only for the floor experiment that shows why the bound is used; the
+// gateway never calls it, and the copy's Version says so.
+func (o *Optimizer) WithFloorOnPoint() *Optimizer {
+	c := *o
+	c.floorOnPoint = true
+	return &c
+}
+
 // Name implements Learned.
 func (o *Optimizer) Name() string { return PolicyLearned }
 
-// Version is the scorer's version and the first 8 hex digits of the configuration hash.
-func (o *Optimizer) Version() string { return o.scorer.Version() + "+" + o.cfg.Hash8() }
+// Version is the scorer's version and the first 8 hex digits of the configuration hash,
+// plus "+floor-point" for the experiment arm that compares the floor with P.
+func (o *Optimizer) Version() string {
+	v := o.scorer.Version() + "+" + o.cfg.Hash8()
+	if o.floorOnPoint {
+		v += "+floor-point"
+	}
+	return v
+}
+
+// floorBound is the number a model's quality floor is compared with: the lower bound,
+// or P in the floor-on-point experiment.
+func (o *Optimizer) floorBound(c *optCand) (value float64, name string) {
+	if o.floorOnPoint {
+		return c.s.P, "point estimate"
+	}
+	return c.s.L, "lower bound"
+}
 
 // optCand is one model under evaluation.
 type optCand struct {
@@ -316,9 +345,10 @@ func (o *Optimizer) evaluate(m *catalog.Model, sc policy.ModelScore, ood bool, f
 	if !c.budgetOK {
 		c.s.Reasons = append(c.s.Reasons, budgetReason(m, in, k))
 	}
-	c.floorOK = l >= floor
+	bound, boundName := o.floorBound(c)
+	c.floorOK = bound >= floor
 	if !c.floorOK {
-		c.s.Reasons = append(c.s.Reasons, fmt.Sprintf("quality: lower bound %.4f below the floor %.4f", l, floor))
+		c.s.Reasons = append(c.s.Reasons, fmt.Sprintf("quality: %s %.4f below the floor %.4f", boundName, bound, floor))
 	}
 
 	c.sloOK = true
@@ -462,12 +492,14 @@ func byLowerBound(useRank bool) func(a, b *optCand) int {
 // by some model but not by the same one, both together.
 func (o *Optimizer) infeasibleMessage(bset []*optCand, floor float64, in Input) string {
 	var parts, slos []string
-	bestL := math.Inf(-1)
+	best, boundName := math.Inf(-1), "lower bound"
 	for _, c := range bset {
-		bestL = math.Max(bestL, c.s.L)
+		var v float64
+		v, boundName = o.floorBound(c)
+		best = math.Max(best, v)
 	}
-	if bestL < floor {
-		parts = append(parts, fmt.Sprintf("quality floor %.2f above best lower bound %.2f", floor, bestL))
+	if best < floor {
+		parts = append(parts, fmt.Sprintf("quality floor %.2f above best %s %.2f", floor, boundName, best))
 	}
 
 	type sloSpec struct {

@@ -181,3 +181,23 @@ def test_floor_compliance_without_floors_is_empty():
     )
     got = metrics.floor_compliance(df)
     assert got["n"] == 0 and got["met"] is None and got["floors"] == [] and got["reliability"] == []
+
+
+def test_floor_compliance_reliability_with_fewer_rows_than_deciles():
+    """One group per row when there are fewer than ten rows; one row used to raise."""
+    for n in (1, 2, 4, 9):
+        df = pd.DataFrame(
+            {
+                "floor": [0.5] * n,
+                "relaxed": [[]] * n,
+                "l": np.linspace(0.5, 0.9, n) if n > 1 else [0.7],
+                "success": [True, False] * (n // 2) + [True] * (n % 2),
+            }
+        )
+
+        got = metrics.floor_compliance(df)
+
+        table = pd.DataFrame(got["reliability"])
+        assert list(table["decile"]) == list(range(1, n + 1)), n
+        assert (table["n"] == 1).all() and table["n"].sum() == got["n"] == n
+        assert got["realized_success"] == pytest.approx(df["success"].mean())

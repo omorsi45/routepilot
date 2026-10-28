@@ -14,6 +14,10 @@ Per model: ``fit_quality`` on train, ``fit_calibrator`` and ``fit_lcb`` on the c
 scores, ``fit_length`` with ``in_upper_model = prompt_bytes + 24 + prompt_overhead_tokens``.
 Then ``fit_ood`` once on the hashed block. The artifact lands in ``<out>/<pool>/<version>/``
 and the run in ``bench/results/train/<run-id>/``.
+
+``--calibrator`` picks the calibrator: ``switch`` (the default and the spec rule: isotonic from
+1000 calibration samples, else Platt), ``isotonic`` or ``platt``. ``histogram`` exists for the
+calibration study only and is refused here, since an artifact cannot hold it.
 """
 
 import argparse
@@ -39,6 +43,7 @@ from routepilot_train.train import calibrate, design, lcb, length, ood, quality
 
 EXPERIMENT = "train"
 FIT_SPLITS = ("train", "calib")
+EXPORTABLE_CALIBRATORS = ("switch", "isotonic", "platt")
 CALIBRATION_BINS = 15
 OUTCOME_COLUMNS = ["item_id", "model", "score", "success", "prompt_tokens", "completion_tokens"]
 LABELS = (
@@ -140,13 +145,16 @@ def fit_pool(
     pool: Mapping[str, Any],
     dim: int = features.DEFAULT_DIM,
     progress: Callable[[str], None] | None = None,
+    calibrator: str = "switch",
 ) -> PoolFit:
     """Fit every model of ``pool`` plus the OOD detector.
 
     Raises ``ValueError`` before any fit when ``train.items`` holds a row whose split is not
     ``train`` or ``calib.items`` a row whose split is not ``calib``. ``progress`` is called
-    with one short line per fitted model.
+    with one short line per fitted model. ``calibrator`` is ``switch`` (the spec rule, the
+    default), ``isotonic`` or ``platt``; ``histogram`` is refused (see ``check_calibrator``).
     """
+    check_calibrator(calibrator)
     require_splits(train.items, {"train"})
     require_splits(calib.items, {"calib"})
     models = list(pool["models"])
@@ -164,8 +172,8 @@ def fit_pool(
         y_calib = calib.success[model]
         q = quality.fit_quality(x_train, train.success[model])
         s_calib = quality.raw_score(q, x_calib)
-        calibrator = calibrate.fit_calibrator(s_calib, y_calib)
-        p_calib = calibrate.apply_calibrator(calibrator, s_calib)
+        calibrator_fit = calibrate.fit_calibrator(s_calib, y_calib, method=calibrator)
+        p_calib = calibrate.apply_calibrator(calibrator_fit, s_calib)
         table = lcb.fit_lcb(p_calib, y_calib)
         in_upper = prompt_bytes + PROMPT_FRAMING_TOKENS + int(overheads.get(model, 0))
         fitted_length = length.fit_length(
@@ -180,7 +188,7 @@ def fit_pool(
             {
                 "id": model,
                 "quality": q,
-                "calibrator": calibrator,
+                "calibrator": calibrator_fit,
                 "lcb": table,
                 "length": fitted_length,
             }
@@ -190,7 +198,7 @@ def fit_pool(
             "C": q["C"],
             "cv_log_loss": q["cv_log_loss"],
             "alpha": fitted_length["alpha"],
-            "calibrator": calibrator["type"],
+            "calibrator": calibrator_fit["type"],
             "calib_ece": calibration.ece(p_calib, y_calib, CALIBRATION_BINS, "mass"),
             "calib_brier": calibration.brier(p_calib, y_calib),
             "calib_success_rate": float(np.mean(y_calib)),
@@ -217,10 +225,13 @@ def fit_pool(
     )
 
 
-def _results(pool_name: str, version: str, fit: PoolFit, wall_time: float) -> dict[str, Any]:
+def _results(
+    pool_name: str, version: str, fit: PoolFit, wall_time: float, calibrator: str
+) -> dict[str, Any]:
     return {
         "pool": pool_name,
         "artifact_version": version,
+        "calibrator": calibrator,
         "dim": fit.dim,
         "n_train": fit.n_train,
         "n_calib": fit.n_calib,
@@ -250,6 +261,23 @@ def _tables(pool_name: str, version: str, fit: PoolFit, wall_time: float) -> dic
     }
 
 
+def check_calibrator(method: str) -> None:
+    """Raise ``ValueError`` unless ``method`` is a calibrator an artifact can hold.
+
+    ``switch`` (the spec rule), ``isotonic`` and ``platt`` can be exported. ``histogram`` is a
+    calibration-study experiment and the artifact format has no place for it.
+    """
+    if method == "histogram":
+        raise ValueError(
+            "the histogram calibrator is an experiment only and is never exported; "
+            f"choose one of {', '.join(EXPORTABLE_CALIBRATORS)}"
+        )
+    if method not in EXPORTABLE_CALIBRATORS:
+        raise ValueError(
+            f"unknown calibrator {method!r}, want one of {', '.join(EXPORTABLE_CALIBRATORS)}"
+        )
+
+
 def run(
     pool_name: str,
     derived: Path,
@@ -258,14 +286,18 @@ def run(
     results_root: Path | None = None,
     created_at: str | None = None,
     progress: Callable[[str], None] | None = None,
+    calibrator: str = "switch",
 ) -> dict[str, Any]:
     """Train ``pool_name``, export its artifact and write the run under ``results_root``.
 
     ``results_root`` defaults to ``bench/results`` of this checkout; the run goes to
     ``<results_root>/train/<run-id>/``. ``created_at`` (UTC ISO text) is recorded in the
     manifest and is the only input the artifact depends on besides the data; it defaults to
-    now. Returns the version, the artifact and results directories and the wall time.
+    now. ``calibrator`` is ``switch`` (the spec rule: isotonic from 1000 calibration samples,
+    else Platt), ``isotonic`` or ``platt``. Returns the version, the artifact and results
+    directories and the wall time.
     """
+    check_calibrator(calibrator)
     started = datetime.now(UTC)
     clock = time.perf_counter()
     derived = Path(derived)
@@ -273,7 +305,7 @@ def run(
     pool = json.loads(pool_path.read_text(encoding="utf-8"))
 
     train, calib = load_fit_data(derived, pool)
-    fit = fit_pool(train, calib, pool, dim, progress)
+    fit = fit_pool(train, calib, pool, dim, progress, calibrator)
     git_sha, _ = runinfo.git_state()
     bundle, weights = artifact.assemble_bundle(
         dim=fit.dim,
@@ -306,12 +338,14 @@ def run(
         Path(out).as_posix(),
         "--dim",
         str(dim),
+        "--calibrator",
+        calibrator,
     ]
     version = artifact_dir.name
     report.write_results(
         results_dir,
         EXPERIMENT,
-        _results(pool_name, version, fit, wall_time),
+        _results(pool_name, version, fit, wall_time, calibrator),
         _tables(pool_name, version, fit, wall_time),
         {},
         {"split_salt": splits.SALT, "kfold": 0, "kmeans": 0},
@@ -336,12 +370,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--results-root", type=Path, default=None, help="default: bench/results of this checkout"
     )
+    parser.add_argument(
+        "--calibrator",
+        choices=calibrate.METHODS,
+        default="switch",
+        help="switch (default) is the spec rule: isotonic from 1000 calibration samples, else "
+        "Platt; isotonic and platt force one; histogram is a study-only experiment and is "
+        "refused here",
+    )
     args = parser.parse_args(argv)
 
     def progress(line: str) -> None:
         print(line, file=sys.stderr, flush=True)
 
-    summary = run(args.pool, args.derived, args.out, args.dim, args.results_root, progress=progress)
+    summary = run(
+        args.pool,
+        args.derived,
+        args.out,
+        args.dim,
+        args.results_root,
+        progress=progress,
+        calibrator=args.calibrator,
+    )
     print(f"artifact version: {summary['version']}")
     print(f"artifact: {summary['artifact_dir'].as_posix()}")
     print(f"results: {summary['results_dir'].as_posix()}")

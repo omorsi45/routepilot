@@ -16,15 +16,23 @@ import (
 	"github.com/omorsi45/routepilot/internal/router"
 )
 
+// The values of --floor-on: what a learned policy compares the quality floor with.
+const (
+	floorOnLCB   = "lcb"
+	floorOnPoint = "point"
+)
+
 const replayUsage = "usage: routepilot replay --config FILE --input FILE --split SPLIT --policy NAME [--seed N] [--model ID] --out FILE\n" +
 	"                        [--latency-profiles FILE [--latency-seed N] [--slo-ttft-ms MS | --slo-e2e-ms MS]]\n" +
 	"                        [--artifact DIR --policy-config FILE [--mode M] [--lambda X] [--floor Q] [--epsilon E]\n" +
-	"                         [--emit-candidates]]\n" +
+	"                         [--floor-on lcb|point] [--emit-candidates]]\n" +
 	"                        [--mf FILE --threshold T]\n" +
 	"\n" +
 	"policies: cheapest, strongest, rules, random, oracle, fixed (fixed needs --model),\n" +
 	"          learned (needs --artifact and --policy-config; --mode, --lambda, --floor and\n" +
 	"          --epsilon override the policy config, --floor sets its default floor;\n" +
+	"          --floor-on point compares the floor with P instead of the lower confidence\n" +
+	"          bound L, an experiment switch, the default is lcb;\n" +
 	"          --emit-candidates adds every model's scores to each record),\n" +
 	"          routellm_mf (needs --mf, an exported matrix factorization scorer, and --threshold in\n" +
 	"          [0, 1]: items scoring at least T go to the scorer's strong model, the rest to its weak one)\n" +
@@ -59,6 +67,7 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	mfPath := fs.String("mf", "", "exported matrix factorization scorer (routellm_mf policy)")
 	threshold := fs.Float64("threshold", 0, "score at or above which routellm_mf picks the strong model, in [0, 1]")
 	emitCandidates := fs.Bool("emit-candidates", false, "add the learned policy's per-model scores to every record (policy learned)")
+	floorOn := fs.String("floor-on", floorOnLCB, "what the quality floor is compared with: lcb (the lower confidence bound, the default) or point (P; experiment only)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -68,7 +77,7 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 
 	given := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
-	learnedFlags := []string{"artifact", "policy-config", "mode", "lambda", "floor", "epsilon"}
+	learnedFlags := []string{"artifact", "policy-config", "mode", "lambda", "floor", "epsilon", "floor-on"}
 	mfFlags := []string{"mf", "threshold"}
 
 	opts := replay.Options{
@@ -86,7 +95,9 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	case *policyName == replay.PolicyLearned && (*artifactDir == "" || *policyConfigPath == ""):
 		usageErr = errors.New("policy learned needs --artifact and --policy-config")
 	case *policyName != replay.PolicyLearned && anyGiven(given, learnedFlags):
-		usageErr = errors.New("--artifact, --policy-config, --mode, --lambda, --floor and --epsilon are only valid with --policy learned")
+		usageErr = errors.New("--artifact, --policy-config, --mode, --lambda, --floor, --epsilon and --floor-on are only valid with --policy learned")
+	case *floorOn != floorOnLCB && *floorOn != floorOnPoint:
+		usageErr = fmt.Errorf("--floor-on must be %q or %q, got %q", floorOnLCB, floorOnPoint, *floorOn)
 	case *policyName == replay.PolicyRouteLLMMF && (*mfPath == "" || !given["threshold"]):
 		usageErr = errors.New("policy routellm_mf needs --mf and --threshold")
 	case *policyName != replay.PolicyRouteLLMMF && anyGiven(given, mfFlags):
@@ -132,6 +143,9 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 				return 2
 			}
 			return 1
+		}
+		if *floorOn == floorOnPoint {
+			learned = learned.WithFloorOnPoint()
 		}
 		opts.Learned = learned
 	}
@@ -203,7 +217,7 @@ var errBadOverride = errors.New("invalid override")
 // returns the constrained optimizer. With latency profiles the optimizer gets a prior-only
 // estimator, so a latency SLO is judged on the same simulated profiles the replay draws
 // the latencies from.
-func buildLearned(artifactDir, policyConfigPath string, profiles map[string]latency.Profile, override func(*policy.Config)) (router.Learned, error) {
+func buildLearned(artifactDir, policyConfigPath string, profiles map[string]latency.Profile, override func(*policy.Config)) (*router.Optimizer, error) {
 	art, err := policy.Load(artifactDir)
 	if err != nil {
 		return nil, fmt.Errorf("load artifact: %w", err)
