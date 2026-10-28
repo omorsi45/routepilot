@@ -225,6 +225,10 @@ type ServerConfig struct {
 	// that gives the learned policy its prior TTFT and TPOT per model. Optional: without
 	// it the policy only has live observations.
 	LatencyProfiles string `yaml:"latency_profiles"`
+	// AdminKeySHA256 is the SHA-256 (64 lowercase hex characters) of the key that opens the
+	// admin routes under /admin/policies. Empty, the routes answer 404. It must not be the
+	// hash of a tenant's key: a tenant key is not an admin key.
+	AdminKeySHA256 string `yaml:"admin_key_sha256"`
 }
 
 // ProviderConfig describes one upstream provider.
@@ -674,6 +678,18 @@ func (c *Config) validateServer(add addFunc) {
 	}
 	if s.QueueWaitMs < 0 {
 		add("server.queue_wait_ms", "must not be negative, got %d", s.QueueWaitMs)
+	}
+	if h := s.AdminKeySHA256; h != "" {
+		// The value is not repeated in the errors: it is the hash of a credential.
+		if !sha256Hex.MatchString(h) {
+			add("server.admin_key_sha256", "must be 64 lowercase hex characters")
+		}
+		for _, t := range c.Tenants {
+			if t.APIKeySHA256 == h {
+				add("server.admin_key_sha256", "must differ from every tenant's api_key_sha256: a tenant key must not open the admin routes")
+				break
+			}
+		}
 	}
 }
 

@@ -60,6 +60,7 @@ func (s *Server) handleFeedback(w http.ResponseWriter, rs *reqState, r *http.Req
 	s.decisions.Write(decisionlog.Feedback{
 		Type: "feedback", DecisionID: in.decisionID, Tenant: tenant.ID, Success: in.success, Time: s.now().UTC(),
 	})
+	s.feedbackToGuard(tenant.ID, in)
 	w.WriteHeader(http.StatusNoContent)
 }
 

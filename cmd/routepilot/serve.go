@@ -62,6 +62,10 @@ var policyPollEvery = 5 * time.Second
 // replace it.
 var budgetSweepEvery = 30 * time.Second
 
+// guardEvery is how often serve evaluates the guardrails of the learned policy's canary
+// (spec 8: every 10 seconds). Tests replace it.
+var guardEvery = 10 * time.Second
+
 const serveUsage = "usage: routepilot serve -config <path>\n"
 
 // runServe implements `routepilot serve`. It returns 0 after a clean
@@ -207,14 +211,19 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		}()
 	}
 
-	// Reload the learned policies on SIGHUP and when their files change.
+	// Reload the learned policies on SIGHUP and when their files change, and judge the canary
+	// against the stable policy every guardEvery.
 	if reg != nil {
 		hup, stopHup := notifyReload()
 		defer stopHup()
-		bg.Add(2)
+		bg.Add(3)
 		go func() {
 			defer bg.Done()
 			reg.Watch(bgCtx, policyPollEvery)
+		}()
+		go func() {
+			defer bg.Done()
+			evaluateGuardrails(bgCtx, gw, guardEvery)
 		}()
 		go func() {
 			defer bg.Done()
@@ -298,6 +307,20 @@ func sweepBudgets(ctx context.Context, l quota.BudgetLedger, every time.Duration
 			case n > 0:
 				logger.Info("budget leases expired", slog.Int("count", n))
 			}
+		}
+	}
+}
+
+// evaluateGuardrails runs the gateway's guardrail evaluation every interval until ctx ends.
+func evaluateGuardrails(ctx context.Context, gw *gateway.Server, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			gw.EvaluateGuardrails() // the gateway logs and records a rollback
 		}
 	}
 }

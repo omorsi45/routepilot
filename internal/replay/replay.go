@@ -107,6 +107,21 @@ type Record struct {
 	// Error is the routing error code when the policy returned one. The item
 	// then counts as a failure at zero cost.
 	Error string `json:"error"`
+	// Candidates is the learned policy's score for every model the tenant may use, in
+	// catalog order. It is written only with Options.EmitCandidates (Ruling V1-R32).
+	Candidates []Candidate `json:"candidates,omitempty"`
+}
+
+// Candidate is what the learned policy scored one model on for one item, the same numbers
+// the decision log writes for a candidate. P, L and the costs are null for a model the policy
+// ruled out before it scored it (for example one missing from the artifact).
+type Candidate struct {
+	Model          string   `json:"model"`
+	P              *float64 `json:"p"`
+	L              *float64 `json:"l"`
+	CostExpPicoUSD *int64   `json:"cost_exp_picousd"`
+	CostMaxPicoUSD *int64   `json:"cost_max_picousd"`
+	Feasible       bool     `json:"feasible"`
 }
 
 // Options select the items and the policy.
@@ -124,6 +139,9 @@ type Options struct {
 	// Learned is the policy the learned policy replays; it is required by, and only valid
 	// with, PolicyLearned. Epsilon, the floor, the mode and the rest are part of it.
 	Learned router.Learned
+	// EmitCandidates adds the learned policy's per-model scores to every record (the
+	// Candidates field). It is only valid with PolicyLearned.
+	EmitCandidates bool
 	// MF and Threshold are the scorer and the cut of PolicyRouteLLMMF: an item goes to the
 	// strong model when its score is at least Threshold, a number in [0, 1]. Both are
 	// required by, and only valid with, that policy.
@@ -199,6 +217,9 @@ func (o Options) Validate() error {
 	}
 	if o.Policy != PolicyRouteLLMMF && (o.MF != nil || o.Threshold != 0) {
 		return usageError("an MF file and a threshold are only valid with policy %s", PolicyRouteLLMMF)
+	}
+	if o.EmitCandidates && o.Policy != PolicyLearned {
+		return usageError("candidates are only emitted for policy %s", PolicyLearned)
 	}
 	if o.SLOTTFTMs < 0 || o.SLOE2EMs < 0 {
 		return usageError("an SLO must be positive")
@@ -336,6 +357,9 @@ func replayItem(sel selector, tenant *config.TenantConfig, item *Item, opts Opti
 	cand := chosen.cand
 	if opts.Policy == PolicyLearned {
 		fillLearned(&rec, chosen.dec, apiErr)
+		if opts.EmitCandidates {
+			rec.Candidates = candidatesOf(chosen.dec)
+		}
 	}
 	if chosen.score != nil {
 		score := *chosen.score
@@ -394,6 +418,30 @@ func fillLearned(rec *Record, d router.Decision, apiErr *openai.APIError) {
 	rec.Floor, rec.OODScore, rec.Propensity = &floor, &oodScore, &propensity
 	rec.OOD, rec.Explored = d.OOD, d.Explored
 	rec.Relaxed = append([]string{}, d.Relaxed...)
+}
+
+// candidatesOf lists the scores of every model the tenant may use, as the decision log does:
+// a model ruled out before it was scored has only its model name and feasibility.
+func candidatesOf(d router.Decision) []Candidate {
+	out := make([]Candidate, 0, len(d.Scores))
+	for _, s := range d.Scores {
+		c := Candidate{Model: s.Model, Feasible: s.Feasible}
+		if s.Feasible || s.P != 0 || s.L != 0 || s.CostExp != 0 || s.CostMax != 0 || s.QMs != nil {
+			c.P, c.L = finiteOrNil(s.P), finiteOrNil(s.L)
+			exp, max := int64(s.CostExp), int64(s.CostMax)
+			c.CostExpPicoUSD, c.CostMaxPicoUSD = &exp, &max
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// finiteOrNil returns &f, or nil for NaN and the infinities, which JSON cannot hold.
+func finiteOrNil(f float64) *float64 {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return nil
+	}
+	return &f
 }
 
 // fillChosenScore records the numbers the optimizer used for the model it chose.

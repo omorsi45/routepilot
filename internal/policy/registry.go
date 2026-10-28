@@ -170,8 +170,8 @@ func (r *Registry) Snapshot() *Snapshot { return r.cur.Load() }
 // ReloadErrors counts the reloads that failed and left the old snapshot in place.
 func (r *Registry) ReloadErrors() uint64 { return r.reloadErrors.Load() }
 
-// Rollbacks counts the rollbacks of the stable slot that RollbackStable carried out; a
-// refused one is not counted.
+// Rollbacks counts the rollbacks that happened: of the stable slot (RollbackStable) and of the
+// canary (RollbackCanary). A refused or empty one is not counted.
 func (r *Registry) Rollbacks() uint64 { return r.rollbacks.Load() }
 
 // LastError is the error of the latest reload when it failed, nil after a reload that
@@ -273,6 +273,22 @@ func (r *Registry) SetCanaryPercent(p float64) (old float64) {
 	next.Generation++
 	r.cur.Store(&next)
 	return cur.CanaryPercent
+}
+
+// RollbackCanary stops the canary by taking its share of the requests to 0 (through
+// SetCanaryPercent) and returns the share it had. The canary slot stays loaded, so the
+// rollout can be resumed by raising the share again. A canary that already had no share, or
+// no canary at all, is not a rollback: nothing is published, nothing is counted and 0 is
+// returned. Like SetCanaryPercent, it lives in memory until the next reload.
+func (r *Registry) RollbackCanary() (old float64) {
+	if cur := r.Snapshot(); cur.Canary == nil || !(cur.CanaryPercent > 0) {
+		return 0
+	}
+	old = r.SetCanaryPercent(0)
+	if old > 0 {
+		r.rollbacks.Add(1)
+	}
+	return old
 }
 
 // RollbackStable replaces the stable slot with the one it had before the last reload that

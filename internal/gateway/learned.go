@@ -59,6 +59,7 @@ func (s *Server) decide(rs *reqState, tenant *config.TenantConfig, req *openai.C
 
 	dec, apiErr := s.router.Decide(in)
 	s.decideShadows(rs, snap, in)
+	s.noteLearnedDecision(rs, tenant.ID, slot.Role, dec, apiErr != nil)
 	if len(dec.Candidates) > 0 {
 		rs.estCost = make(map[string]money.PicoUSD, len(dec.Candidates))
 		for _, c := range dec.Candidates {

@@ -18,12 +18,14 @@ import (
 
 const replayUsage = "usage: routepilot replay --config FILE --input FILE --split SPLIT --policy NAME [--seed N] [--model ID] --out FILE\n" +
 	"                        [--latency-profiles FILE [--latency-seed N] [--slo-ttft-ms MS | --slo-e2e-ms MS]]\n" +
-	"                        [--artifact DIR --policy-config FILE [--mode M] [--lambda X] [--floor Q] [--epsilon E]]\n" +
+	"                        [--artifact DIR --policy-config FILE [--mode M] [--lambda X] [--floor Q] [--epsilon E]\n" +
+	"                         [--emit-candidates]]\n" +
 	"                        [--mf FILE --threshold T]\n" +
 	"\n" +
 	"policies: cheapest, strongest, rules, random, oracle, fixed (fixed needs --model),\n" +
 	"          learned (needs --artifact and --policy-config; --mode, --lambda, --floor and\n" +
-	"          --epsilon override the policy config, --floor sets its default floor),\n" +
+	"          --epsilon override the policy config, --floor sets its default floor;\n" +
+	"          --emit-candidates adds every model's scores to each record),\n" +
 	"          routellm_mf (needs --mf, an exported matrix factorization scorer, and --threshold in\n" +
 	"          [0, 1]: items scoring at least T go to the scorer's strong model, the rest to its weak one)\n" +
 	"split: train, calib, test, heldout or all\n" +
@@ -56,6 +58,7 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	epsilon := fs.Float64("epsilon", 0, "override the policy config exploration rate, in [0, 1)")
 	mfPath := fs.String("mf", "", "exported matrix factorization scorer (routellm_mf policy)")
 	threshold := fs.Float64("threshold", 0, "score at or above which routellm_mf picks the strong model, in [0, 1]")
+	emitCandidates := fs.Bool("emit-candidates", false, "add the learned policy's per-model scores to every record (policy learned)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -70,7 +73,7 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 
 	opts := replay.Options{
 		Split: *split, Policy: *policyName, Seed: *seed, Model: *model, Threshold: *threshold,
-		LatencySeed: *latencySeed, SLOTTFTMs: *sloTTFT, SLOE2EMs: *sloE2E,
+		LatencySeed: *latencySeed, SLOTTFTMs: *sloTTFT, SLOE2EMs: *sloE2E, EmitCandidates: *emitCandidates,
 	}
 	var usageErr error
 	switch {
@@ -88,6 +91,8 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 		usageErr = errors.New("policy routellm_mf needs --mf and --threshold")
 	case *policyName != replay.PolicyRouteLLMMF && anyGiven(given, mfFlags):
 		usageErr = errors.New("--mf and --threshold are only valid with --policy routellm_mf")
+	case *emitCandidates && *policyName != replay.PolicyLearned:
+		usageErr = errors.New("--emit-candidates is only valid with --policy learned")
 	default:
 		usageErr = opts.Validate()
 	}

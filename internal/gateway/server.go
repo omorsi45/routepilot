@@ -4,6 +4,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -93,6 +94,20 @@ type Server struct {
 	// policies is non-nil exactly when routing.policy is learned.
 	policies *policy.Registry
 	latency  *latency.Estimator
+
+	// guard watches the canary against the stable policy and index maps decision IDs to the
+	// slot that made them, for the feedback that reaches the guard (guardrails.go). Both are
+	// non-nil exactly when policies is. guardMu serializes EvaluateGuardrails and guardKey is
+	// the canary pair the guard is currently comparing, empty while the canary has no share.
+	guard    *policy.Guard
+	index    *decisionIndex
+	guardMu  sync.Mutex
+	guardKey string
+
+	// adminKey is the SHA-256 of the admin key and adminOn says whether the admin routes exist
+	// (admin.go).
+	adminKey [sha256.Size]byte
+	adminOn  bool
 
 	limits quota.Limiters
 	// budgets holds the budget limit of each tenant that has budget_usd, by tenant ID.
@@ -193,6 +208,13 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 	s.readBodyTimeout = opts.ReadBodyTimeout
 	s.usageLedger = opts.Accounting
 	s.decisions = opts.DecisionLog
+	if learned {
+		s.initGuard()
+	}
+	var adminErr error
+	if s.adminKey, s.adminOn, adminErr = parseAdminKey(cfg.Server.AdminKeySHA256); adminErr != nil {
+		return nil, fmt.Errorf("gateway: %w", adminErr)
+	}
 	if n := cfg.Server.MaxInflight; n > 0 {
 		s.sem = make(chan struct{}, n)
 	}
@@ -322,6 +344,12 @@ type reqState struct {
 	// limitKind is the kind of rate limit that turned the request away, empty when none did.
 	limitKind telemetry.RateLimitKind
 
+	// The fields below feed the guardrails (guardrails.go), for a request the learned policy
+	// decided. routeFailed is true when the router refused it and relaxed when the policy gave
+	// up a constraint to answer.
+	routeFailed bool
+	relaxed     bool
+
 	// The fields below are the request's trace (tracing.go). root is never nil on a chat
 	// request, and traceCtx carries it for the child spans.
 	root     trace.Span
@@ -404,6 +432,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handleModels(sw, rs, r)
 	case "/v1/feedback":
 		s.handleFeedback(sw, rs, r)
+	case adminPoliciesPath, adminRollbackPath:
+		s.handleAdmin(sw, rs, r)
 	case "/metrics":
 		// Unauthenticated, like the health routes (Ruling V1-R18): the series carry
 		// identifiers, numbers and outcome names, never a prompt or a key. The endpoint is
@@ -414,10 +444,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		s.metricsHandler.ServeHTTP(sw, r)
 	default:
-		s.fail(sw, rs, &openai.APIError{
-			Status: http.StatusNotFound, Type: "invalid_request_error", Code: "not_found",
-			Message: fmt.Sprintf("no route for %s", r.URL.Path),
-		})
+		s.fail(sw, rs, errRouteNotFound(r.URL.Path))
 	}
 
 	if rs.chat {
@@ -427,6 +454,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	s.logRequest(sw, rs, start)
 	if rs.chat {
 		s.observeRequest(sw, rs, start)
+		s.observeGuard(sw, rs, start)
 	}
 }
 
