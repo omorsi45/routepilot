@@ -81,6 +81,7 @@ type Metrics struct {
 	decisions    *prometheus.CounterVec
 	attempts     *prometheus.CounterVec
 	rateLimited  *prometheus.CounterVec
+	bulkheadFull *prometheus.CounterVec
 	requestDur   prometheus.Histogram
 	ttft         prometheus.Histogram
 	overhead     prometheus.Histogram
@@ -174,9 +175,13 @@ func NewMetrics(tenants []string, reg prometheus.Registerer) *Metrics {
 	for _, k := range []RateLimitKind{RateLimitRPM, RateLimitTPM, RateLimitConcurrency, RateLimitUpstream} {
 		m.rateLimited.WithLabelValues(string(k))
 	}
+	m.bulkheadFull = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "rp_bulkhead_rejections_total",
+		Help: "Attempts skipped because the deployment was at its max_inflight limit, by deployment.",
+	}, []string{"deployment"})
 
 	reg.MustRegister(m.requests, m.decisions, m.requestDur, m.ttft, m.overhead, m.decisionDur,
-		m.attempts, m.costEst, m.costActual, m.budgetReject, m.rateLimited)
+		m.attempts, m.costEst, m.costActual, m.budgetReject, m.rateLimited, m.bulkheadFull)
 
 	reg.MustRegister(
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
@@ -308,6 +313,15 @@ func (m *Metrics) BudgetRejection() { m.budgetReject.Inc() }
 // RateLimitRejection counts a request refused by a rate limit of the given kind.
 func (m *Metrics) RateLimitRejection(kind RateLimitKind) {
 	if c, err := m.rateLimited.GetMetricWithLabelValues(string(kind)); err == nil {
+		c.Inc()
+	}
+}
+
+// BulkheadRejection counts an attempt skipped because the deployment was at its max_inflight
+// limit. The deployment must be a configured one (the caller guarantees it, as for Attempt).
+// The series appears with the first rejection of a deployment.
+func (m *Metrics) BulkheadRejection(deployment string) {
+	if c, err := m.bulkheadFull.GetMetricWithLabelValues(deployment); err == nil {
 		c.Inc()
 	}
 }

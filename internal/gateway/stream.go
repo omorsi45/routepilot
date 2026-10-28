@@ -77,7 +77,7 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 		timedOut bool // a retry wait would have passed the deadline
 	)
 	for {
-		model, dep, up, outcome := s.claimNext(ctx, rs, plan, req, last.err)
+		model, dep, up, h, outcome := s.claimNext(ctx, rs, plan, req, last.err)
 		if outcome == claimClientGone {
 			return
 		}
@@ -89,7 +89,7 @@ func (s *Server) proxyStream(ctx context.Context, w http.ResponseWriter, rs *req
 		}
 		up.Stream = true
 
-		last, lastDep = c.attempt(model.ID, dep, up, req.StreamOptions != nil && req.StreamOptions.IncludeUsage), dep
+		last, lastDep = c.attempt(model.ID, dep, h.ticket, up, req.StreamOptions != nil && req.StreamOptions.IncludeUsage), dep
 		if last.done {
 			return
 		}

@@ -88,8 +88,11 @@ type Server struct {
 	cat    *catalog.Catalog
 	router *router.Router
 	health *reliability.Health
-	rand   func() float64
-	sleep  func(ctx context.Context, d time.Duration) error
+	// bulkhead caps the in-flight non-streaming attempts of the deployments that set
+	// max_inflight; nil when none does (bulkhead.go).
+	bulkhead *bulkhead
+	rand     func() float64
+	sleep    func(ctx context.Context, d time.Duration) error
 
 	// policies is non-nil exactly when routing.policy is learned.
 	policies *policy.Registry
@@ -195,6 +198,8 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 		s.latency = latency.NewEstimator(nil, s.now)
 	}
 	s.health = reliability.NewHealth(s.now)
+	// The metrics are built last, so the hook looks s.metrics up when a rejection happens.
+	s.bulkhead = newBulkhead(cat, func(deployment string) { s.metrics.BulkheadRejection(deployment) })
 	if s.rand == nil {
 		s.rand = newLockedRand()
 	}

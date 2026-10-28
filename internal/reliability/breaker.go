@@ -57,8 +57,32 @@ type bucket struct {
 	failures int
 }
 
+// Ticket is the claim an admitted attempt holds, and what it hands back to report
+// the outcome. It records the breaker generation at claim time and whether it holds the
+// half-open probe. A ticket from an older generation resolves nothing, so a late Record or
+// Abort from a superseded attempt can never settle another caller's probe.
+//
+// The zero Ticket is what a refused Allow returns; resolving it is a no-op.
+type Ticket struct {
+	deployment string
+	gen        uint64
+	probe      bool
+}
+
+// Deployment is the deployment the ticket was claimed on, empty for the zero Ticket and for
+// a ticket claimed from a Breaker directly.
+func (t Ticket) Deployment() string { return t.deployment }
+
+// Probe reports whether the ticket holds the half-open probe, as opposed to a closed-state
+// attempt.
+func (t Ticket) Probe() bool { return t.probe }
+
 // Breaker is a circuit breaker with a rolling failure window and a
 // single-probe half-open phase. It is safe for concurrent use.
+//
+// Every state transition increments gen: closed to open, open to half-open (the probe
+// claim), half-open to closed or open (the probe's outcome or its Abort), and every Trip.
+// A Ticket carries the generation it was claimed in.
 type Breaker struct {
 	mu  sync.Mutex
 	now func() time.Time
@@ -67,6 +91,7 @@ type Breaker struct {
 	probing   bool      // a half-open probe has been claimed
 	openUntil time.Time // earliest time a probe may be claimed
 	openFor   time.Duration
+	gen       uint64 // starts at 1, so the zero Ticket never matches
 
 	consecutive int
 	buckets     [bucketCount]bucket
@@ -75,7 +100,7 @@ type Breaker struct {
 
 // NewBreaker returns a closed breaker that reads time from now.
 func NewBreaker(now func() time.Time) *Breaker {
-	return &Breaker{now: now, openFor: OpenFor}
+	return &Breaker{now: now, openFor: OpenFor, gen: 1}
 }
 
 // tick returns the current time, never earlier than a previous reading.
@@ -100,52 +125,68 @@ func (b *Breaker) Available() bool {
 	return !b.probing && !now.Before(b.openUntil)
 }
 
-// Allow claims an attempt. When open and the cooldown has elapsed it admits
-// exactly one probe; further calls return false until the probe resolves.
-func (b *Breaker) Allow() bool {
+// Allow claims an attempt. When closed it admits every attempt with a closed-state ticket.
+// When open and the cooldown has elapsed it admits exactly one probe, with a probe ticket;
+// further calls return the zero Ticket and false until the probe resolves.
+func (b *Breaker) Allow() (Ticket, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	now := b.tick()
 	if !b.open {
-		return true
+		return Ticket{gen: b.gen}, true
 	}
 	if b.probing || now.Before(b.openUntil) {
-		return false
+		return Ticket{}, false
 	}
 	b.probing = true
-	return true
+	b.gen++ // open to half-open
+	return Ticket{gen: b.gen, probe: true}, true
 }
 
-// Abort releases a claimed probe without recording an outcome. It is a no-op
-// in any other state.
-func (b *Breaker) Abort() {
+// Abort releases the probe that t holds without recording an outcome. It is a no-op for a
+// closed-state ticket and for a ticket of an older generation.
+func (b *Breaker) Abort(t Ticket) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.open && b.probing {
-		b.probing = false
+	if t.gen != b.gen || !t.probe || !b.open || !b.probing {
+		return
 	}
+	b.probing = false
+	b.gen++ // half-open to open
 }
 
-// Record reports the outcome of an attempt admitted by Allow.
-func (b *Breaker) Record(success bool) {
+// Record reports the outcome of the attempt t was claimed for. A ticket of an older
+// generation is ignored: it neither resolves a probe nor counts in the window. A probe ticket
+// resolves the probe: a success closes the breaker and a failure re-opens it for twice as
+// long. A closed-state ticket of the current generation counts in the window.
+func (b *Breaker) Record(t Ticket, success bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	now := b.tick()
 
-	if b.open {
-		if !b.probing {
-			return // straggler from before the trip, or no probe claimed
+	if t.gen != b.gen {
+		return // zero ticket, or an attempt from before the last state transition
+	}
+
+	if t.probe {
+		if !b.open || !b.probing {
+			return // cannot happen for a current ticket; never settle without a probe
 		}
 		b.probing = false
 		if success {
 			b.close()
 			return
 		}
+		b.gen++ // half-open to open
 		b.openFor = min(b.openFor*2, MaxOpenFor)
 		if until := now.Add(b.openFor); until.After(b.openUntil) {
 			b.openUntil = until // never shorten a longer quarantine
 		}
 		return
+	}
+
+	if b.open {
+		return // cannot happen for a current closed-state ticket
 	}
 
 	bk := b.bucketFor(now)
@@ -163,17 +204,20 @@ func (b *Breaker) Record(success bool) {
 		b.open = true
 		b.probing = false
 		b.openUntil = now.Add(b.openFor)
+		b.gen++ // closed to open
 	}
 }
 
 // Trip forces the breaker open until at least d from now. It never shortens an
 // existing open period and does not change the doubling sequence. A probe in
-// flight is superseded and its outcome is ignored.
+// flight is superseded and its outcome is ignored. Every Trip starts a new generation, so
+// the tickets claimed before it resolve nothing.
 func (b *Breaker) Trip(d time.Duration) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	now := b.tick()
 	until := now.Add(d)
+	b.gen++
 	if !b.open {
 		b.open = true
 		b.probing = false
@@ -184,7 +228,7 @@ func (b *Breaker) Trip(d time.Duration) {
 		b.openUntil = until
 	}
 	// The trip supersedes any in-flight probe: its later Record is ignored
-	// (open, no probe claimed), so it neither closes nor shortens the period.
+	// (an older generation), so it neither closes nor shortens the period.
 	b.probing = false
 }
 
@@ -212,6 +256,7 @@ func (b *Breaker) close() {
 	b.openFor = OpenFor
 	b.consecutive = 0
 	b.buckets = [bucketCount]bucket{}
+	b.gen++ // half-open to closed
 }
 
 // bucketFor returns the bucket for now's second, resetting it if it holds an

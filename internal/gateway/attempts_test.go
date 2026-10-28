@@ -53,6 +53,8 @@ type attemptOpts struct {
 	ttftMs int
 	// tenantMaxTimeoutMs sets the tenant's max_timeout_ms when positive.
 	tenantMaxTimeoutMs int
+	// maxInflight sets max_inflight on the deployments it names; the others stay unlimited.
+	maxInflight map[string]int
 }
 
 // attemptEnv is a gateway over one provider whose upstream counts requests by
@@ -137,6 +139,9 @@ func newAttemptEnv(t *testing.T, o attemptOpts) *attemptEnv {
 		sb.WriteString("    deployments:\n")
 		for _, d := range m.deps {
 			fmt.Fprintf(&sb, "      - name: %s\n        provider: mockp\n        upstream_model: %q\n", d.name, d.upstream)
+			if n := o.maxInflight[d.name]; n > 0 {
+				fmt.Fprintf(&sb, "        max_inflight: %d\n", n)
+			}
 		}
 	}
 	fmt.Fprintf(&sb, "tenants:\n  - id: tenant-a\n    api_key_sha256: %s\n    allowed_models: [\"*\"]\n", keyHash(keyA))
@@ -607,7 +612,7 @@ func TestAttemptPlan(t *testing.T) {
 	walk := func(plan *attemptPlan) string {
 		var got []string
 		for {
-			m, d, _, ok := plan.next()
+			m, d, _, _, ok := plan.next()
 			if !ok {
 				return strings.Join(got, ",")
 			}
@@ -887,10 +892,11 @@ func TestSettleDeadlineBlameThreshold(t *testing.T) {
 				defaultTimeoutMs: 1000,
 				models:           []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua"}}}},
 			})
-			if !e.gw.health.Allow("dep-a") {
+			ticket, ok := e.gw.health.Allow("dep-a")
+			if !ok {
 				t.Fatal("Allow refused a fresh deployment")
 			}
-			e.gw.settle(expiredCtx(t), &reqState{blameBudget: time.Second}, "dep-a", timeout, tc.elapsed)
+			e.gw.settle(expiredCtx(t), &reqState{blameBudget: time.Second}, ticket, timeout, tc.elapsed)
 			// A recorded failure sets the error rate; an abort leaves it 0.
 			if blamed := e.gw.health.Snapshot()["dep-a"].ErrorRate > 0; blamed != tc.blamed {
 				t.Errorf("failure recorded = %v, want %v", blamed, tc.blamed)
@@ -911,10 +917,11 @@ func TestSettleDeadlineBranchOnlyForTimeoutKinds(t *testing.T) {
 				defaultTimeoutMs: 1000,
 				models:           []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua"}}}},
 			})
-			if !e.gw.health.Allow("dep-a") {
+			ticket, ok := e.gw.health.Allow("dep-a")
+			if !ok {
 				t.Fatal("Allow refused a fresh deployment")
 			}
-			e.gw.settle(expiredCtx(t), &reqState{blameBudget: time.Second}, "dep-a", err, 10*time.Millisecond)
+			e.gw.settle(expiredCtx(t), &reqState{blameBudget: time.Second}, ticket, err, 10*time.Millisecond)
 			if e.gw.health.Snapshot()["dep-a"].ErrorRate == 0 {
 				t.Error("no failure recorded: the claim was released as a short deadline")
 			}
@@ -968,7 +975,7 @@ func TestClaimNextStopsOnContextError(t *testing.T) {
 		s, plan, rs := claimFixture(t, noSleep)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, _, _, outcome := s.claimNext(ctx, rs, plan, req, zeroWait)
+		_, _, _, _, outcome := s.claimNext(ctx, rs, plan, req, zeroWait)
 		check(t, s, rs, outcome, claimClientGone, true)
 	})
 	t.Run("client gone during the sleep", func(t *testing.T) {
@@ -978,7 +985,7 @@ func TestClaimNextStopsOnContextError(t *testing.T) {
 			cancel()
 			return nil
 		})
-		_, _, _, outcome := s.claimNext(ctx, rs, plan, req, errors.New("boom"))
+		_, _, _, _, outcome := s.claimNext(ctx, rs, plan, req, errors.New("boom"))
 		check(t, s, rs, outcome, claimClientGone, true)
 	})
 	t.Run("deadline passed during the sleep", func(t *testing.T) {
@@ -988,12 +995,12 @@ func TestClaimNextStopsOnContextError(t *testing.T) {
 			<-ctx.Done()
 			return nil
 		})
-		_, _, _, outcome := s.claimNext(ctx, rs, plan, req, errors.New("boom"))
+		_, _, _, _, outcome := s.claimNext(ctx, rs, plan, req, errors.New("boom"))
 		check(t, s, rs, outcome, claimDeadline, false)
 	})
 	t.Run("a live context claims the pair", func(t *testing.T) {
 		s, plan, rs := claimFixture(t, noSleep)
-		_, dep, _, outcome := s.claimNext(context.Background(), rs, plan, req, errors.New("boom"))
+		_, dep, _, _, outcome := s.claimNext(context.Background(), rs, plan, req, errors.New("boom"))
 		if outcome != claimOK || dep.Name != "dep-a" || rs.attempts != 2 {
 			t.Errorf("outcome=%d dep=%q attempts=%d, want claimOK dep-a 2", outcome, dep.Name, rs.attempts)
 		}

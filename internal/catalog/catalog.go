@@ -98,11 +98,13 @@ func (s CapSet) String() string {
 	return strings.Join(names, ",")
 }
 
-// Deployment is one provider-side target of a model.
+// Deployment is one provider-side target of a model. MaxInflight is the cap on its in-flight
+// non-streaming attempts, 0 for none.
 type Deployment struct {
 	Name          string
 	Provider      string
 	UpstreamModel string
+	MaxInflight   int
 }
 
 // Model is a public model with its limits, capabilities, prices, and
@@ -172,7 +174,7 @@ func New(cfg *config.Config) (*Catalog, error) {
 			if _, dup := c.deployments[dc.Name]; dup {
 				return nil, fmt.Errorf("model %q: duplicate deployment name %q", mc.ID, dc.Name)
 			}
-			d := Deployment{Name: dc.Name, Provider: dc.Provider, UpstreamModel: dc.UpstreamModel}
+			d := Deployment{Name: dc.Name, Provider: dc.Provider, UpstreamModel: dc.UpstreamModel, MaxInflight: dc.MaxInflight}
 			m.Deployments = append(m.Deployments, d)
 			c.deployments[d.Name] = deploymentRef{model: m, dep: d}
 		}

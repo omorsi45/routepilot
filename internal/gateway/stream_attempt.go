@@ -11,6 +11,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/provider"
+	"github.com/omorsi45/routepilot/internal/reliability"
 )
 
 // attemptResult is how one streaming attempt ended, for proxyStream's loop.
@@ -31,9 +32,10 @@ type attemptResult struct {
 // held chunks need is fresh for each attempt, so a failed one leaves nothing
 // behind for the next.
 type streamAttempt struct {
-	c     *streamCall
-	model string // catalog model ID served
-	dep   catalog.Deployment
+	c      *streamCall
+	model  string // catalog model ID served
+	dep    catalog.Deployment
+	ticket reliability.Ticket // the breaker claim the attempt owes one Record or Abort for
 
 	// ctx is the request context's child, canceled with a cause by the
 	// watchdogs and by write failures.
@@ -50,14 +52,14 @@ type streamAttempt struct {
 	usage *attemptUsage
 }
 
-// attempt streams from one deployment. It returns once the response has ended
-// or the attempt failed before committing it, having reported the attempt's
-// outcome to deployment health either way.
-func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.ChatCompletionRequest, includeUsage bool) attemptResult {
+// attempt streams from one deployment, whose breaker claim is ticket. It returns once the
+// response has ended or the attempt failed before committing it, having reported the
+// attempt's outcome to deployment health either way.
+func (c *streamCall) attempt(modelID string, dep catalog.Deployment, ticket reliability.Ticket, up *openai.ChatCompletionRequest, includeUsage bool) attemptResult {
 	pcfg := c.s.providerCfgs[dep.Provider]
 	ctx, cancel := context.WithCancelCause(c.ctx)
 	defer cancel(nil)
-	a := &streamAttempt{c: c, model: modelID, dep: dep, ctx: ctx, cancel: cancel, usage: c.rs.lastAttempt()}
+	a := &streamAttempt{c: c, model: modelID, dep: dep, ticket: ticket, ctx: ctx, cancel: cancel, usage: c.rs.lastAttempt()}
 
 	// One timer is the TTFT watchdog until the first committing chunk arrives,
 	// then the idle watchdog. It starts before Stream() so it also covers
@@ -160,6 +162,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 			commitAt = c.s.now()
 			c.s.latency.ObserveTTFT(dep.Name, commitAt.Sub(a.start))
 			c.startResponse(modelID, dep.Name)
+			a.resolveProbeAtCommit()
 			for _, h := range held {
 				if err := c.send(func() error { return c.sse.WriteData(h) }); err != nil {
 					return a.clientGone()
@@ -221,13 +224,28 @@ func (a *streamAttempt) timedOut() bool {
 }
 
 // settle reports the attempt's outcome to deployment health, once. A nil err
-// is a success.
+// is a success. An attempt that already resolved its half-open probe at the commit
+// (resolveProbeAtCommit) has nothing left to report.
 func (a *streamAttempt) settle(err error) {
 	if a.settled {
 		return
 	}
 	a.settled = true
-	a.c.s.settle(a.ctx, a.c.rs, a.dep.Name, err, a.c.s.now().Sub(a.start))
+	a.c.s.settle(a.ctx, a.c.rs, a.ticket, err, a.c.s.now().Sub(a.start))
+}
+
+// resolveProbeAtCommit settles a half-open probe as a success the moment the response
+// commits (Ruling V1-R13): the deployment has produced its first committing chunk, which is
+// all a probe asks, and a long answer must not keep the deployment half-open for its whole
+// length. The ticket is spent, so neither the end of the stream nor a later failure or
+// disconnect reports for this attempt again. A closed-state attempt keeps reporting at the
+// end of the stream.
+func (a *streamAttempt) resolveProbeAtCommit() {
+	if a.settled || !a.ticket.Probe() {
+		return
+	}
+	a.settled = true
+	a.c.s.health.Record(a.ticket, true)
 }
 
 // abort releases the attempt's claim without an outcome, once, because the
@@ -237,7 +255,7 @@ func (a *streamAttempt) abort() {
 		return
 	}
 	a.settled = true
-	a.c.s.health.Abort(a.dep.Name)
+	a.c.s.health.Abort(a.ticket)
 }
 
 // clientGone stops the upstream after a failed client write.

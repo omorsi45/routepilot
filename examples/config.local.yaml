@@ -27,6 +27,7 @@ models:
       - name: mock-small
         provider: mock
         upstream_model: mock-small
+        max_inflight: 64
   - id: mock-large
     rank: 3
     context_window: 128000
@@ -38,9 +39,11 @@ models:
       - name: mock-large-a
         provider: mock
         upstream_model: mock-large
+        max_inflight: 64
       - name: mock-large-b
         provider: mock
         upstream_model: mock-large-b
+        max_inflight: 64
   - id: qwen3-1.7b
     rank: 2
     context_window: 32768
@@ -51,6 +54,7 @@ models:
       - name: qwen3-1.7b-ollama
         provider: ollama
         upstream_model: qwen3:1.7b
+        max_inflight: 64
 
 # "auto" picks the cheapest model that satisfies the request.
 routing:

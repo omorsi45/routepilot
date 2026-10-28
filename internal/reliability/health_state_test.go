@@ -19,7 +19,7 @@ func TestHealthState(t *testing.T) {
 		t.Errorf("State created %d entries, want none", n)
 	}
 
-	h.Record(dep, true)
+	healthRecord(h, dep, true)
 	if got := h.State(dep); got != Closed {
 		t.Errorf("State after a success = %v, want closed", got)
 	}
@@ -33,14 +33,15 @@ func TestHealthState(t *testing.T) {
 	if got := h.State(dep); got != Open {
 		t.Errorf("State after the cooldown but before a probe = %v, want open (State claims nothing)", got)
 	}
-	if !h.Allow(dep) {
+	probe, ok := h.Allow(dep)
+	if !ok {
 		t.Fatal("the probe was refused after the cooldown")
 	}
 	if got := h.State(dep); got != HalfOpen {
 		t.Errorf("State with a probe in flight = %v, want half-open", got)
 	}
 
-	h.Record(dep, true) // the probe succeeded
+	h.Record(probe, true) // the probe succeeded
 	if got := h.State(dep); got != Closed {
 		t.Errorf("State after a successful probe = %v, want closed", got)
 	}

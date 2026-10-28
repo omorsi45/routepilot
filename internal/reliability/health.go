@@ -52,6 +52,14 @@ func (h *Health) entry(deployment string) *healthEntry {
 	return e
 }
 
+// lookup returns the entry of a deployment seen before, without creating one.
+func (h *Health) lookup(deployment string) (*healthEntry, bool) {
+	h.mu.RLock()
+	e, ok := h.entries[deployment]
+	h.mu.RUnlock()
+	return e, ok
+}
+
 // Available reports whether the deployment would admit an attempt, without
 // claiming anything. It never creates an entry.
 func (h *Health) Available(deployment string) bool {
@@ -64,26 +72,36 @@ func (h *Health) Available(deployment string) bool {
 	return e.breaker.Available()
 }
 
-// Allow claims an attempt on the deployment.
-func (h *Health) Allow(deployment string) bool {
-	return h.entry(deployment).breaker.Allow()
+// Allow claims an attempt on the deployment. The Ticket it returns is what the caller hands
+// back to Record or Abort, exactly once; a refusal returns the zero Ticket and false.
+func (h *Health) Allow(deployment string) (Ticket, bool) {
+	t, ok := h.entry(deployment).breaker.Allow()
+	if !ok {
+		return Ticket{}, false
+	}
+	t.deployment = deployment
+	return t, true
 }
 
-// Abort releases a claimed half-open probe on the deployment without recording
-// an outcome. It never creates an entry.
-func (h *Health) Abort(deployment string) {
-	h.mu.RLock()
-	e, ok := h.entries[deployment]
-	h.mu.RUnlock()
-	if ok {
-		e.breaker.Abort()
+// Abort releases the half-open probe t holds without recording an outcome. It does nothing
+// for a closed-state ticket, a ticket superseded by a later state change, or the zero Ticket,
+// and it never creates an entry.
+func (h *Health) Abort(t Ticket) {
+	if e, ok := h.lookup(t.deployment); ok {
+		e.breaker.Abort(t)
 	}
 }
 
-// Record reports an attempt outcome to the breaker and updates the EWMA.
-func (h *Health) Record(deployment string, success bool) {
-	e := h.entry(deployment)
-	e.breaker.Record(success)
+// Record reports the outcome of the attempt t was claimed for to the breaker and updates the
+// EWMA. A ticket of an older breaker generation changes nothing in the breaker (see
+// Breaker.Record) but is still an observation of the deployment, so it feeds the EWMA. The
+// zero Ticket is ignored.
+func (h *Health) Record(t Ticket, success bool) {
+	e, ok := h.lookup(t.deployment)
+	if !ok {
+		return
+	}
+	e.breaker.Record(t, success)
 
 	x := 1.0
 	if success {

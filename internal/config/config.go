@@ -280,6 +280,10 @@ type DeploymentConfig struct {
 	Name          string `yaml:"name"`
 	Provider      string `yaml:"provider"`
 	UpstreamModel string `yaml:"upstream_model"`
+	// MaxInflight caps the non-streaming attempts in flight on this deployment (a bulkhead).
+	// Zero, the default, means unlimited; a deployment at its cap is skipped like an
+	// unavailable one.
+	MaxInflight int `yaml:"max_inflight"`
 }
 
 // TenantConfig is one API client, identified by the SHA-256 of its key.
@@ -758,6 +762,9 @@ func (c *Config) validateModels(providers map[string]bool, add addFunc) map[stri
 			}
 			if d.UpstreamModel == "" {
 				add(dpath+".upstream_model", "must not be empty")
+			}
+			if d.MaxInflight < 0 {
+				add(dpath+".max_inflight", "must not be negative, got %d", d.MaxInflight)
 			}
 			if d.Name != "" {
 				if deploymentNames[d.Name] {

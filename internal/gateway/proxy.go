@@ -17,13 +17,14 @@ import (
 // last attempt. One deadline, already on ctx, covers every attempt and wait.
 func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *reqState, r *http.Request, req *openai.ChatCompletionRequest, dec router.Decision) {
 	plan := s.newAttemptPlan(dec)
+	plan.bulkhead = s.bulkhead // only non-streaming attempts count against max_inflight
 	var (
 		lastErr  error
 		lastDep  catalog.Deployment
 		timedOut bool // a retry wait would have passed the deadline
 	)
 	for {
-		model, dep, up, outcome := s.claimNext(ctx, rs, plan, req, lastErr)
+		model, dep, up, h, outcome := s.claimNext(ctx, rs, plan, req, lastErr)
 		if outcome == claimClientGone {
 			return
 		}
@@ -35,7 +36,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 		}
 
 		started := s.now()
-		resp, err := s.providers[dep.Provider].Complete(ctx, up)
+		resp, err := s.complete(ctx, dep, up, h)
 		finished := s.now()
 		elapsed := finished.Sub(started)
 		if err == nil && resp == nil {
@@ -48,7 +49,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 		switch {
 		case err == nil:
 			att.observeResponse(resp)
-			s.settle(ctx, rs, dep.Name, nil, elapsed)
+			s.settle(ctx, rs, h.ticket, nil, elapsed)
 			rs.usage = resp.Usage
 			resp.ID = "chatcmpl-" + rs.id
 			resp.Object = openai.ObjectChatCompletion
@@ -60,12 +61,12 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 			writeJSON(w, http.StatusOK, resp)
 			return
 		case r.Context().Err() != nil:
-			s.health.Abort(dep.Name)
+			s.health.Abort(h.ticket)
 			rs.canceled = true
 			return
 		}
 
-		s.settle(ctx, rs, dep.Name, err, elapsed)
+		s.settle(ctx, rs, h.ticket, err, elapsed)
 		lastErr, lastDep = err, dep
 		if !retryable(err, ctx) {
 			break
@@ -73,6 +74,13 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 	}
 
 	s.failAttempts(ctx, w, r, rs, lastDep, lastErr, timedOut)
+}
+
+// complete makes the provider call of one non-streaming attempt and gives the attempt's
+// bulkhead slot back when the call returns, whatever way it ends, a panic included.
+func (s *Server) complete(ctx context.Context, dep catalog.Deployment, up *openai.ChatCompletionRequest, h hold) (*openai.ChatCompletion, error) {
+	defer h.releaseSlot()
+	return s.providers[dep.Provider].Complete(ctx, up)
 }
 
 // prepareUpstream records the attempt for the request log and builds the

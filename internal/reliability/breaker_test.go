@@ -34,16 +34,30 @@ func (c *fakeClock) Set(t time.Time) {
 	c.now = t
 }
 
+// allowed reports whether the breaker admits an attempt, dropping the ticket.
+func allowed(b *Breaker) bool {
+	_, ok := b.Allow()
+	return ok
+}
+
+// breakerRecord claims an attempt on the breaker and reports its outcome at once, the way an
+// attempt that finishes right away does. When the breaker refuses the claim the outcome goes
+// to the zero ticket and is ignored.
+func breakerRecord(b *Breaker, success bool) {
+	tk, _ := b.Allow()
+	b.Record(tk, success)
+}
+
 // alternate records n results starting with a failure: F, S, F, S, ...
 func alternate(b *Breaker, n int) {
 	for i := 0; i < n; i++ {
-		b.Record(i%2 != 0)
+		breakerRecord(b, i%2 != 0)
 	}
 }
 
 func failN(b *Breaker, n int) {
 	for i := 0; i < n; i++ {
-		b.Record(false)
+		breakerRecord(b, false)
 	}
 }
 
@@ -72,7 +86,7 @@ func TestBreakerOpensOnRatio(t *testing.T) {
 	if got := b.State(); got != Closed {
 		t.Fatalf("state with 19 requests = %v, want Closed", got)
 	}
-	b.Record(true) // 20th request: 10/20 = 0.5
+	breakerRecord(b, true) // 20th request: 10/20 = 0.5
 	if got := b.State(); got != Open {
 		t.Fatalf("state with 20 requests and ratio 0.5 = %v, want Open", got)
 	}
@@ -83,7 +97,7 @@ func TestBreakerStaysClosedBelowRatio(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	// 20 requests, 9 failures (never more than one in a row): ratio 0.45.
 	for i := 0; i < 20; i++ {
-		b.Record(!(i%2 == 0 && i < 18))
+		breakerRecord(b, !(i%2 == 0 && i < 18))
 	}
 	if got := b.State(); got != Closed {
 		t.Fatalf("state with ratio 0.45 = %v, want Closed", got)
@@ -97,7 +111,7 @@ func TestBreakerOpensOnConsecutive(t *testing.T) {
 	if got := b.State(); got != Closed {
 		t.Fatalf("state after 4 failures = %v, want Closed", got)
 	}
-	b.Record(false)
+	breakerRecord(b, false)
 	if got := b.State(); got != Open {
 		t.Fatalf("state after 5 consecutive failures = %v, want Open", got)
 	}
@@ -107,7 +121,7 @@ func TestBreakerSuccessResetsConsecutive(t *testing.T) {
 	clk := newFakeClock()
 	b := NewBreaker(clk.Now)
 	failN(b, ConsecutiveFailures-1)
-	b.Record(true)
+	breakerRecord(b, true)
 	failN(b, ConsecutiveFailures-1)
 	if got := b.State(); got != Closed {
 		t.Fatalf("state = %v, want Closed (success resets the streak)", got)
@@ -119,7 +133,7 @@ func TestBreakerWindowExpires(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	alternate(b, MinRequests-1) // 10 failures in 19 requests
 	clk.Advance(Window + time.Second)
-	b.Record(true) // would be the 20th request, but the old ones expired
+	breakerRecord(b, true) // would be the 20th request, but the old ones expired
 	if got := b.State(); got != Closed {
 		t.Fatalf("state after window expiry = %v, want Closed", got)
 	}
@@ -130,7 +144,7 @@ func TestBreakerWindowEdge(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	alternate(b, MinRequests-1)
 	clk.Advance(Window - 2*time.Second) // still inside the 30 bucket window
-	b.Record(true)
+	breakerRecord(b, true)
 	if got := b.State(); got != Open {
 		t.Fatalf("state with old records still in window = %v, want Open", got)
 	}
@@ -142,7 +156,7 @@ func TestBreakerBucketReuseDoesNotLeakOldCounts(t *testing.T) {
 	alternate(b, MinRequests-1)
 	// Exactly one ring revolution later the same bucket index is reused.
 	clk.Advance(Window)
-	b.Record(true)
+	breakerRecord(b, true)
 	if got := b.State(); got != Closed {
 		t.Fatalf("state after ring wrap = %v, want Closed", got)
 	}
@@ -153,9 +167,9 @@ func TestBreakerClockMovingBackwardsIsSafe(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	alternate(b, 6)
 	clk.Advance(-time.Hour)
-	b.Record(false)
-	b.Record(true)
-	_ = b.Allow()
+	breakerRecord(b, false)
+	breakerRecord(b, true)
+	_ = allowed(b)
 	_ = b.Available()
 	_ = b.State()
 	b.Trip(time.Second)
@@ -184,11 +198,11 @@ func TestBreakerHalfOpenSingleProbe(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	tripOpen(t, b)
 
-	if b.Available() || b.Allow() {
+	if b.Available() || allowed(b) {
 		t.Fatal("open breaker within cooldown must be unavailable")
 	}
 	clk.Advance(OpenFor - time.Nanosecond)
-	if b.Available() || b.Allow() {
+	if b.Available() || allowed(b) {
 		t.Fatal("breaker must stay unavailable until the cooldown elapses")
 	}
 	clk.Advance(time.Nanosecond)
@@ -201,10 +215,10 @@ func TestBreakerHalfOpenSingleProbe(t *testing.T) {
 	if !b.Available() || b.State() != Open {
 		t.Fatal("Available must not claim the probe")
 	}
-	if !b.Allow() {
+	if !allowed(b) {
 		t.Fatal("first Allow after cooldown must claim the probe")
 	}
-	if b.Allow() {
+	if allowed(b) {
 		t.Fatal("second Allow while the probe is in flight must be false")
 	}
 	if b.Available() {
@@ -218,7 +232,7 @@ func TestBreakerHalfOpenSingleProbe(t *testing.T) {
 func TestBreakerAllowWhenClosed(t *testing.T) {
 	b := NewBreaker(newFakeClock().Now)
 	for i := 0; i < 3; i++ {
-		if !b.Allow() || !b.Available() {
+		if !allowed(b) || !b.Available() {
 			t.Fatal("closed breaker must allow every attempt")
 		}
 	}
@@ -229,14 +243,15 @@ func TestBreakerProbeSuccessCloses(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	tripOpen(t, b)
 	clk.Advance(OpenFor)
-	if !b.Allow() {
+	probe, ok := b.Allow()
+	if !ok {
 		t.Fatal("probe not admitted")
 	}
-	b.Record(true)
+	b.Record(probe, true)
 	if s := b.State(); s != Closed {
 		t.Fatalf("state after probe success = %v, want Closed", s)
 	}
-	if !b.Allow() {
+	if !allowed(b) {
 		t.Fatal("closed breaker must allow")
 	}
 
@@ -257,11 +272,11 @@ func TestBreakerProbeSuccessAfterDoublingResetsDuration(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	tripOpen(t, b)
 	clk.Advance(OpenFor)
-	b.Allow()
-	b.Record(false) // now open for 20 s
+	probe, _ := b.Allow()
+	b.Record(probe, false) // now open for 20 s
 	clk.Advance(2 * OpenFor)
-	b.Allow()
-	b.Record(true)
+	probe, _ = b.Allow()
+	b.Record(probe, true)
 	tripOpen(t, b)
 	clk.Advance(OpenFor)
 	if !b.Available() {
@@ -278,13 +293,14 @@ func TestBreakerReTripDoubles(t *testing.T) {
 		d := secs * time.Second
 		if i > 0 {
 			// probe failure re-opens with the doubled duration
-			if !b.Allow() {
+			probe, ok := b.Allow()
+			if !ok {
 				t.Fatalf("step %d: probe not admitted", i)
 			}
-			b.Record(false)
+			b.Record(probe, false)
 		}
 		clk.Advance(d - time.Nanosecond)
-		if b.Available() || b.Allow() {
+		if b.Available() || allowed(b) {
 			t.Fatalf("step %d: available %v before the open duration elapsed", i, d)
 		}
 		clk.Advance(time.Nanosecond)
@@ -297,9 +313,10 @@ func TestBreakerReTripDoubles(t *testing.T) {
 func TestBreakerRecordIgnoredWhileOpen(t *testing.T) {
 	clk := newFakeClock()
 	b := NewBreaker(clk.Now)
+	straggler, _ := b.Allow() // claimed before the trip
 	tripOpen(t, b)
-	b.Record(true) // straggler from before the trip
-	b.Record(false)
+	b.Record(straggler, true) // straggler from before the trip
+	b.Record(straggler, false)
 	if s := b.State(); s != Open {
 		t.Fatalf("state = %v, want Open", s)
 	}
@@ -309,11 +326,11 @@ func TestBreakerRecordIgnoredWhileOpen(t *testing.T) {
 	}
 	clk.Advance(OpenFor)
 	// Elapsed cooldown, no probe claimed: records are still ignored.
-	b.Record(true)
+	b.Record(straggler, true)
 	if s := b.State(); s != Open {
 		t.Fatalf("record without a claimed probe closed the breaker: %v", s)
 	}
-	if !b.Allow() {
+	if !allowed(b) {
 		t.Fatal("probe must still be claimable")
 	}
 }
@@ -322,7 +339,7 @@ func TestBreakerTripForcesOpen(t *testing.T) {
 	clk := newFakeClock()
 	b := NewBreaker(clk.Now)
 	b.Trip(30 * time.Second)
-	if b.Available() || b.Allow() {
+	if b.Available() || allowed(b) {
 		t.Fatal("tripped breaker must be unavailable")
 	}
 	if s := b.State(); s != Open {
@@ -333,10 +350,12 @@ func TestBreakerTripForcesOpen(t *testing.T) {
 		t.Fatal("still unavailable until 30 s elapse")
 	}
 	clk.Advance(time.Nanosecond)
-	if !b.Available() || !b.Allow() {
+	available := b.Available()
+	probe, ok := b.Allow()
+	if !available || !ok {
 		t.Fatal("probe must be admitted once the forced period elapsed")
 	}
-	b.Record(true)
+	b.Record(probe, true)
 	if s := b.State(); s != Closed {
 		t.Fatalf("state after probe success = %v, want Closed", s)
 	}
@@ -363,10 +382,11 @@ func TestBreakerTripDoesNotChangeDoublingSequence(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	b.Trip(30 * time.Second) // forced open, sequence still at 10 s
 	clk.Advance(30 * time.Second)
-	if !b.Allow() {
+	probe, ok := b.Allow()
+	if !ok {
 		t.Fatal("probe not admitted")
 	}
-	b.Record(false) // first probe failure doubles the base: 20 s
+	b.Record(probe, false) // first probe failure doubles the base: 20 s
 	clk.Advance(20*time.Second - time.Nanosecond)
 	if b.Available() {
 		t.Fatal("expected 20 s after the first probe failure")
@@ -382,20 +402,22 @@ func TestBreakerAbortReleasesProbe(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	tripOpen(t, b)
 	clk.Advance(OpenFor)
-	if !b.Allow() {
+	probe, ok := b.Allow()
+	if !ok {
 		t.Fatal("probe not admitted")
 	}
-	b.Abort()
+	b.Abort(probe)
 	if s := b.State(); s != Open {
 		t.Fatalf("state after Abort = %v, want Open", s)
 	}
 	if !b.Available() {
 		t.Fatal("cooldown is still elapsed so the probe must be claimable")
 	}
-	if !b.Allow() {
+	probe, ok = b.Allow()
+	if !ok {
 		t.Fatal("next Allow must claim the probe again")
 	}
-	b.Record(false) // the aborted attempt recorded nothing: duration is 20 s, not 40 s
+	b.Record(probe, false) // the aborted attempt recorded nothing: duration is 20 s, not 40 s
 	clk.Advance(20 * time.Second)
 	if !b.Available() {
 		t.Fatal("Abort must not have advanced the doubling sequence")
@@ -405,12 +427,13 @@ func TestBreakerAbortReleasesProbe(t *testing.T) {
 func TestBreakerAbortNoOps(t *testing.T) {
 	clk := newFakeClock()
 	b := NewBreaker(clk.Now)
-	b.Abort() // closed
+	attempt, _ := b.Allow()
+	b.Abort(attempt) // closed
 	if s := b.State(); s != Closed {
 		t.Fatalf("Abort on closed changed state to %v", s)
 	}
 	tripOpen(t, b)
-	b.Abort() // open, no probe
+	b.Abort(attempt) // open, no probe
 	if s := b.State(); s != Open {
 		t.Fatalf("Abort on open changed state to %v", s)
 	}
@@ -418,8 +441,8 @@ func TestBreakerAbortNoOps(t *testing.T) {
 		t.Fatal("Abort without a probe must not shorten the cooldown")
 	}
 	clk.Advance(OpenFor)
-	b.Abort() // open, cooldown elapsed, no probe claimed
-	if !b.Allow() {
+	b.Abort(attempt) // open, cooldown elapsed, no probe claimed
+	if !allowed(b) {
 		t.Fatal("probe must remain claimable after a no-op Abort")
 	}
 }
@@ -432,14 +455,15 @@ func TestBreakerProbeSuccessAfterRatioTripDoesNotReopenOnOneFailure(t *testing.T
 		t.Fatalf("state = %v, want Open", s)
 	}
 	clk.Advance(OpenFor)
-	if !b.Allow() {
+	probe, ok := b.Allow()
+	if !ok {
 		t.Fatal("probe not admitted")
 	}
-	b.Record(true)
+	b.Record(probe, true)
 	if s := b.State(); s != Closed {
 		t.Fatalf("state = %v, want Closed", s)
 	}
-	b.Record(false)
+	breakerRecord(b, false)
 	if s := b.State(); s != Closed {
 		t.Fatalf("single failure after close re-opened the breaker: %v", s)
 	}
@@ -450,8 +474,8 @@ func TestBreakerCloseClearsConsecutiveCount(t *testing.T) {
 	b := NewBreaker(clk.Now)
 	tripOpen(t, b) // 5 consecutive failures
 	clk.Advance(OpenFor)
-	b.Allow()
-	b.Record(true)
+	probe, _ := b.Allow()
+	b.Record(probe, true)
 	failN(b, ConsecutiveFailures-1)
 	if s := b.State(); s != Closed {
 		t.Fatalf("stale consecutive count survived the close: %v", s)
@@ -459,16 +483,18 @@ func TestBreakerCloseClearsConsecutiveCount(t *testing.T) {
 }
 
 // claimProbe opens the breaker, waits out the cooldown, and claims the probe.
-func claimProbe(t *testing.T, clk *fakeClock, b *Breaker) {
+func claimProbe(t *testing.T, clk *fakeClock, b *Breaker) Ticket {
 	t.Helper()
 	tripOpen(t, b)
 	clk.Advance(OpenFor)
-	if !b.Allow() {
+	probe, ok := b.Allow()
+	if !ok {
 		t.Fatal("probe not admitted after the cooldown")
 	}
 	if got := b.State(); got != HalfOpen {
 		t.Fatalf("state with probe in flight = %v, want HalfOpen", got)
 	}
+	return probe
 }
 
 // assertQuarantined checks the breaker is open and unavailable until exactly d
@@ -479,7 +505,7 @@ func assertQuarantined(t *testing.T, clk *fakeClock, b *Breaker, d time.Duration
 		t.Fatalf("state = %v, want Open", got)
 	}
 	clk.Advance(d - time.Nanosecond)
-	if b.Available() || b.Allow() {
+	if b.Available() || allowed(b) {
 		t.Fatalf("breaker available before the %v quarantine elapsed", d)
 	}
 	if got := b.State(); got != Open {
@@ -494,29 +520,30 @@ func assertQuarantined(t *testing.T, clk *fakeClock, b *Breaker, d time.Duration
 func TestBreakerTripDuringProbeThenProbeSuccessStaysQuarantined(t *testing.T) {
 	clk := newFakeClock()
 	b := NewBreaker(clk.Now)
-	claimProbe(t, clk, b)
+	probe := claimProbe(t, clk, b)
 
 	b.Trip(120 * time.Second)
 	if got := b.State(); got != Open {
 		t.Fatalf("state after Trip during probe = %v, want Open", got)
 	}
-	b.Record(true) // the superseded probe's outcome
+	b.Record(probe, true) // the superseded probe's outcome
 	assertQuarantined(t, clk, b, 120*time.Second)
 }
 
 func TestBreakerTripDuringProbeThenProbeFailureKeepsQuarantine(t *testing.T) {
 	clk := newFakeClock()
 	b := NewBreaker(clk.Now)
-	claimProbe(t, clk, b)
+	probe := claimProbe(t, clk, b)
 
 	b.Trip(120 * time.Second)
-	b.Record(false) // the superseded probe's outcome
+	b.Record(probe, false) // the superseded probe's outcome
 	assertQuarantined(t, clk, b, 120*time.Second)
 
 	// The doubling sequence was untouched: the next probe failure gives 20 s.
-	if !b.Allow() {
+	probe, ok := b.Allow()
+	if !ok {
 		t.Fatal("probe not admitted after the quarantine")
 	}
-	b.Record(false)
+	b.Record(probe, false)
 	assertQuarantined(t, clk, b, 2*OpenFor)
 }

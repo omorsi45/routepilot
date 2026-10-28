@@ -24,14 +24,36 @@ const (
 	authQuarantine = 120 * time.Second
 )
 
+// hold is what an attempt owes once attemptPlan.next has handed it a pair: exactly one
+// Record or Abort of the breaker ticket, and, for a non-streaming attempt on a limited
+// deployment, the return of its bulkhead slot.
+type hold struct {
+	ticket reliability.Ticket
+	// release gives the bulkhead slot back; nil when the attempt holds none.
+	release func()
+}
+
+// releaseSlot gives the bulkhead slot back, if the attempt holds one. It is safe to call
+// more than once.
+func (h hold) releaseSlot() {
+	if h.release != nil {
+		h.release()
+	}
+}
+
 // attemptPlan walks the (model, deployment) pairs of a routing decision in
 // order. Each pair it returns has been claimed with Health.Allow, so the
-// caller owes exactly one Record or Abort for it. It is used by one request
-// goroutine and is not safe for concurrent use.
+// caller owes exactly one Record or Abort for the ticket it comes with. It is used by one
+// request goroutine and is not safe for concurrent use.
 type attemptPlan struct {
 	health *reliability.Health
 	cands  []router.Candidate
 	max    int
+
+	// bulkhead, when set, caps the in-flight attempts of the limited deployments. Only a
+	// non-streaming request sets it: a deployment at its limit is skipped like an unavailable
+	// one, before the breaker is asked, and each pair issued comes with a slot to give back.
+	bulkhead *bulkhead
 
 	// gate, when set, rules once on each candidate, just before the first of its
 	// deployments that looks available is claimed. A candidate it refuses is skipped with all
@@ -49,9 +71,10 @@ func (s *Server) newAttemptPlan(d router.Decision) *attemptPlan {
 }
 
 // next returns the next pair whose breaker admits an attempt, with the output
-// token budget K its model was admitted with. Pairs the breaker refuses, and the
-// candidates the gate refuses, are skipped and do not count toward the attempt limit.
-func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, int, bool) {
+// token budget K its model was admitted with and what the attempt owes (see hold). Pairs
+// the breaker refuses, the deployments at their bulkhead limit, and the candidates the gate
+// refuses, are skipped and do not count toward the attempt limit.
+func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, int, hold, bool) {
 	for p.issued < p.max && p.ci < len(p.cands) {
 		c := p.cands[p.ci]
 		if p.di >= len(c.Deployments) {
@@ -60,6 +83,14 @@ func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, int, bool) {
 		}
 		dep := c.Deployments[p.di]
 		p.di++
+		if p.bulkhead.full(dep.Name) {
+			// Counted only when the breaker would have admitted it: an open breaker is the
+			// reason it is skipped then, not the bulkhead.
+			if p.health.Available(dep.Name) {
+				p.bulkhead.reject(dep.Name)
+			}
+			continue
+		}
 		if p.gate != nil && p.ruled < p.ci && p.health.Available(dep.Name) {
 			p.ruled = p.ci
 			if !p.gate(c) {
@@ -67,24 +98,36 @@ func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, int, bool) {
 				continue
 			}
 		}
-		if p.health.Allow(dep.Name) {
-			p.issued++
-			return *c.Model, dep, c.K, true
+		// The slot is taken before the breaker is asked, so a deployment that is full never
+		// takes a half-open probe it cannot use.
+		release, ok := p.bulkhead.acquire(dep.Name)
+		if !ok {
+			p.bulkhead.reject(dep.Name) // another request took the last slot just now
+			continue
 		}
+		ticket, ok := p.health.Allow(dep.Name)
+		if !ok {
+			if release != nil {
+				release()
+			}
+			continue
+		}
+		p.issued++
+		return *c.Model, dep, c.K, hold{ticket: ticket, release: release}, true
 	}
-	return catalog.Model{}, catalog.Deployment{}, 0, false
+	return catalog.Model{}, catalog.Deployment{}, 0, hold{}, false
 }
 
-// more reports whether next could return a pair, judged by Available so that
-// nothing is claimed. The answer can still turn out wrong if another request
-// takes a half-open probe first; next then simply returns false.
+// more reports whether next could return a pair, judged by Available and the bulkhead so
+// that nothing is claimed. The answer can still turn out wrong if another request
+// takes a half-open probe or the last slot first; next then simply returns false.
 func (p *attemptPlan) more() bool {
 	if p.issued >= p.max {
 		return false
 	}
 	for ci, di := p.ci, p.di; ci < len(p.cands); ci, di = ci+1, 0 {
 		for _, dep := range p.cands[ci].Deployments[min(di, len(p.cands[ci].Deployments)):] {
-			if p.health.Available(dep.Name) {
+			if p.health.Available(dep.Name) && !p.bulkhead.full(dep.Name) {
 				return true
 			}
 		}
@@ -170,7 +213,7 @@ func timeoutOrCancel(err error) bool {
 // against its deployment.
 const deadlineBlameNum, deadlineBlameDen = 9, 10
 
-// settle reports the outcome of an attempt claimed with Allow. A nil err is a
+// settle reports the outcome of an attempt claimed with Allow, whose ticket is t. A nil err is a
 // success. ctx is the context the attempt ran under and elapsed is how long
 // the attempt took, from just before the provider call to its return.
 //
@@ -185,32 +228,32 @@ const deadlineBlameNum, deadlineBlameDen = 9, 10
 // An upstream 401 or 403 also quarantines the deployment, and a Retry-After
 // longer than maxInlineRetryAfter trips its breaker for that long, capped at
 // reliability.MaxOpenFor so one upstream value cannot park it for hours.
-func (s *Server) settle(ctx context.Context, rs *reqState, dep string, err error, elapsed time.Duration) {
+func (s *Server) settle(ctx context.Context, rs *reqState, t reliability.Ticket, err error, elapsed time.Duration) {
 	if err != nil {
 		rs.noteUpstreamError(err)
 	}
 	if err == nil || healthyOutcome(err) {
-		s.health.Record(dep, true)
+		s.health.Record(t, true)
 		return
 	}
 	if deadlineExpired(ctx) && timeoutOrCancel(err) {
 		if elapsed*deadlineBlameDen >= rs.blameBudget*deadlineBlameNum {
-			s.health.Record(dep, false)
+			s.health.Record(t, false)
 		} else {
-			s.health.Abort(dep)
+			s.health.Abort(t)
 		}
 		return
 	}
-	s.health.Record(dep, false)
+	s.health.Record(t, false)
 	var perr *provider.Error
 	if !errors.As(err, &perr) {
 		return
 	}
 	if perr.RetryAfter > maxInlineRetryAfter {
-		s.health.Trip(dep, min(perr.RetryAfter, reliability.MaxOpenFor))
+		s.health.Trip(t.Deployment(), min(perr.RetryAfter, reliability.MaxOpenFor))
 	}
 	if perr.Kind == provider.KindHTTP && (perr.Status == 401 || perr.Status == 403) {
-		s.health.Trip(dep, authQuarantine)
+		s.health.Trip(t.Deployment(), authQuarantine)
 	}
 }
 
@@ -260,11 +303,13 @@ const (
 // it also raises the reservation before claiming a pair of a pricier model, and skips the
 // model when the raise is refused. On claimOK it has counted the attempt and recorded it
 // for the request log and the budget (rs.attemptUsages); the caller owes the pair exactly
-// one Record or Abort. A claimClientGone has already marked the request canceled.
-func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan, req *openai.ChatCompletionRequest, lastErr error) (catalog.Model, catalog.Deployment, *openai.ChatCompletionRequest, claimOutcome) {
+// one settle or Abort of the returned hold's ticket and, when the hold carries a bulkhead
+// slot, one releaseSlot once the provider call returns. A claimClientGone has already marked
+// the request canceled.
+func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan, req *openai.ChatCompletionRequest, lastErr error) (catalog.Model, catalog.Deployment, *openai.ChatCompletionRequest, hold, claimOutcome) {
 	if rs.attempts > 0 {
 		if !plan.more() {
-			return catalog.Model{}, catalog.Deployment{}, nil, claimNone
+			return catalog.Model{}, catalog.Deployment{}, nil, hold{}, claimNone
 		}
 		waitErr := s.waitBeforeRetry(ctx, rs.attempts-1, lastErr)
 		// Check the context even when the wait succeeded (a zero wait never
@@ -272,24 +317,24 @@ func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan,
 		// left.
 		if ctxErr := ctx.Err(); waitErr != nil || ctxErr != nil {
 			if errors.Is(waitErr, context.DeadlineExceeded) || errors.Is(ctxErr, context.DeadlineExceeded) {
-				return catalog.Model{}, catalog.Deployment{}, nil, claimDeadline
+				return catalog.Model{}, catalog.Deployment{}, nil, hold{}, claimDeadline
 			}
 			rs.canceled = true // the client went away while we waited
-			return catalog.Model{}, catalog.Deployment{}, nil, claimClientGone
+			return catalog.Model{}, catalog.Deployment{}, nil, hold{}, claimClientGone
 		}
 	}
 	if rs.budget != nil {
 		plan.gate = rs.budget.gate(ctx)
 	}
-	model, dep, k, ok := plan.next()
+	model, dep, k, h, ok := plan.next()
 	if !ok {
-		return catalog.Model{}, catalog.Deployment{}, nil, claimNone
+		return catalog.Model{}, catalog.Deployment{}, nil, hold{}, claimNone
 	}
 	rs.attempts++
 	att := rs.beginAttempt(model, dep, k)
 	att.span = s.startSpan(rs, spanAttempt,
 		attribute.String("rp.deployment", dep.Name), attribute.Int("rp.attempt", rs.attempts))
-	return model, dep, s.prepareUpstream(rs, req, model.ID, dep, k), claimOK
+	return model, dep, s.prepareUpstream(rs, req, model.ID, dep, k), h, claimOK
 }
 
 // failAttempts writes the error for a request whose attempts are over without
