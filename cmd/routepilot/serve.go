@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/omorsi45/routepilot/internal/accounting"
@@ -129,7 +131,7 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 	if limiters.Budget == nil { // the memory backend: serve owns the ledger so it can sweep it
 		limiters.Budget = quota.NewMemoryBudget()
 	}
-	opts := gateway.Options{Logger: logger, Limiters: limiters}
+	opts := gateway.Options{Logger: logger, Limiters: limiters, Registry: newMetricsRegistry()}
 	store, err := openAccounting(ctx, cfg, os.Getenv)
 	if err != nil {
 		return err
@@ -239,6 +241,15 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
+}
+
+// newMetricsRegistry is the registry GET /metrics serves: the gateway adds its own series, and
+// the Go runtime and process collectors are added here, for the real server only. Each server
+// gets a registry of its own, so tests can start many.
+func newMetricsRegistry() *prometheus.Registry {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+	return reg
 }
 
 // hasBudget reports whether any tenant of cfg has a budget.

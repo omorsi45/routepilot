@@ -10,6 +10,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/quota"
+	"github.com/omorsi45/routepilot/internal/telemetry"
 )
 
 const (
@@ -128,6 +129,7 @@ func (l *concLease) acquire(ctx context.Context, ttl time.Duration) (*openai.API
 		return openai.ErrOverloaded(), ""
 	}
 	if !got {
+		l.rs.limitKind = telemetry.RateLimitConcurrency
 		return openai.ErrRateLimited("tenant concurrency limit reached"), "1"
 	}
 	l.held = true
@@ -229,6 +231,7 @@ func (s *Server) admit(w http.ResponseWriter, rs *reqState, r *http.Request, ten
 			return failed("request rate check", err)
 		}
 		if !res.Allowed {
+			rs.limitKind = telemetry.RateLimitRPM
 			return reject(openai.ErrRateLimited("tenant request rate exceeded"), retryAfterSeconds(res.RetryAfter))
 		}
 	}
@@ -240,6 +243,7 @@ func (s *Server) admit(w http.ResponseWriter, rs *reqState, r *http.Request, ten
 			return failed("token reserve", err)
 		}
 		if !res.Allowed {
+			rs.limitKind = telemetry.RateLimitTPM
 			if res.RetryAfter <= 0 {
 				// The reservation can never fit the burst: waiting will not help.
 				return reject(openai.ErrRateLimited("request exceeds tenant token burst; lower max_tokens"), "")

@@ -136,12 +136,15 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 		}
 		rs.budgetLeft = &left
 	}
+	decideStart := s.now()
 	dec, apiErr := s.decide(rs, tenant, req, reqs)
+	decided := s.now()
 	rs.policy = dec.Policy
 	s.noteDecision(rs, req, reqs, dec)
 	// The decision headers go on before anything is written, so every response that
 	// reached the router carries them, an error from here on included.
 	s.setDecisionHeaders(w, rs, dec)
+	s.observeDecision(rs, dec, decided.Sub(decideStart))
 	if apiErr != nil {
 		if apiErr.Code == "model_not_found" {
 			// The router echoes the whole client model; cap what we send back.

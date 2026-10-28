@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/omorsi45/routepilot/internal/accounting"
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
@@ -26,6 +28,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/quota"
 	"github.com/omorsi45/routepilot/internal/reliability"
 	"github.com/omorsi45/routepilot/internal/router"
+	"github.com/omorsi45/routepilot/internal/telemetry"
 )
 
 // Options configures a Server.
@@ -62,6 +65,10 @@ type Options struct {
 	// every feedback line. Nil keeps no log, and then POST /v1/feedback is not served. The
 	// caller closes it after the server has drained.
 	DecisionLog *decisionlog.Writer
+	// Registry receives the Prometheus series and backs GET /metrics. Nil uses a registry of
+	// the server's own; serve passes one that also holds the Go and process collectors. It
+	// must not already hold RoutePilot series: New returns an error then.
+	Registry *prometheus.Registry
 }
 
 // Server is the gateway HTTP server.
@@ -94,6 +101,9 @@ type Server struct {
 	accountingErrors atomic.Int64
 	// decisions is Options.DecisionLog, nil for none.
 	decisions *decisionlog.Writer
+	// metrics records the Prometheus series and metricsHandler serves them (metrics.go).
+	metrics        *telemetry.Metrics
+	metricsHandler http.Handler
 	// readBodyTimeout is Options.ReadBodyTimeout; zero means the default.
 	readBodyTimeout time.Duration
 	// sem is the global in-flight limit: one token per request in progress.
@@ -177,6 +187,9 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 	s.decisions = opts.DecisionLog
 	if n := cfg.Server.MaxInflight; n > 0 {
 		s.sem = make(chan struct{}, n)
+	}
+	if err := s.initMetrics(opts.Registry); err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -290,6 +303,15 @@ type reqState struct {
 	promptHash16 string
 	// commitAt is when a stream committed its response, zero for any other request.
 	commitAt time.Time
+
+	// The fields below feed the metrics (metrics.go).
+
+	// chat is true for a chat completion request: only those are counted in the request
+	// series. role is the policy_role label, set once the router has answered.
+	chat bool
+	role string
+	// limitKind is the kind of rate limit that turned the request away, empty when none did.
+	limitKind telemetry.RateLimitKind
 }
 
 // statusWriter records the response status. It forwards Flush and exposes the
@@ -357,6 +379,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			s.methodNotAllowed(sw, rs, http.MethodPost)
 			break
 		}
+		rs.chat = true
 		s.handleChat(sw, rs, r)
 	case "/v1/models":
 		if r.Method != http.MethodGet {
@@ -366,6 +389,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		s.handleModels(sw, rs, r)
 	case "/v1/feedback":
 		s.handleFeedback(sw, rs, r)
+	case "/metrics":
+		// Unauthenticated, like the health routes (Ruling V1-R18): the series carry
+		// identifiers, numbers and outcome names, never a prompt or a key. The endpoint is
+		// for the internal network, and is not itself a request in the request series.
+		if r.Method != http.MethodGet {
+			s.methodNotAllowed(sw, rs, http.MethodGet)
+			break
+		}
+		s.metricsHandler.ServeHTTP(sw, r)
 	default:
 		s.fail(sw, rs, &openai.APIError{
 			Status: http.StatusNotFound, Type: "invalid_request_error", Code: "not_found",
@@ -375,6 +407,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 
 	s.logDecisions(sw, rs, start)
 	s.logRequest(sw, rs, start)
+	if rs.chat {
+		s.observeRequest(sw, rs, start)
+	}
 }
 
 // finalStatus is the status the client got: what was written, or 499 when the client left

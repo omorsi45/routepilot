@@ -118,6 +118,7 @@ type Registry struct {
 
 	cur          atomic.Pointer[Snapshot]
 	reloadErrors atomic.Uint64
+	rollbacks    atomic.Uint64
 	lastErr      atomic.Pointer[error]
 
 	// mu serializes reloads, polls, rollbacks and canary changes; Snapshot never takes it.
@@ -168,6 +169,10 @@ func (r *Registry) Snapshot() *Snapshot { return r.cur.Load() }
 
 // ReloadErrors counts the reloads that failed and left the old snapshot in place.
 func (r *Registry) ReloadErrors() uint64 { return r.reloadErrors.Load() }
+
+// Rollbacks counts the rollbacks of the stable slot that RollbackStable carried out; a
+// refused one is not counted.
+func (r *Registry) Rollbacks() uint64 { return r.rollbacks.Load() }
 
 // LastError is the error of the latest reload when it failed, nil after a reload that
 // succeeded (and before any failed).
@@ -289,6 +294,7 @@ func (r *Registry) RollbackStable() (from, to string, err error) {
 	from, to = cur.Stable.Version, r.prev.Version
 	r.prev = nil
 	r.cur.Store(&next)
+	r.rollbacks.Add(1)
 	if r.logger != nil {
 		r.logger.Warn("stable policy rolled back", slog.String("from", from), slog.String("to", to))
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/policy"
 	"github.com/omorsi45/routepilot/internal/provider"
 	"github.com/omorsi45/routepilot/internal/router"
+	"github.com/omorsi45/routepilot/internal/telemetry"
 )
 
 // Response headers that tell the client how a request was routed. The model and
@@ -149,6 +150,7 @@ func (rs *reqState) allUpstream429() bool {
 // attempt was rate limited upstream. Retry-After is the smallest one an upstream sent, in
 // whole seconds rounded up and at least 1, and is left out when none carried one.
 func (s *Server) failUpstreamRateLimited(w http.ResponseWriter, rs *reqState) {
+	rs.limitKind = telemetry.RateLimitUpstream
 	if rs.retryAfter > 0 {
 		w.Header().Set("Retry-After", retryAfterSeconds(rs.retryAfter))
 	}

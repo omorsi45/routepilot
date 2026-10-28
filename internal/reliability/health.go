@@ -112,6 +112,19 @@ func (h *Health) Trip(deployment string, d time.Duration) {
 	h.entry(deployment).breaker.Trip(d)
 }
 
+// State is the breaker state of the deployment: Closed for one never seen, HalfOpen while a
+// probe is in flight, Open otherwise while the breaker is open. It claims nothing and never
+// creates an entry, so reading it (a metrics scrape does) cannot change the outcome.
+func (h *Health) State(deployment string) State {
+	h.mu.RLock()
+	e, ok := h.entries[deployment]
+	h.mu.RUnlock()
+	if !ok {
+		return Closed
+	}
+	return e.breaker.State()
+}
+
 // Snapshot returns a copy of every known deployment's state and error rate.
 func (h *Health) Snapshot() map[string]DeploymentHealth {
 	h.mu.RLock()

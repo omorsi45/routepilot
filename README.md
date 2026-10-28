@@ -11,6 +11,15 @@ Status: under active development. Nothing in this repository claims a
 measured result until the corresponding benchmark report exists under
 `bench/results/`.
 
+## Security notes
+
+- `GET /metrics` is unauthenticated and served on the main listener, like `/healthz` and
+  `/readyz`. Its series hold identifiers (tenant IDs, model and deployment names, policy
+  versions), counts, durations and costs, and never a prompt, a message, an API key or a key
+  hash. Tenant labels are bounded to the configured tenants. It is still an internal-network
+  endpoint: scrape it from inside the network, and block the path at any edge that faces the
+  internet.
+
 ## License
 
 Apache-2.0. See `LICENSE`.
