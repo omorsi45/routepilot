@@ -166,8 +166,12 @@ func TestOneMeasuresFromScheduledTime(t *testing.T) {
 	if g.rec.completed != 1 {
 		t.Fatalf("completed = %d, errors = %v, want 1 completed request", g.rec.completed, g.rec.byKind)
 	}
-	if got := g.rec.latency.Min(); got < 300_000 {
-		t.Errorf("latency = %d us, want >= 300000 us (measured from the scheduled time)", got)
+	// The histogram keeps 3 significant digits, so a latency of exactly 300 ms (a coarse
+	// clock, such as Windows' 0.5 ms tick, can measure the quick answer as no time at all) is
+	// stored in a bucket whose lowest value is a little under 300000 us. Measured from the
+	// send time instead, it would be about 1 ms.
+	if got := g.rec.latency.Min(); got < 299_000 {
+		t.Errorf("latency = %d us, want about 300000 us or more (measured from the scheduled time)", got)
 	}
 }
 
