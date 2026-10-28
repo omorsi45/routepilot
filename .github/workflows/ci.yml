@@ -79,8 +79,17 @@ jobs:
           cache: pip
           cache-dependency-path: python/pyproject.toml
 
+      # The replay tests and the benchmark smoke build the Go binary; the toolchain
+      # version is the one go.mod asks for, so nothing downloads another one.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
       - name: install pinned dependencies
         run: make py-setup PYTHON_BOOTSTRAP=python
 
       - name: ruff and pytest
         run: make py-check
+
+      - name: benchmark smoke
+        run: make bench-smoke

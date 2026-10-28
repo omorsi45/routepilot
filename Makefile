@@ -57,6 +57,20 @@ data: ## download and verify the dataset, ingest it, then build splits, pools an
 	$(PY) -m routepilot_train.data.ingest --tar data/raw/bench-release.tar.gz --out data/derived
 	$(PY) -m routepilot_train.data.build --derived data/derived
 
+.PHONY: bench-gate
+bench-gate: ## replay the flagship test split with the gated policy and compare with bench/gates/baseline.json (needs make data)
+	$(PY) bench/scripts/gate.py --check --pool flagship --policy rules \
+		--config data/derived/pools/flagship.config.yaml \
+		--input data/derived/replay/flagship.jsonl \
+		--baseline bench/gates/baseline.json
+
+.PHONY: bench-smoke
+bench-smoke: ## build the binary and run the replay gate on the synthetic fixture (no dataset)
+	$(PY) bench/scripts/gate.py --check --pool smoke --policy rules \
+		--config testdata/bench/gate/config.yaml \
+		--input testdata/bench/gate/items.jsonl \
+		--baseline testdata/bench/gate/baseline.json
+
 .PHONY: verify
 verify: check test test-race py-check ## everything the CI lane runs
 
