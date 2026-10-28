@@ -16,6 +16,7 @@ from frames import (
     write_derived,
 )
 
+from routepilot_train.baselines.static_rules import RULES
 from routepilot_train.data import build, pools, selection
 
 
@@ -26,6 +27,37 @@ def derived(tmp_path: Path) -> Path:
 
 def read_lines(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def test_pool_config_rules_are_mapped_on_train_and_calib_items(derived: Path):
+    """Odd-numbered items get code text, and glm-4.6 solves all of them, test split included."""
+    prompts = pd.read_parquet(derived / "prompts.parquet")
+    odd = prompts["item_id"].map(lambda item_id: int(item_id.split("/")[1]) % 2 == 1)
+    prompts.loc[odd, "prompt"] = "def f(): " + prompts.loc[odd, "prompt"]
+    prompts["prompt_sha256"] = [sha(p) for p in prompts["prompt"]]
+    prompts["prompt_bytes"] = [len(p.encode()) for p in prompts["prompt"]]
+    prompts.to_parquet(derived / "prompts.parquet", index=False)
+    outcomes = pd.read_parquet(derived / "outcomes.parquet")
+    solved = outcomes["model"].eq("glm-4.6") & outcomes["item_id"].map(
+        lambda item_id: int(item_id.split("/")[1]) % 2 == 1
+    )
+    outcomes.loc[solved, ["score", "success"]] = [1.0, True]
+    outcomes.to_parquet(derived / "outcomes.parquet", index=False)
+
+    build.build(derived)
+
+    pool = json.loads((derived / "pools" / "flagship.json").read_text(encoding="utf-8"))
+    cfg = yaml.safe_load((derived / "pools" / "flagship.config.yaml").read_text("utf-8"))
+    rules = {r["name"]: r["model"] for r in cfg["routing"]["rules"]}
+    assert pool["best_single"] != "glm-4.6"
+    assert rules == {
+        "code": "glm-4.6",
+        "math": pool["best_single"],
+        "choices": pool["best_single"],
+        "long": pool["best_single"],
+    }
+    assert cfg["routing"]["default_model"] == pool["best_single"]
+    assert cfg["routing"]["rules"][0]["when"]["contains_any"][:2] == ["```", "def "]
 
 
 def test_build_writes_splits_pools_configs_and_replay(derived: Path):
@@ -66,7 +98,12 @@ def test_build_writes_splits_pools_configs_and_replay(derived: Path):
         pool = flagship if name == "flagship" else mixed
         assert [m["id"] for m in cfg["models"]] == pool["models"]
         assert {m["id"]: m["rank"] for m in cfg["models"]} == pool["rank"]
-        assert cfg["routing"] == {"policy": "strongest"}
+        routing = cfg["routing"]
+        assert routing["policy"] == "rules"
+        assert routing["default_model"] == pool["best_single"]
+        assert [r["name"] for r in routing["rules"]] == [r["name"] for r in RULES]
+        assert [r["when"] for r in routing["rules"]] == [r["when"] for r in RULES]
+        assert {r["model"] for r in routing["rules"]} <= set(pool["models"])
         assert (derived / "replay" / f"{name}.jsonl").is_file()
 
     assert summary["pools"]["flagship"]["replay_lines"] == flagship["n_items"]

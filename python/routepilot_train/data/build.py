@@ -4,7 +4,8 @@ Reads ``outcomes.parquet`` and ``prompts.parquet`` from the derived directory an
 writes, next to them:
 
 - ``splits.parquet``: ``item_id``, ``dataset``, ``split`` for every item.
-- ``pools/<pool>.json`` and ``pools/<pool>.config.yaml`` for ``flagship`` and ``mixed``.
+- ``pools/<pool>.json`` and ``pools/<pool>.config.yaml`` for ``flagship`` and ``mixed``. The
+  config's ``rules`` routing policy carries the static rules mapped on train and calibration.
 - ``replay/<pool>.jsonl``: the only output that holds prompt text.
 
 Pool selection and fitting finish before the first file is written.
@@ -18,6 +19,7 @@ from typing import Any
 
 import pandas as pd
 
+from routepilot_train.baselines.static_rules import RULES, map_rules
 from routepilot_train.data import selection
 from routepilot_train.data.export import export_replay
 from routepilot_train.data.pools import (
@@ -51,6 +53,9 @@ def build(derived: Path) -> dict[str, Any]:
     mixed_rows = pool_outcomes(outcomes, [*selection.FLAGSHIP_MODELS, *seven_b])
     mixed = build_pool("mixed", mixed_rows, splits)
 
+    pool_rows = ((flagship, flagship_rows, ()), (mixed, mixed_rows, seven_b))
+    rules = {pool["pool"]: _pool_rules(pool, rows, prompts, splits) for pool, rows, _ in pool_rows}
+
     # everything is computed; from here on only writing
     splits.to_parquet(derived / "splits.parquet", index=False, compression="zstd")
     summary: dict[str, Any] = {
@@ -58,10 +63,15 @@ def build(derived: Path) -> dict[str, Any]:
         "seven_b_models": sorted(seven_b),
         "pools": {},
     }
-    for pool, rows, fitted in ((flagship, flagship_rows, ()), (mixed, mixed_rows, seven_b)):
+    for pool, rows, fitted in pool_rows:
         name = pool["pool"]
         _write_json(derived / "pools" / f"{name}.json", pool)
-        write_pool_config(pool, derived / "pools" / f"{name}.config.yaml")
+        write_pool_config(
+            pool,
+            derived / "pools" / f"{name}.config.yaml",
+            rules=rules[name],
+            default_model=pool["best_single"],
+        )
         lines = export_replay(
             pool,
             rows,
@@ -76,6 +86,18 @@ def build(derived: Path) -> dict[str, Any]:
             "replay_lines": lines,
         }
     return summary
+
+
+def _pool_rules(
+    pool: dict[str, Any], rows: pd.DataFrame, prompts: pd.DataFrame, splits: pd.DataFrame
+) -> list[dict[str, Any]]:
+    """The static rules mapped on the pool's train and calibration items only."""
+    items = prompts[["item_id", "prompt", "prompt_bytes"]].merge(
+        splits[["item_id", "split"]], on="item_id", validate="1:1"
+    )
+    in_pool = items["item_id"].isin(set(rows["item_id"]))
+    tuning = items.loc[in_pool & items["split"].isin(["train", "calib"])]
+    return map_rules(tuning, rows, RULES, best_single=pool["best_single"])
 
 
 def _write_json(path: Path, obj: Any) -> None:
