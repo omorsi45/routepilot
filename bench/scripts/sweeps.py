@@ -629,7 +629,7 @@ def _tables(results: Mapping[str, Any]) -> dict[str, pd.DataFrame]:
 
 
 def _figure(split: str, results: Mapping[str, Any]) -> Figure:
-    fig = Figure(figsize=(8.5, 5.5))
+    fig = Figure(figsize=(8.5, 7.0))
     ax = fig.subplots()
     curves = (
         ("learned dual (lambda sweep)", results["sweeps"]["lambda"], "tab:blue", "o"),
@@ -661,13 +661,16 @@ def _figure(split: str, results: Mapping[str, Any]) -> Figure:
         zorder=3,
         label="static baselines",
     )
+    middle = float(np.sqrt(points["mean_cost_usd"].min() * points["mean_cost_usd"].max()))
     for cost, success, label in baselines.merged_labels(points):
+        right = cost > middle  # keep labels of points on the right inside the axes
         ax.annotate(
             label,
             (cost, success),
             fontsize=6,
             color="0.25",
-            xytext=(4, -9),
+            xytext=(-4, -9) if right else (4, -9),
+            ha="right" if right else "left",
             textcoords="offset points",
         )
     for key, (_, param_name, color) in OPERATING.items():
@@ -697,7 +700,8 @@ def _figure(split: str, results: Mapping[str, Any]) -> Figure:
         title += f"\n{NOTE}"
     ax.set_title(title, fontsize=10)
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=6.5, loc="lower right")
+    # Below the axes: inside them the legend hid baseline points.
+    ax.legend(fontsize=6.5, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2)
     fig.tight_layout()
     return fig
 
