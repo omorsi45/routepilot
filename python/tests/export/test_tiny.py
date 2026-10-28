@@ -24,20 +24,27 @@ def rebuilt(tmp_path_factory) -> Path:
     return artifact.export_artifact(tmp_path_factory.mktemp("tiny"), "tiny", bundle, weights)
 
 
-def without_timestamps(manifest: dict) -> dict:
-    stripped = json.loads(json.dumps(manifest))
-    stripped["training"].pop("created_at")
-    return stripped
-
-
-def test_rebuilding_reproduces_the_committed_weights(rebuilt):
+def test_rebuilding_reproduces_the_committed_predictions(rebuilt):
+    """A refit on another platform may move the last bits of a weight (BLAS kernels differ),
+    which changes the content hash, so compare what the two artifacts predict instead of
+    their bytes. The committed artifact's own bytes are checked exactly below."""
     committed = committed_dir()
-
-    assert (rebuilt / "weights.bin").read_bytes() == (committed / "weights.bin").read_bytes()
-    fresh, _ = artifact.load_artifact(rebuilt)
+    fresh, fresh_blob = artifact.load_artifact(rebuilt)
     kept, _ = artifact.load_artifact(committed)
-    assert without_timestamps(fresh) == without_timestamps(kept)
-    assert rebuilt.name == committed.name
+
+    assert [m["id"] for m in fresh["models"]] == [m["id"] for m in kept["models"]]
+    assert [m["calibrator"]["type"] for m in fresh["models"]] == [
+        m["calibrator"]["type"] for m in kept["models"]
+    ]
+    for entry in kept["golden"]:
+        got = artifact.predict_bundle(fresh, fresh_blob, [tuple(m) for m in entry["messages"]])
+        assert got["ood_score"] == pytest.approx(entry["ood_score"], abs=1e-3)
+        for model_id, expected in entry["models"].items():
+            mine = got["models"][model_id]
+            assert mine["p"] == pytest.approx(expected["p"], abs=1e-3)
+            # L is a step function of p, so a p at a bin edge may land one bin over.
+            assert mine["l"] == pytest.approx(expected["l"], abs=0.1)
+            assert mine["e_out"] == pytest.approx(expected["e_out"], rel=1e-2, abs=1e-2)
 
 
 def test_committed_artifact_is_self_consistent():
