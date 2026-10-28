@@ -141,8 +141,11 @@ def test_outputs_and_the_shape_of_the_results(tmp_path: Path, binary: Path):
             assert lo <= o["vs_supervised"]["mean_reward_difference"] <= hi
             assert sum(o["arm_share"]) == pytest.approx(1.0)
     assert set(r["comparators"]) == {"supervised", "always_strongest", "best_constant", "oracle"}
-    assert len(r["statements"]) == 4
+    assert len(r["statements"]) == 4 and len(r["reference_statements"]) == 4
     assert all("the supervised learned policy" in s for s in r["statements"])
+    assert all("the best single arm by reward" in s for s in r["reference_statements"])
+    best = r["learners"]["linucb"]["orders"]["random"]["vs_best_constant"]
+    assert best["seeds"] == len(SEEDS) and len(best["mean_reward_difference_ci"]) == 2
     check = r["context"]["standardizer"]
     assert isinstance(check["matches_artifact"], bool) and check["max_abs_diff_mean"] >= 0
 
@@ -150,7 +153,10 @@ def test_outputs_and_the_shape_of_the_results(tmp_path: Path, binary: Path):
     assert "Do the bandits beat the supervised policy?" in report
     assert "Test split, random order" in report and "Test split, shift order" in report
     assert "Hyperparameter choice" in report and "no latency is measured or simulated" in report
-    assert any(w in report for w in ("beats", "does NOT beat", "MIXED against"))
+    section = report.split("## Hyperparameter choice")[1].split("\n## ")[0]
+    assert "n/a" not in section and "| LinUCB | alpha | 0.1 |" in section
+    assert "| LinearTS | v | 0.05 |" in section
+    assert any(w in report for w in ("beats", "does NOT beat", "does NOT consistently beat"))
 
     # no prompt text in any output file
     texts = [
@@ -425,7 +431,7 @@ def test_the_verdict_says_plainly_whether_a_bandit_beats_the_reference():
     b = load_script()
     assert b.verdict(10, 10) == "beats"
     assert b.verdict(0, 10) == "does NOT beat"
-    assert b.verdict(4, 10) == "MIXED against"
+    assert b.verdict(4, 10) == "does NOT consistently beat"  # above on some seeds only
 
     text = b.statement(
         "LinUCB (alpha = 0.5)",
@@ -435,11 +441,25 @@ def test_the_verdict_says_plainly_whether_a_bandit_beats_the_reference():
         0,
         10,
         "the supervised learned policy",
+        (-0.14, -0.16, -0.12),
     )
     assert text == (
-        "LinUCB (alpha = 0.5), shift order: mean reward per item 0.3100 (seeds 0.3000 to 0.3300) "
-        "does NOT beat the supervised learned policy at 0.4500: above it on 0 of 10 seeds."
+        "LinUCB (alpha = 0.5), shift order: does NOT beat the supervised learned policy "
+        "(mean reward per item 0.3100, seeds 0.3000 to 0.3300, against 0.4500; above it on 0 "
+        "of 10 seeds; paired difference -0.1400 [-0.1600, -0.1200])."
     )
+    mixed = b.statement(
+        "LinearTS (v = 0.1)",
+        "random",
+        {"mean": 0.44, "min": 0.37, "max": 0.46},
+        0.45,
+        2,
+        10,
+        "the supervised learned policy",
+        (-0.01, -0.02, 0.0004),
+    )
+    assert "random order: does NOT consistently beat the supervised learned policy (mean" in mixed
+    assert "above it on 2 of 10 seeds; paired difference -0.0100 [-0.0200, +0.0004])." in mixed
 
 
 def test_main_defaults_follow_the_pool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

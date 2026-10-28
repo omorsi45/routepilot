@@ -189,9 +189,11 @@ def statement(
     if vs is None:
         return f"{variant['label']}: no test row to compare with the shipped one; {tail}."
     cost = vs["cost_reduction"]
-    cost_text = (
-        "n/a" if cost is None else f"{cost * 100:+.1f}% cheaper ({judge(vs['cost_reduction_ci'])})"
-    )
+    if cost is None:
+        cost_text = "n/a"
+    else:
+        direction = "cheaper" if cost >= 0 else "dearer"
+        cost_text = f"{abs(cost) * 100:.1f}% {direction} ({judge(vs['cost_reduction_ci'])})"
     return (
         f"{variant['label']}: test success {vs['success_delta'] * 100:+.2f} points against the "
         f"shipped one ({judge(vs['success_delta_ci'])}), mean cost {cost_text}; {tail}."

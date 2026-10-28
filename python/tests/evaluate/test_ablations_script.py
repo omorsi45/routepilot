@@ -356,6 +356,33 @@ def test_the_comparison_with_the_shipped_configuration_says_plainly_what_changed
     assert all(any(w in s for w in ("better", "worse", "no clear difference")) for s in statements)
 
 
+def test_a_statement_names_the_direction_of_every_change():
+    a = load_script()
+    variant = {"label": "dense features only, dim 2^16"}
+    vs = {
+        "success_delta": -0.0412,
+        "success_delta_ci": [-0.06, -0.02],
+        "cost_reduction": 0.123,
+        "cost_reduction_ci": [0.05, 0.2],
+    }
+
+    text = a.statement(variant, vs, 0.031, 0.016)
+
+    assert text == (
+        "dense features only, dim 2^16: test success -4.12 points against the shipped one "
+        "(worse), mean cost 12.3% cheaper (better); pooled test ECE 0.0310 against 0.0160 for "
+        "the shipped one (higher)."
+    )
+    dearer = a.statement(
+        variant, {**vs, "cost_reduction": -0.05, "cost_reduction_ci": [-0.1, 0.01]}, 0.01, 0.016
+    )
+    assert "mean cost 5.0% dearer (no clear difference)" in dearer and dearer.endswith("(lower).")
+    unknown = a.statement(variant, {**vs, "cost_reduction": None, "cost_reduction_ci": None}, 1, 1)
+    assert "mean cost n/a;" in unknown and unknown.endswith("(equal).")
+    absent = a.statement(variant, None, 0.03, 0.03)
+    assert absent.startswith("dense features only, dim 2^16: no test row") and "(equal)" in absent
+
+
 def test_the_judgement_words_follow_the_paired_interval():
     a = load_script()
     assert a.judge([0.01, 0.05]) == "better"

@@ -156,7 +156,7 @@ def verdict(above: int, n_seeds: int) -> str:
         return "beats"
     if above == 0:
         return "does NOT beat"
-    return "MIXED against"
+    return "does NOT consistently beat"
 
 
 def statement(
@@ -167,12 +167,19 @@ def statement(
     above: int,
     n_seeds: int,
     reference_name: str,
+    paired: tuple[float, float, float],
 ) -> str:
-    """One sentence on a learner's mean reward per item against a reference."""
+    """One sentence on a learner's mean reward per item against a reference.
+
+    ``paired`` is the seed-averaged paired difference per test item (bandit minus reference)
+    with its 95% bootstrap interval, as ``(point, lo, hi)``.
+    """
+    point, lo, hi = paired
     return (
-        f"{label}, {order} order: mean reward per item {reward['mean']:.4f} "
-        f"(seeds {reward['min']:.4f} to {reward['max']:.4f}) {verdict(above, n_seeds)} "
-        f"{reference_name} at {reference:.4f}: above it on {above} of {n_seeds} seeds."
+        f"{label}, {order} order: {verdict(above, n_seeds)} {reference_name} "
+        f"(mean reward per item {reward['mean']:.4f}, seeds {reward['min']:.4f} to "
+        f"{reward['max']:.4f}, against {reference:.4f}; above it on {above} of {n_seeds} seeds; "
+        f"paired difference {point:+.4f} [{lo:+.4f}, {hi:+.4f}])."
     )
 
 
@@ -312,6 +319,7 @@ def run_bandits(
 
     learners: dict[str, Any] = {}
     statements: list[str] = []
+    reference_statements: list[str] = []
     for key, (label, param, _, _) in LEARNERS.items():
         learners[key] = {"label": label, "param_name": param, "param": chosen[key], "orders": {}}
         for order in ORDERS:
@@ -319,36 +327,45 @@ def run_bandits(
             entry: dict[str, Any] = {m: bandits.spread([r[m] for r in per_seed]) for m in METRICS}
             entry["per_seed"] = {m: [r[m] for r in per_seed] for m in METRICS}
             entry["arm_share"] = np.mean([r["arm_share"] for r in per_seed], axis=0).tolist()
-            sup_reward = comparators["supervised"][order]["mean_reward"]
-            best_reward = comparators["best_constant"][order]["mean_reward"]
-            above_sup = sum(r["mean_reward"] > sup_reward for r in per_seed)
-            above_best = sum(r["mean_reward"] > best_reward for r in per_seed)
-            # Paired by item: the seed-averaged reward of each test item against the
-            # supervised policy's reward on it.
+            # Paired by item: the seed-averaged reward of each test item against the reference
+            # policy's reward on it.
             seed_mean = np.mean(
                 [item_rewards(test, _item_arms(r["order"], r["arms"])) for r in per_seed], axis=0
             )
-            diff = seed_mean - comparator_item_reward["supervised"]
-            point, lo, hi = metrics.bootstrap_ci(diff, n=bootstrap, seed=0)
-            entry["vs_supervised"] = {
-                "seeds_above": int(above_sup),
-                "seeds": len(per_seed),
-                "mean_reward_difference": point,
-                "mean_reward_difference_ci": [lo, hi],
-            }
-            entry["vs_best_constant"] = {"seeds_above": int(above_best), "seeds": len(per_seed)}
-            learners[key]["orders"][order] = entry
-            statements.append(
-                statement(
-                    f"{label} ({param} = {chosen[key]})",
-                    order,
-                    entry["mean_reward"],
-                    sup_reward,
-                    above_sup,
-                    len(per_seed),
-                    "the supervised learned policy",
+            title = f"{label} ({param} = {chosen[key]})"
+            for field, name, noun, bucket in (
+                ("vs_supervised", "supervised", "the supervised learned policy", statements),
+                (
+                    "vs_best_constant",
+                    "best_constant",
+                    "the best single arm by reward (extra reference)",
+                    reference_statements,
+                ),
+            ):
+                reference = comparators[name][order]["mean_reward"]
+                above = sum(r["mean_reward"] > reference for r in per_seed)
+                paired = metrics.bootstrap_ci(
+                    seed_mean - comparator_item_reward[name], n=bootstrap, seed=0
                 )
-            )
+                entry[field] = {
+                    "seeds_above": int(above),
+                    "seeds": len(per_seed),
+                    "mean_reward_difference": paired[0],
+                    "mean_reward_difference_ci": [paired[1], paired[2]],
+                }
+                bucket.append(
+                    statement(
+                        title,
+                        order,
+                        entry["mean_reward"],
+                        reference,
+                        above,
+                        len(per_seed),
+                        noun,
+                        paired,
+                    )
+                )
+            learners[key]["orders"][order] = entry
     domain_of = selection.DOMAINS if domains is None else domains
     per_domain = test.items["dataset"].map(domain_of).value_counts()
     results: dict[str, Any] = {
@@ -387,6 +404,7 @@ def run_bandits(
         "learners": learners,
         "comparators": comparators,
         "statements": statements,
+        "reference_statements": reference_statements,
         "bootstrap": {"n": bootstrap, "seed": 0, "alpha": 0.05, "method": "percentile"},
         "wall_time_s": time.perf_counter() - clock,
         "phase_time_s": phase,
@@ -479,7 +497,8 @@ def _hyperparameter_table(results: Mapping[str, Any]) -> pd.DataFrame:
             rows.append(
                 {
                     "learner": results["learners"][key]["label"],
-                    h["param_name"]: row["value"],
+                    "parameter": h["param_name"],
+                    "value": row["value"],
                     "calib mean reward": row["mean_reward"],
                     "calib success": row["success_rate"],
                     "calib mean cost USD": row["mean_cost_usd"],
@@ -523,23 +542,23 @@ def _order_table(results: Mapping[str, Any], order: str) -> pd.DataFrame:
 
 
 def _paired_table(results: Mapping[str, Any]) -> pd.DataFrame:
+    def cell(v: Mapping[str, Any]) -> str:
+        lo, hi = v["mean_reward_difference_ci"]
+        return f"{v['mean_reward_difference']:+.4f} [{lo:+.4f}, {hi:+.4f}]"
+
     rows = []
     for entry in results["learners"].values():
         for order in ORDERS:
-            v = entry["orders"][order]["vs_supervised"]
-            lo, hi = v["mean_reward_difference_ci"]
+            o = entry["orders"][order]
+            sup, best = o["vs_supervised"], o["vs_best_constant"]
             rows.append(
                 {
                     "learner": entry["label"],
                     "order": order,
-                    "mean reward difference (bandit minus supervised) [95% CI]": (
-                        f"{v['mean_reward_difference']:+.4f} [{lo:+.4f}, {hi:+.4f}]"
-                    ),
-                    "seeds above the supervised policy": f"{v['seeds_above']} of {v['seeds']}",
-                    "seeds above the best single arm": (
-                        f"{entry['orders'][order]['vs_best_constant']['seeds_above']} of "
-                        f"{v['seeds']}"
-                    ),
+                    "minus the supervised policy [95% CI]": cell(sup),
+                    "seeds above the supervised policy": f"{sup['seeds_above']} of {sup['seeds']}",
+                    "minus the best single arm [95% CI]": cell(best),
+                    "seeds above the best single arm": f"{best['seeds_above']} of {best['seeds']}",
                 }
             )
     return pd.DataFrame(rows)
@@ -561,6 +580,9 @@ def _tables(results: Mapping[str, Any]) -> dict[str, pd.DataFrame]:
     return {
         "Do the bandits beat the supervised policy? (test split, mean reward per item)": (
             pd.DataFrame({"statement": results["statements"]})
+        ),
+        "Against the best single arm by reward, an extra reference (test split)": (
+            pd.DataFrame({"statement": results["reference_statements"]})
         ),
         "Setup": _setup_table(results),
         "Hyperparameter choice (warm-up on train, evaluation on calibration, random order, "
