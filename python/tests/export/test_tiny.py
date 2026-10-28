@@ -164,11 +164,12 @@ def test_parity_file_is_canonical_lf_and_reproducible(rebuilt):
     canonical = json.dumps(document, sort_keys=True, indent=1, ensure_ascii=True) + "\n"
     assert raw == canonical.encode("ascii")
 
-    # Exact: the committed artifact's predictions are the committed parity file.
+    # The committed artifact's predictions are the committed parity file, up to the last
+    # bits a different platform's libm may round differently.
     manifest, blob = artifact.load_artifact(committed_dir())
     again = make_tiny.parity_document(manifest, blob)
     assert again["artifact_version"] == document["artifact_version"]
-    assert without_noise(again) == without_noise(document)
+    assert_close(without_noise(again), without_noise(document), tol=1e-12)
 
     # Within tolerance: a refit on another platform's BLAS may move the last bits of a
     # weight (and so the version) but not the predictions.
@@ -184,3 +185,19 @@ def test_parity_file_is_canonical_lf_and_reproducible(rebuilt):
 def without_noise(document: dict) -> dict:
     """The document as plain JSON data, ready for an equality check."""
     return json.loads(json.dumps(document))
+
+
+def assert_close(got, want, tol: float, path: str = "$") -> None:
+    """Equal structure and strings; floats within tol (absolute, relative above 1)."""
+    if isinstance(want, dict):
+        assert isinstance(got, dict) and got.keys() == want.keys(), path
+        for key in want:
+            assert_close(got[key], want[key], tol, f"{path}.{key}")
+    elif isinstance(want, list):
+        assert isinstance(got, list) and len(got) == len(want), path
+        for i, (g, w) in enumerate(zip(got, want, strict=True)):
+            assert_close(g, w, tol, f"{path}[{i}]")
+    elif isinstance(want, float) and not isinstance(want, bool):
+        assert got == pytest.approx(want, abs=tol, rel=tol), path
+    else:
+        assert got == want, path
