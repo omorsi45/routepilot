@@ -411,10 +411,46 @@ def test_prompt_overheads_excludes_and_reports_a_ten_fold_outlier():
     assert json.loads(json.dumps(anomalies)) == anomalies  # plain JSON types
 
 
-@pytest.mark.parametrize(("tokens", "excluded"), [(900, False), (901, True)])
+def test_prompt_overheads_constant_offset_on_short_prompts_is_not_an_anomaly():
+    """A hidden system prompt of about 150 tokens is many times a short prompt's count.
+
+    Measured on intern-s1: its counts sit 147 to 156 tokens above every other model's for
+    the same prompt. That offset is the overhead to fit, so it must not be excluded.
+    """
+    tokens_of = {
+        "a/0": {"plain-a": 30, "plain-b": 32, "hidden": 180},
+        "a/1": {"plain-a": 40, "plain-b": 40, "hidden": 190},
+    }
+    outcomes, prompts, splits = overhead_inputs(
+        tokens_of, {"a/0": "train", "a/1": "calib"}, prompt_bytes=20
+    )
+
+    overheads, anomalies = pools.prompt_overheads(
+        outcomes, prompts, splits, ["hidden", "plain-a", "plain-b"]
+    )
+
+    assert anomalies == []
+    assert overheads["hidden"] == 190 - (20 + FRAMING)
+
+
+@pytest.mark.parametrize(("tokens", "excluded"), [(3000, False), (3001, True)])
 def test_prompt_overheads_anomaly_limit_is_strictly_above_three_times_the_median(
     tokens: int, excluded: bool
 ):
+    tokens_of = {"a/0": {"plain-a": 1000, "plain-b": 1000, "edge": tokens}}
+    outcomes, prompts, splits = overhead_inputs(tokens_of, {"a/0": "train"})
+
+    overheads, anomalies = pools.prompt_overheads(
+        outcomes, prompts, splits, ["edge", "plain-a", "plain-b"]
+    )
+
+    assert [a["model"] for a in anomalies] == (["edge"] if excluded else [])
+    assert overheads["edge"] == (0 if excluded else tokens - (LONG + FRAMING))
+
+
+@pytest.mark.parametrize(("tokens", "excluded"), [(1300, False), (1301, True)])
+def test_prompt_overheads_anomaly_needs_an_excess_above_1000_tokens(tokens: int, excluded: bool):
+    """Above three times the median but within 1000 tokens of it: a framing offset, kept."""
     tokens_of = {"a/0": {"plain-a": 300, "plain-b": 300, "edge": tokens}}
     outcomes, prompts, splits = overhead_inputs(tokens_of, {"a/0": "train"})
 
@@ -427,20 +463,20 @@ def test_prompt_overheads_anomaly_limit_is_strictly_above_three_times_the_median
 
 
 def test_prompt_overheads_median_is_over_the_other_models_only():
-    """Counted with the record itself, the median would be 400 and 1000 would pass."""
-    tokens_of = {"a/0": {"plain": 100, "mid": 400, "big": 1000}}
+    """Counted with the record itself, the median would be 4000 and 10000 would pass."""
+    tokens_of = {"a/0": {"plain": 1000, "mid": 4000, "big": 10000}}
     outcomes, prompts, splits = overhead_inputs(tokens_of, {"a/0": "train"}, prompt_bytes=10)
 
     overheads, anomalies = pools.prompt_overheads(
         outcomes, prompts, splits, ["big", "mid", "plain"]
     )
 
-    # others of big: median(100, 400) = 250 and 1000 > 750; mid (others 100, 1000: 550) and
-    # plain (others 400, 1000: 700) are kept
+    # others of big: median(1000, 4000) = 2500 and 10000 > 7500; mid (others 1000, 10000:
+    # 5500) and plain (others 4000, 10000: 7000) are kept
     assert anomalies == [
-        {"item_id": "a/0", "model": "big", "prompt_tokens": 1000, "others_median": 250.0}
+        {"item_id": "a/0", "model": "big", "prompt_tokens": 10000, "others_median": 2500.0}
     ]
-    assert overheads == {"big": 0, "mid": 400 - (10 + FRAMING), "plain": 100 - (10 + FRAMING)}
+    assert overheads == {"big": 0, "mid": 4000 - (10 + FRAMING), "plain": 1000 - (10 + FRAMING)}
 
 
 def test_prompt_overheads_ignores_nonpositive_counts():

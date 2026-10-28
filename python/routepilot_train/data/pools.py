@@ -41,9 +41,13 @@ REPLAY_CAPABILITIES = ("streaming", "tools", "json_object", "json_schema", "visi
 # The router bounds the prompt tokens of a one-message request by its text bytes plus this
 # framing (8 per message and 16 per request, catalog.perMessageOverhead and fixedOverhead).
 PROMPT_FRAMING_TOKENS = 24
-# A recorded prompt count above this many times the median of the other models' counts for
-# the same item is an anomaly (Ruling V1-R24), not a hidden per-model overhead.
+# A recorded prompt count is an anomaly (Ruling V1-R24a), not a hidden per-model overhead,
+# when it is above this many times the median of the other models' counts for the same item
+# and also more than ANOMALY_MIN_EXCESS tokens above that median. The second condition keeps
+# a constant hidden system prompt (about 150 tokens on intern-s1), which is many times the
+# count of a short prompt, in the fit it exists for.
 ANOMALY_FACTOR = 3
+ANOMALY_MIN_EXCESS = 1000
 
 _MICRO = Decimal("0.000001")
 
@@ -210,7 +214,8 @@ def token_anomalies(records: pd.DataFrame) -> pd.DataFrame:
 
     ``records`` has ``item_id``, ``model`` and ``prompt_tokens`` and a unique index. A
     record is an anomaly when ``prompt_tokens`` is above ``ANOMALY_FACTOR`` times the
-    median ``prompt_tokens`` of the other models' records on the same item. Counts of zero
+    median ``prompt_tokens`` of the other models' records on the same item and more than
+    ``ANOMALY_MIN_EXCESS`` tokens above it. Counts of zero
     or less are gaps in the dataset: they are never anomalies and never enter a median, and
     an item with no other positive count has nothing to compare with. Returns the
     anomalous rows (same index) with an ``others_median`` column.
@@ -224,7 +229,9 @@ def token_anomalies(records: pd.DataFrame) -> pd.DataFrame:
             continue
         for position, label in enumerate(group.index):
             others_median = float(np.median(np.delete(tokens, position)))
-            if tokens[position] > ANOMALY_FACTOR * others_median:
+            count = tokens[position]
+            far = count - others_median > ANOMALY_MIN_EXCESS
+            if far and count > ANOMALY_FACTOR * others_median:
                 labels.append(label)
                 medians.append(others_median)
     found = records.loc[labels].copy()

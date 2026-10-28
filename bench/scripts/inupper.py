@@ -287,7 +287,8 @@ def run_inupper(
         ),
         "anomaly_rule": (
             f"prompt_tokens above {pool_fit.ANOMALY_FACTOR} times the median prompt_tokens "
-            "of the other models on the same item"
+            f"of the other models on the same item and more than {pool_fit.ANOMALY_MIN_EXCESS} "
+            "tokens above it"
         ),
         "percentiles": list(PERCENTILES),
         "pools": sections,
