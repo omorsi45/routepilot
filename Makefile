@@ -62,8 +62,14 @@ train: ## train the flagship policy into policies/flagship/<version> and record 
 	$(PY) -m routepilot_train.train.pipeline --pool flagship --derived data/derived --out policies
 
 .PHONY: bench-gate
-bench-gate: ## replay the flagship test split with the gated policy and compare with bench/gates/baseline.json (needs make data)
-	$(PY) bench/scripts/gate.py --check --pool flagship --policy rules \
+bench-gate: ## replay the flagship test split with the learned dual policy and compare with bench/gates/baseline.json (needs make data and make train)
+	@n=$$(ls policies/flagship 2>/dev/null | wc -l); \
+	if [ "$$n" -ne 1 ]; then \
+		echo "bench-gate: want exactly one artifact under policies/flagship (run make train), found $$n"; exit 1; \
+	fi
+	$(PY) bench/scripts/gate.py --check --pool flagship --policy learned \
+		--artifact policies/flagship/$$(ls policies/flagship) \
+		--policy-config bench/policies/flagship.yaml \
 		--config data/derived/pools/flagship.config.yaml \
 		--input data/derived/replay/flagship.jsonl \
 		--baseline bench/gates/baseline.json

@@ -1,11 +1,12 @@
 # Learned routing policy for the flagship pool.
 #
 # dual: pick the model with the highest P - lambda * expected cost (USD) among the models
-# whose lower confidence bound clears the quality floor. lambda is 0 until it is tuned on
-# the training and calibration splits; with 0 the policy picks the most likely to succeed
-# among the safe models.
+# whose lower confidence bound clears the quality floor. lambda is set by
+# bench/scripts/sweeps.py: the largest value (per USD) whose success on the calibration split
+# stays within 0.01 of Best Single, found by bisection. With 0 the policy picks the most likely
+# to succeed among the safe models.
 mode: dual
-lambda: 0
+lambda: 6.719579687342048
 default_floor: 0
 epsilon: 0
 ood_action: conservative

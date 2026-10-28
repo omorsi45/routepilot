@@ -1,0 +1,92 @@
+{
+  "pool": "flagship",
+  "strong": "gemini-2.5-pro",
+  "weak": "deepseek-v3-0324",
+  "models": [
+    "claude-sonnet-4",
+    "deepseek-r1-0528",
+    "deepseek-v3-0324",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "glm-4.6",
+    "gpt-5",
+    "gpt-5-chat",
+    "intern-s1",
+    "kimi-k2-0905",
+    "qwen3-235b-a22b-2507",
+    "qwen3-235b-a22b-thinking-2507"
+  ],
+  "dim": 65536,
+  "input_width": 65548,
+  "hyperparameters": {
+    "dim_h": 128,
+    "epochs": 10,
+    "lr": 0.001,
+    "l2": 1e-05,
+    "seed": 0,
+    "batch_items": 256
+  },
+  "n_items": 3616,
+  "n_pairs": 87375,
+  "epochs": [
+    {
+      "epoch": 1,
+      "loss": 0.6883844680345768,
+      "seconds": 1.0225719000009121
+    },
+    {
+      "epoch": 2,
+      "loss": 0.668678856455414,
+      "seconds": 1.0373854999998002
+    },
+    {
+      "epoch": 3,
+      "loss": 0.6341816417747406,
+      "seconds": 1.0255689999976312
+    },
+    {
+      "epoch": 4,
+      "loss": 0.584718654626098,
+      "seconds": 1.0552997999984655
+    },
+    {
+      "epoch": 5,
+      "loss": 0.5367945050706868,
+      "seconds": 1.0307667999950354
+    },
+    {
+      "epoch": 6,
+      "loss": 0.5052089278074002,
+      "seconds": 1.1051210000005085
+    },
+    {
+      "epoch": 7,
+      "loss": 0.4877081448387382,
+      "seconds": 1.0978410999960033
+    },
+    {
+      "epoch": 8,
+      "loss": 0.4746645433428811,
+      "seconds": 1.0370005000004312
+    },
+    {
+      "epoch": 9,
+      "loss": 0.46334992214378573,
+      "seconds": 1.0451209000020754
+    },
+    {
+      "epoch": 10,
+      "loss": 0.4521105339221216,
+      "seconds": 1.043826799999806
+    }
+  ],
+  "train_wall_time_s": 10.607319000002462,
+  "total_wall_time_s": 12.718418399999791,
+  "mf_file": "data/derived/mf/flagship.json",
+  "mf_sha256": "8216c85e5965401a4735493d04f70863982fc5475a207bc851cd399eb466accc",
+  "labels": [
+    "trained on the train split only: no calibration, test or held-out row was read",
+    "no price and no latency is used or simulated here",
+    "the exported weights are derived data and are not committed; only their SHA-256 is recorded"
+  ]
+}

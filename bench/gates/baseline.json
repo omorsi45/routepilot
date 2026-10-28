@@ -1,10 +1,11 @@
 {
   "pool": "flagship",
   "split": "test",
-  "policy": "rules",
+  "policy": "learned",
   "items": 1735,
-  "success_rate": 0.5463976945244957,
-  "mean_cost_picousd": 43970679178.674355,
-  "git_sha": "7753c32b80e2530e604c50dab0e9a4026ce3d01f",
-  "updated_at": "2026-10-28T01:15:05Z"
+  "policy_version": "dea4486d7575+ef0a989c",
+  "success_rate": 0.48184438040345823,
+  "mean_cost_picousd": 4337157850.144093,
+  "git_sha": "5e4dbcce0eb62bb7217c683218066509410a9c4b",
+  "updated_at": "2026-10-28T03:35:11Z"
 }
