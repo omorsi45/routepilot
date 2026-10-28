@@ -366,24 +366,43 @@ def _tables(
     }
 
 
+def merged_labels(points: pd.DataFrame) -> list[tuple[float, float, str]]:
+    """One (cost, success, label) per distinct point; policies on the same point share a label."""
+    names: dict[tuple[float, float], list[str]] = {}
+    for row in points.itertuples(index=False):
+        names.setdefault((row.mean_cost_usd, row.success_rate), []).append(row.policy)
+    return [(cost, success, " = ".join(group)) for (cost, success), group in names.items()]
+
+
 def _pareto_figure(points: pd.DataFrame, front: pd.DataFrame, pool_name: str) -> Figure:
-    fig = Figure(figsize=(7, 4.5))
+    fig = Figure(figsize=(7.5, 4.5))
     ax = fig.subplots()
     ax.scatter(points["mean_cost_usd"], points["success_rate"], color="tab:blue", zorder=3)
-    for row in points.itertuples(index=False):
+    middle = float(np.sqrt(points["mean_cost_usd"].min() * points["mean_cost_usd"].max()))
+    for cost, success, label in merged_labels(points):
+        right = cost > middle  # keep labels of points on the right inside the axes
         ax.annotate(
-            row.policy,
-            (row.mean_cost_usd, row.success_rate),
+            label,
+            (cost, success),
             fontsize=7,
-            xytext=(4, 3),
+            xytext=(-5, 4) if right else (5, 4),
+            ha="right" if right else "left",
             textcoords="offset points",
         )
-    ax.step(front["mean_cost_usd"], front["success_rate"], where="post", color="tab:red", zorder=2)
+    ax.step(
+        front["mean_cost_usd"],
+        front["success_rate"],
+        where="post",
+        color="tab:red",
+        zorder=2,
+        label="Pareto front (a point right of or below it is dominated)",
+    )
     ax.set_xscale("log")
     ax.set_xlabel("mean cost per item (USD)")
     ax.set_ylabel("success rate")
-    ax.set_title(f"Baselines on the test split, {pool_name} pool (red: Pareto front)")
+    ax.set_title(f"Baselines on the test split, {pool_name} pool")
     ax.grid(alpha=0.3)
+    ax.legend(fontsize=7, loc="upper left")
     fig.tight_layout()
     return fig
 

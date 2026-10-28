@@ -176,6 +176,22 @@ def test_report_labels_bootstrap_and_holds_no_prompt_text(
     assert run_json["seeds"] == {"random": [0, 1, 2, 3, 4], "bootstrap": 0}
 
 
+def test_figure_labels_merge_policies_that_share_a_point():
+    points = pd.DataFrame(
+        {
+            "policy": ["always_strongest", "random", "static_strongest_rank", "oracle"],
+            "mean_cost_usd": [0.067, 0.015, 0.067, 0.009],
+            "success_rate": [0.5274, 0.3458, 0.5274, 0.7746],
+        }
+    )
+    labels = load_script().merged_labels(points)
+    assert labels == [
+        (0.067, 0.5274, "always_strongest = static_strongest_rank"),
+        (0.015, 0.3458, "random"),
+        (0.009, 0.7746, "oracle"),
+    ]
+
+
 def test_mixed_pool_labels_small_model_costs_as_fitted(derived: Path, binary: Path, tmp_path):
     for suffix in (".json", ".config.yaml"):
         shutil.copy(derived / "pools" / f"flagship{suffix}", derived / "pools" / f"mixed{suffix}")
