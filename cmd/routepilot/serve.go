@@ -18,6 +18,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/omorsi45/routepilot/internal/accounting"
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/gateway"
 	"github.com/omorsi45/routepilot/internal/latency"
@@ -31,6 +32,8 @@ const (
 	redisKeyPrefix = "routepilot"
 	// redisPingTimeout bounds the startup connectivity check.
 	redisPingTimeout = 5 * time.Second
+	// accountingOpenTimeout bounds connecting to the usage ledger and creating its tables.
+	accountingOpenTimeout = 15 * time.Second
 )
 
 // notifyContext is signal.NotifyContext; tests replace it to inject signals.
@@ -126,6 +129,20 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		limiters.Budget = quota.NewMemoryBudget()
 	}
 	opts := gateway.Options{Logger: logger, Limiters: limiters}
+	store, err := openAccounting(ctx, cfg, os.Getenv)
+	if err != nil {
+		return err
+	}
+	if store != nil {
+		// Closed when serve returns, which is after the HTTP server has drained, so the last
+		// requests still write their rows.
+		defer func() {
+			if err := store.Close(); err != nil {
+				logger.Warn("closing the usage ledger failed", slog.String("error", err.Error()))
+			}
+		}()
+		opts.Accounting = store
+	}
 	opts.Latency, err = buildEstimator(cfg)
 	if err != nil {
 		return err
@@ -302,6 +319,26 @@ func otherSectionsDiffer(running, reloaded *config.Config) bool {
 	a, b := *running, *reloaded
 	a.Policies, b.Policies = config.PoliciesConfig{}, config.PoliciesConfig{}
 	return !reflect.DeepEqual(a, b)
+}
+
+// openAccounting opens the usage ledger that cfg.Accounting names. It returns a nil Store for
+// the none driver. A SQLite path is relative to the config file's directory; a PostgreSQL
+// DSN is read from the environment variable the config names and never appears in an error.
+func openAccounting(ctx context.Context, cfg *config.Config, getenv func(string) string) (accounting.Store, error) {
+	a := cfg.Accounting
+	switch a.Driver {
+	case config.AccountingSQLite:
+		return accounting.OpenSQLite(config.ResolvePath(cfg.BaseDir(), a.SQLitePath))
+	case config.AccountingPostgres:
+		dsn := getenv(a.PostgresDSNEnv)
+		if dsn == "" {
+			return nil, fmt.Errorf("accounting: environment variable %s is empty or unset", a.PostgresDSNEnv)
+		}
+		ctx, cancel := context.WithTimeout(ctx, accountingOpenTimeout)
+		defer cancel()
+		return accounting.OpenPostgres(ctx, dsn)
+	}
+	return nil, nil
 }
 
 // buildLimiters returns the quota limiters selected by cfg.Quota and a func

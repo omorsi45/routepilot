@@ -13,6 +13,7 @@ const usage = "usage: routepilot <command>\n\ncommands:\n" +
 	"  serve     run the gateway (routepilot serve -config <path>)\n" +
 	"  replay    replay recorded outcomes through a routing policy (routepilot replay --help)\n" +
 	"  policy    verify or inspect a trained policy artifact (routepilot policy --help)\n" +
+	"  reconcile compare the usage ledger with the budget counters (routepilot reconcile --config <path>)\n" +
 	"  version   print the version and exit\n"
 
 func main() {
@@ -34,6 +35,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runReplay(args[1:], stdout, stderr)
 	case "policy":
 		return runPolicy(args[1:], stdout, stderr)
+	case "reconcile":
+		return runReconcile(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, version.String())
 		return 0

@@ -56,6 +56,13 @@ models:
 routing:
   policy: cheapest
 
+# One row per attempt sent to a provider, in a SQLite file next to this config. Without this
+# section (driver none) no database is written. routepilot reconcile compares the ledger with
+# the budget counters; see its --help.
+accounting:
+  driver: sqlite
+  sqlite_path: usage.db
+
 tenants:
   # Only the SHA-256 of a client key is stored, never the key itself.
   # Compute a hash with:  printf %s your-key | shasum -a 256

@@ -77,6 +77,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 
 	c.rs.usage = nil // only the attempt that answers reports usage
 	a.start = c.s.now()
+	a.usage.begin(a.start)
 	stream, err := c.s.providers[dep.Provider].Stream(ctx, up)
 	if err == nil && stream == nil {
 		err = openai.ErrInternal()
@@ -177,6 +178,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 		return a.fail(&provider.Error{Kind: provider.KindProtocol, Message: "stream ended without content"})
 	}
 	a.settle(nil) // the upstream finished cleanly, whatever the client does next
+	a.usage.finish(endAt, statusOK)
 	a.observeDecode(commitAt, endAt)
 	if err := c.send(c.sse.WriteDone); err != nil {
 		return a.clientGone()
@@ -242,6 +244,7 @@ func (a *streamAttempt) abort() {
 func (a *streamAttempt) clientGone() attemptResult {
 	a.cancel(errClientWrite)
 	a.c.rs.canceled = true
+	a.usage.finish(a.c.s.now(), statusCanceled)
 	a.abort()
 	return attemptResult{done: true}
 }
@@ -256,6 +259,7 @@ func (a *streamAttempt) clientGone() attemptResult {
 func (a *streamAttempt) fail(err error) attemptResult {
 	c := a.c
 	a.usage.failed(err)
+	a.usage.finish(c.s.now(), attemptEndStatus(err, c.r.Context().Err() != nil, a.timedOut() && timeoutOrCancel(err)))
 	if !c.started {
 		// No attempt has answered, so usage seen on this one is not the
 		// usage of a response and must not drive a refund (M2-R18).

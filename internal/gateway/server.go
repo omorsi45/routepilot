@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/omorsi45/routepilot/internal/accounting"
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/latency"
@@ -52,6 +53,10 @@ type Options struct {
 	// learned policy's latency SLOs, and is fed from the streaming path. Nil builds an
 	// estimator with no prior profiles, so it knows only what this server observes.
 	Latency *latency.Estimator
+	// Accounting is the usage ledger: one row per attempt sent to a provider, written once the
+	// request is over. Nil keeps no ledger. A failed write never fails the request; it is
+	// counted (Server.AccountingErrors) and logged.
+	Accounting accounting.Store
 }
 
 // Server is the gateway HTTP server.
@@ -78,6 +83,10 @@ type Server struct {
 	budgets map[string]quota.BudgetLimit
 	// budgetOvershoot is the total committed above reservations (see BudgetOvershoot).
 	budgetOvershoot atomic.Int64
+	// usageLedger is Options.Accounting, nil for none, and accountingErrors counts the rows it
+	// failed to take (see AccountingErrors).
+	usageLedger      accounting.Store
+	accountingErrors atomic.Int64
 	// readBodyTimeout is Options.ReadBodyTimeout; zero means the default.
 	readBodyTimeout time.Duration
 	// sem is the global in-flight limit: one token per request in progress.
@@ -157,6 +166,7 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 		return nil, fmt.Errorf("gateway: %w", err)
 	}
 	s.readBodyTimeout = opts.ReadBodyTimeout
+	s.usageLedger = opts.Accounting
 	if n := cfg.Server.MaxInflight; n > 0 {
 		s.sem = make(chan struct{}, n)
 	}
@@ -310,6 +320,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	rs := &reqState{id: newRequestID()}
 	w.Header().Set(requestIDHeader, rs.id)
 	sw := &statusWriter{ResponseWriter: w}
+	// The usage ledger is written once the handler is done, the budget commit included, and
+	// also when the handler panics, because the attempts were sent and billed all the same.
+	defer s.recordUsage(rs)
 
 	switch r.URL.Path {
 	case "/healthz":

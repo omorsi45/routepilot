@@ -36,11 +36,14 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 
 		started := s.now()
 		resp, err := s.providers[dep.Provider].Complete(ctx, up)
-		elapsed := s.now().Sub(started)
+		finished := s.now()
+		elapsed := finished.Sub(started)
 		if err == nil && resp == nil {
 			err = openai.ErrInternal()
 		}
 		att := rs.lastAttempt() // the record of what this attempt is charged
+		att.begin(started)
+		att.finish(finished, attemptEndStatus(err, r.Context().Err() != nil, deadlineExpired(ctx) && timeoutOrCancel(err)))
 		att.failed(err)
 		switch {
 		case err == nil:

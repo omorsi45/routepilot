@@ -106,6 +106,9 @@ type Config struct {
 	// and shadow ones. It is the only section a running server reloads.
 	Policies PoliciesConfig `yaml:"policies"`
 
+	// Accounting selects where the per-attempt usage ledger is kept. Absent means none.
+	Accounting AccountingConfig `yaml:"accounting"`
+
 	// path and baseDir are set by Load: the absolute path of the file the config was
 	// read from and its directory, which relative paths in the config resolve against.
 	// Parse leaves both empty, which means the working directory.
@@ -350,6 +353,51 @@ func (r RuleMatch) isEmpty() bool {
 	return r.MinPromptBytes == 0 && r.MaxPromptBytes == 0 && len(r.ContainsAny) == 0 && len(r.Requires) == 0
 }
 
+// Accounting drivers accepted in AccountingConfig.Driver. None keeps no ledger, so a default
+// run writes no database file (Ruling V1-R12).
+const (
+	AccountingNone     = "none"
+	AccountingSQLite   = "sqlite"
+	AccountingPostgres = "postgres"
+)
+
+// AccountingConfig selects the store of the usage ledger. The SQLite path is relative to the
+// config file's directory. The PostgreSQL connection string is never written in the file: it
+// is read from the environment variable PostgresDSNEnv names, like the Redis URL.
+type AccountingConfig struct {
+	Driver         string `yaml:"driver"`
+	SQLitePath     string `yaml:"sqlite_path"`
+	PostgresDSNEnv string `yaml:"postgres_dsn_env"`
+}
+
+func (a AccountingConfig) validate(add addFunc) {
+	switch a.Driver {
+	case AccountingNone:
+		if a.SQLitePath != "" {
+			add("accounting.sqlite_path", "set but accounting.driver is %q", a.Driver)
+		}
+		if a.PostgresDSNEnv != "" {
+			add("accounting.postgres_dsn_env", "set but accounting.driver is %q", a.Driver)
+		}
+	case AccountingSQLite:
+		if a.SQLitePath == "" {
+			add("accounting.sqlite_path", "required when driver is %q", a.Driver)
+		}
+		if a.PostgresDSNEnv != "" {
+			add("accounting.postgres_dsn_env", "set but accounting.driver is %q", a.Driver)
+		}
+	case AccountingPostgres:
+		if a.PostgresDSNEnv == "" {
+			add("accounting.postgres_dsn_env", "required when driver is %q", a.Driver)
+		}
+		if a.SQLitePath != "" {
+			add("accounting.sqlite_path", "set but accounting.driver is %q", a.Driver)
+		}
+	default:
+		add("accounting.driver", "unknown driver %q (want %q, %q or %q)", a.Driver, AccountingNone, AccountingSQLite, AccountingPostgres)
+	}
+}
+
 // QuotaConfig selects the rate-limit counter backend.
 type QuotaConfig struct {
 	Backend     string `yaml:"backend"`
@@ -487,6 +535,9 @@ func (c *Config) applyDefaults() {
 	if c.Policies.Root == "" {
 		c.Policies.Root = defaultPoliciesRoot
 	}
+	if c.Accounting.Driver == "" {
+		c.Accounting.Driver = AccountingNone
+	}
 }
 
 // Validate checks the whole configuration and returns every problem found,
@@ -505,6 +556,7 @@ func (c *Config) Validate() error {
 	c.Policies.validate(add)
 	c.validateQuota(add)
 	c.validateReliability(add)
+	c.Accounting.validate(add)
 
 	return errors.Join(errs...)
 }

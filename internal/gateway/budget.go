@@ -178,6 +178,15 @@ type attemptUsage struct {
 	inUpper, maxOut   int
 	streamed          int  // bytes of content and tool-call deltas received
 	settled           bool // Prompt, Completion, Estimated and Cost are final
+
+	// The fields below feed the usage ledger (ledger.go).
+
+	// costEstimate is what the routing decision expected the model to cost: its expected
+	// cost under the learned policy, else its worst case for the request.
+	costEstimate money.PicoUSD
+	// status is how the attempt ended (see attemptStatus), empty while it is in flight.
+	status         string
+	started, ended time.Time
 }
 
 // newAttemptUsage starts the record of an attempt at model m on dep with output budget k.
@@ -266,6 +275,11 @@ func (a *attemptUsage) observeResponse(resp *openai.ChatCompletion) {
 // claims has a record, so one that ends in a way nothing accounts for is still charged.
 func (rs *reqState) beginAttempt(m catalog.Model, dep catalog.Deployment, k int) *attemptUsage {
 	a := newAttemptUsage(m, dep, rs.reqs, k)
+	if est, ok := rs.estCost[m.ID]; ok {
+		a.costEstimate = est
+	} else {
+		a.costEstimate = m.CostMax(rs.reqs, k)
+	}
 	rs.attemptUsages = append(rs.attemptUsages, a)
 	return a
 }
