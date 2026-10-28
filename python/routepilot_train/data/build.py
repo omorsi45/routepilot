@@ -51,7 +51,7 @@ def build(derived: Path) -> dict[str, Any]:
             f"found {len(seven_b)}"
         )
     mixed_rows = pool_outcomes(outcomes, [*selection.FLAGSHIP_MODELS, *seven_b])
-    mixed = build_pool("mixed", mixed_rows, splits)
+    mixed = build_pool("mixed", mixed_rows, splits, fitted_cost_models=seven_b)
 
     pool_rows = ((flagship, flagship_rows, ()), (mixed, mixed_rows, seven_b))
     rules = {pool["pool"]: _pool_rules(pool, rows, prompts, splits) for pool, rows, _ in pool_rows}

@@ -159,15 +159,85 @@ def test_best_single_ties_prefer_lower_cost_then_name():
     assert pool["best_single"] == "m-a"  # same success and cost: name decides
 
 
-def test_cheapest_is_the_lowest_summed_fitted_price():
-    assignment = {f"a/{i}": "train" for i in range(10)}
-    item_ids = list(assignment)
-    never = lambda *_: False  # noqa: E731
-    rows = priced_rows(item_ids, "cheap-in", 1e-7, 9e-6, never)
-    rows += priced_rows(item_ids, "cheap-sum", 2e-7, 3e-6, never)
-    rows += priced_rows(item_ids, "dear", 4e-6, 6e-6, never)
-    pool = pools.build_pool("demo", outcome_frame(rows), splits_frame(assignment))
-    assert pool["cheapest"] == "cheap-sum"
+def per_item_rows(
+    model: str,
+    split_of: dict[str, str],
+    base_prompt: int,
+    base_completion: int,
+    in_price: float,
+    out_price: float,
+    scale_of=lambda item_id, split: 1.0,  # noqa: ARG005
+) -> list[tuple[str, str, bool, int, int, float]]:
+    """One row per item; token counts vary a little so both prices can be fitted."""
+    rows = []
+    for k, (item_id, split) in enumerate(split_of.items()):
+        prompt_tokens = base_prompt + 7 * k
+        completion_tokens = base_completion + 3 * (k % 5)
+        cost = scale_of(item_id, split) * (in_price * prompt_tokens + out_price * completion_tokens)
+        rows.append((item_id, model, False, prompt_tokens, completion_tokens, cost))
+    return rows
+
+
+def test_cheapest_is_the_lowest_mean_recorded_cost_per_item_on_train_and_calib():
+    """Ruling V1-R23: not the lowest fitted price, and test rows are not read."""
+    split_of = {f"a/{i}": "train" if i < 2 else "calib" if i < 4 else "test" for i in range(14)}
+    # lowest price, but a very long output: expensive per item
+    rows = per_item_rows("low-price", split_of, 100, 100_000, 1e-7, 1e-6)
+    # higher price, short output: cheapest per item
+    rows += per_item_rows("short-output", split_of, 100, 10, 1e-6, 3e-6)
+    # free on test rows, dear elsewhere: would win if test rows were read
+    rows += per_item_rows(
+        "free-on-test",
+        split_of,
+        100,
+        10,
+        2e-6,
+        6e-6,
+        lambda _, split: 0.0 if split == "test" else 1.0,
+    )
+    pool = pools.build_pool("demo", outcome_frame(rows), splits_frame(split_of))
+
+    def summed_price(model: str) -> float:
+        return (
+            pool["prices"][model]["in_usd_per_token"] + pool["prices"][model]["out_usd_per_token"]
+        )
+
+    assert min(pool["models"], key=summed_price) == "low-price"  # the old definition
+    assert pool["cheapest"] == "short-output"
+
+
+def test_cheapest_ties_go_to_the_lower_name():
+    split_of = {f"a/{i}": "train" for i in range(5)}
+    rows = per_item_rows("m-b", split_of, 100, 10, 1e-6, 3e-6)
+    rows += per_item_rows("m-a", split_of, 100, 10, 1e-6, 3e-6)
+    pool = pools.build_pool("demo", outcome_frame(rows), splits_frame(split_of))
+    assert pool["cheapest"] == "m-a"
+
+
+def test_cheapest_uses_the_replay_cost_of_models_priced_from_fitted_prices():
+    """A model whose recorded cost is zero on half its rows is not cheap in the replay."""
+    split_of = {f"a/{i}": "train" for i in range(10)}
+    rows = per_item_rows(
+        "small",
+        split_of,
+        100,
+        100,
+        6e-7,
+        6e-7,
+        lambda item_id, _: 0.0 if int(item_id[2:]) % 2 else 1.0,
+    )
+    rows += per_item_rows("other", split_of, 100, 100, 5e-7, 5e-7)
+    outcomes, splits = outcome_frame(rows), splits_frame(split_of)
+
+    recorded = pools.build_pool("demo", outcomes, splits)
+    replayed = pools.build_pool("demo", outcomes, splits, fitted_cost_models=["small"])
+
+    assert recorded["cheapest"] == "small"  # mean recorded cost is about half of its real cost
+    assert (
+        replayed["cheapest"] == "other"
+    )  # the replay charges small its fitted price on every item
+    with pytest.raises(ValueError, match="not in the pool"):
+        pools.build_pool("demo", outcomes, splits, fitted_cost_models=["ghost"])
 
 
 def test_usd_per_mtok_rounds_half_up():

@@ -124,17 +124,32 @@ def pick_seven_b(
     return [model for _, model in ranked[:n]]
 
 
-def build_pool(name: str, outcomes: pd.DataFrame, splits: pd.DataFrame) -> dict[str, Any]:
+def build_pool(
+    name: str,
+    outcomes: pd.DataFrame,
+    splits: pd.DataFrame,
+    *,
+    fitted_cost_models: Collection[str] = (),
+) -> dict[str, Any]:
     """Describe the pool made of exactly the models in ``outcomes``.
 
     Items without a record from every model are dropped. ``rank`` is 1 plus the
     position in ascending train+calib success, so Best Single has the highest
     rank (the same order that picks ``best_single``). ``rank`` is an addition to
     the documented pool JSON keys; the replay config needs it.
+
+    ``cheapest`` is the model with the lowest mean cost per item on the train and
+    calibration items, ties by name (Ruling V1-R23): the cost the replay charges,
+    which is the recorded cost, except for ``fitted_cost_models``, whose cost is
+    their fitted prices times the recorded token counts (as in ``export_replay``).
+    It is neither the lowest fitted price nor the gateway's worst-case ordering.
     """
     models = sorted(outcomes["model"].unique())
     if not models:
         raise ValueError("outcomes hold no models")
+    fitted = set(fitted_cost_models)
+    if not fitted <= set(models):
+        raise ValueError(f"fitted_cost_models not in the pool: {sorted(fitted - set(models))}")
     rows = pool_outcomes(outcomes, models)
     if rows.empty:
         raise ValueError("no item has a record from every model")
@@ -161,9 +176,16 @@ def build_pool(name: str, outcomes: pd.DataFrame, splits: pd.DataFrame) -> dict[
     strongest_first = sorted(
         models, key=lambda m: (-int(stats.loc[m, "wins"]), float(stats.loc[m, "cost"]), m)
     )
-    cheapest = min(
-        models, key=lambda m: (prices[m]["in_usd_per_token"] + prices[m]["out_usd_per_token"], m)
-    )
+    replay_cost = tuning["cost_usd"].copy()
+    for model in fitted:
+        mask = tuning["model"] == model
+        price = prices[model]
+        replay_cost[mask] = (
+            price["in_usd_per_token"] * tuning.loc[mask, "prompt_tokens"]
+            + price["out_usd_per_token"] * tuning.loc[mask, "completion_tokens"]
+        )
+    mean_replay_cost = replay_cost.groupby(tuning["model"]).mean()
+    cheapest = min(models, key=lambda m: (float(mean_replay_cost[m]), m))
     return {
         "pool": name,
         "models": models,

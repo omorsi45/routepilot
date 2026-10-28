@@ -208,7 +208,8 @@ def _report(results: dict[str, Any], run_id: str) -> str:
         )
         bullets = [
             f"- Best Single (highest train+calib success): `{section['best_single']}`",
-            f"- Cheapest (lowest fitted input + output price): `{section['cheapest']}`",
+            f"- Cheapest (lowest mean cost per item on train+calib, as the replay charges it): "
+            f"`{section['cheapest']}`",
         ]
         fitted_cost = set(section.get("seven_b_models", []))
         if name == "mixed":
