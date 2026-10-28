@@ -11,6 +11,9 @@ import scipy.sparse
 
 from routepilot_train import features
 
+# Which columns a model is fitted on (the ablation): both blocks, the hashed block or the dense one.
+FEATURE_SETS = ("both", "hashed", "dense")
+
 
 def standardizer(dense_train: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Mean and standard deviation of each dense column over the train rows.
@@ -42,6 +45,58 @@ def stack(
     """
     standardized = scipy.sparse.csr_matrix((dense - mean) / std)
     return scipy.sparse.hstack([hashed, standardized], format="csr", dtype=np.float64)
+
+
+def check_feature_set(feature_set: str) -> None:
+    """Raise ``ValueError`` unless ``feature_set`` is one of ``FEATURE_SETS``."""
+    if feature_set not in FEATURE_SETS:
+        raise ValueError(f"unknown feature set {feature_set!r}, want one of {FEATURE_SETS}")
+
+
+def select_features(
+    hashed: scipy.sparse.csr_matrix,
+    dense: np.ndarray,
+    mean: np.ndarray,
+    std: np.ndarray,
+    feature_set: str = "both",
+) -> scipy.sparse.csr_matrix:
+    """The design matrix restricted to a ``feature_set``: ``both``, ``hashed`` or ``dense``.
+
+    ``both`` is ``stack(hashed, dense, mean, std)``, ``hashed`` the hashed block alone and
+    ``dense`` the standardized dense block alone, so a restricted model is fitted on exactly
+    the columns it keeps. ``expand_weights`` puts its coefficients back into full length.
+    """
+    check_feature_set(feature_set)
+    if feature_set == "both":
+        return stack(hashed, dense, mean, std)
+    if feature_set == "hashed":
+        return scipy.sparse.csr_matrix(hashed)
+    return scipy.sparse.csr_matrix((dense - mean) / std)
+
+
+def expand_weights(coef: np.ndarray, dim: int, feature_set: str = "both") -> np.ndarray:
+    """Coefficients fitted on ``select_features(..., feature_set)`` as a full-length vector.
+
+    The artifact always holds ``dim + NUM_DENSE`` weights per model (hashed block first), so the
+    Go router serves any feature set unchanged: the dropped block is exactly zero.
+    """
+    check_feature_set(feature_set)
+    coef = np.asarray(coef, dtype=np.float64)
+    kept = {
+        "both": dim + features.NUM_DENSE,
+        "hashed": dim,
+        "dense": features.NUM_DENSE,
+    }[feature_set]
+    if coef.shape != (kept,):
+        raise ValueError(
+            f"feature set {feature_set!r} expects {kept} coefficients, got shape {coef.shape}"
+        )
+    full = np.zeros(dim + features.NUM_DENSE, dtype=np.float64)
+    if feature_set == "dense":
+        full[dim:] = coef
+    else:
+        full[:kept] = coef
+    return full
 
 
 def design_matrix(

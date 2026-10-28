@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import subprocess
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,11 +10,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+import scipy.sparse
 
-from routepilot_train import features
+from routepilot_train import features, replaytool
 from routepilot_train.data import selection, splits
 from routepilot_train.export import artifact
-from routepilot_train.train import pipeline, quality
+from routepilot_train.runinfo import repo_root
+from routepilot_train.train import design, pipeline, quality
 
 DIM = 1024
 SENTINEL = "sentinelzzword"
@@ -314,3 +317,170 @@ def test_main_takes_the_calibrator_flag(derived, tmp_path, capsys):
         pipeline.main([*base, "--calibrator", "spline"])
     with pytest.raises(ValueError, match="experiment only"):
         pipeline.main([*base, "--calibrator", "histogram"])
+
+
+# --- restricted feature sets (the ablation's hashed-only and dense-only fits) ---------------------
+
+
+@pytest.fixture(scope="module")
+def binary() -> Path:
+    try:
+        return replaytool.build_go(repo_root())
+    except replaytool.GoToolchainError as err:
+        pytest.skip(str(err))
+
+
+def exported_weights(summary) -> tuple[dict, dict[str, np.ndarray]]:
+    """The manifest and every model's quality and length weight vector of an export."""
+    manifest, blob = artifact.load_artifact(summary["artifact_dir"])
+    weights = {}
+    for model in manifest["models"]:
+        for part in ("quality", "length"):
+            weights[f"{model['id']}.{part}"] = artifact.read_array(blob, model[part]["weights"])
+    return manifest, weights
+
+
+def verify(binary: Path, summary) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [str(binary), "policy", "verify", str(summary["artifact_dir"])],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_a_dense_only_export_has_all_zero_hashed_weights_and_passes_policy_verify(
+    derived, tmp_path, binary
+):
+    summary = run_toy(derived, tmp_path, feature_set="dense")
+
+    manifest, weights = exported_weights(summary)
+
+    assert manifest["dim"] == DIM and len(weights) == 2 * len(POOL["models"])
+    for name, w in weights.items():
+        assert w.shape == (DIM + features.NUM_DENSE,), name  # full length: Go serves it unchanged
+        assert not w[:DIM].any(), f"{name}: a hashed weight is not exactly zero"
+        assert w[DIM:].any(), f"{name}: the dense block carries the model"
+    proc = verify(binary, summary)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == summary["version"]
+
+
+def test_a_hashed_only_export_has_all_zero_dense_weights_and_passes_policy_verify(
+    derived, tmp_path, binary
+):
+    summary = run_toy(derived, tmp_path, feature_set="hashed")
+
+    _, weights = exported_weights(summary)
+
+    for name, w in weights.items():
+        assert w.shape == (DIM + features.NUM_DENSE,), name
+        assert not w[DIM:].any(), f"{name}: a dense weight is not exactly zero"
+        assert w[:DIM].any(), f"{name}: the hashed block carries the model"
+    proc = verify(binary, summary)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == summary["version"]
+
+
+def test_a_restricted_fit_sees_only_the_restricted_matrix(derived, tmp_path, monkeypatch):
+    widths: list[int] = []
+    real = quality.fit_quality
+
+    def spy(X, y, groups_seed=0):
+        widths.append(X.shape[1])
+        return real(X, y, groups_seed)
+
+    monkeypatch.setattr(quality, "fit_quality", spy)
+
+    for feature_set, width in (
+        ("dense", features.NUM_DENSE),
+        ("hashed", DIM),
+        ("both", DIM + features.NUM_DENSE),
+    ):
+        widths.clear()
+        run_toy(derived, tmp_path / feature_set, feature_set=feature_set)
+        assert widths == [width] * len(POOL["models"]), feature_set
+
+
+def test_the_dense_block_of_a_dense_export_is_the_model_fitted_on_dense_features_alone(
+    derived, tmp_path
+):
+    train, _ = pipeline.load_fit_data(derived, POOL)
+    _, dense = features.extract_texts(train.items["prompt"].tolist(), DIM)
+    mean, std = design.standardizer(dense)
+    independent = quality.fit_quality(
+        scipy.sparse.csr_matrix((dense - mean) / std), train.success["m-a"]
+    )
+
+    summary = run_toy(derived, tmp_path, feature_set="dense")
+
+    manifest, weights = exported_weights(summary)
+    np.testing.assert_array_equal(
+        weights["m-a.quality"][DIM:], independent["coef"].astype(np.float32)
+    )
+    assert manifest["models"][0]["quality"]["bias"] == pytest.approx(independent["intercept"])
+    assert manifest["training"]["cv"]["m-a"]["C"] == independent["C"]
+
+
+def test_ood_is_always_fitted_on_the_hashed_part_whatever_the_feature_set(derived, tmp_path):
+    both, _ = exported_weights(run_toy(derived, tmp_path / "both"))
+    dense, _ = exported_weights(run_toy(derived, tmp_path / "dense", feature_set="dense"))
+    hashed, _ = exported_weights(run_toy(derived, tmp_path / "hashed", feature_set="hashed"))
+
+    assert dense["ood"] == both["ood"] == hashed["ood"]
+    assert dense["dense_mean"] == both["dense_mean"] and dense["dense_std"] == both["dense_std"]
+
+
+def test_both_is_the_default_feature_set(derived, tmp_path):
+    default = run_toy(derived, tmp_path / "default")
+    explicit = run_toy(derived, tmp_path / "explicit", feature_set="both")
+
+    assert default["version"] == explicit["version"]
+    assert (default["artifact_dir"] / "weights.bin").read_bytes() == (
+        explicit["artifact_dir"] / "weights.bin"
+    ).read_bytes()
+
+
+def test_the_feature_set_is_recorded_in_the_run_and_not_in_the_manifest(derived, tmp_path):
+    default = run_toy(derived, tmp_path / "default")
+    restricted = run_toy(derived, tmp_path / "hashed", feature_set="hashed")
+
+    payload = json.loads((restricted["results_dir"] / "results.json").read_text(encoding="utf-8"))
+    assert payload["features"] == "hashed"
+    default_payload = json.loads(
+        (default["results_dir"] / "results.json").read_text(encoding="utf-8")
+    )
+    assert default_payload["features"] == "both"
+    command = json.loads((restricted["results_dir"] / "run.json").read_text(encoding="utf-8"))[
+        "command"
+    ]
+    assert command[command.index("--features") + 1] == "hashed"
+    assert "hashed" in (restricted["results_dir"] / "report.md").read_text(encoding="utf-8")
+    # The Go loader refuses unknown manifest fields, so the manifest keeps its exact key set.
+    assert set(exported_weights(restricted)[0]) == set(exported_weights(default)[0])
+    assert set(exported_weights(restricted)[0]["training"]) == set(
+        exported_weights(default)[0]["training"]
+    )
+
+
+def test_an_unknown_feature_set_is_refused_before_any_work(derived, tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "load_fit_data", pytest.fail)
+
+    with pytest.raises(ValueError, match="feature set"):
+        run_toy(derived, tmp_path, feature_set="sparse")
+
+    assert not (tmp_path / "policies").exists() and not (tmp_path / "results").exists()
+
+
+def test_main_takes_the_features_flag(derived, tmp_path, capsys):
+    base = ["--pool", "toy", "--derived", str(derived), "--dim", str(DIM)]
+    base += ["--results-root", str(tmp_path / "results"), "--out", str(tmp_path / "policies")]
+
+    assert pipeline.main([*base, "--features", "dense"]) == 0
+    (version,) = [p for p in (tmp_path / "policies" / "toy").iterdir()]
+    _, weights = exported_weights({"artifact_dir": version})
+    assert all(not w[:DIM].any() for w in weights.values())
+    assert "artifact version" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit):  # argparse: not one of the three names
+        pipeline.main([*base, "--features", "sparse"])

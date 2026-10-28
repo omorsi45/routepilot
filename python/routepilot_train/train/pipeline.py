@@ -18,6 +18,13 @@ and the run in ``bench/results/train/<run-id>/``.
 ``--calibrator`` picks the calibrator: ``switch`` (the default and the spec rule: isotonic from
 1000 calibration samples, else Platt), ``isotonic`` or ``platt``. ``histogram`` exists for the
 calibration study only and is refused here, since an artifact cannot hold it.
+
+``--features`` picks the columns the quality and length models are fitted on (the ablation):
+``both`` (the default), ``hashed`` or ``dense``. A restricted model is fitted on the restricted
+design matrix and exported at full length with exact zeros in the dropped block, so the Go
+router serves it unchanged; the OOD detector is always fitted on the hashed part at ``--dim``.
+The feature set is recorded in the run (``results.json``, ``run.json``) and not in the manifest,
+whose fields Go checks strictly.
 """
 
 import argparse
@@ -146,6 +153,7 @@ def fit_pool(
     dim: int = features.DEFAULT_DIM,
     progress: Callable[[str], None] | None = None,
     calibrator: str = "switch",
+    feature_set: str = "both",
 ) -> PoolFit:
     """Fit every model of ``pool`` plus the OOD detector.
 
@@ -153,8 +161,12 @@ def fit_pool(
     ``train`` or ``calib.items`` a row whose split is not ``calib``. ``progress`` is called
     with one short line per fitted model. ``calibrator`` is ``switch`` (the spec rule, the
     default), ``isotonic`` or ``platt``; ``histogram`` is refused (see ``check_calibrator``).
+    ``feature_set`` is ``both`` (the default), ``hashed`` or ``dense``: the quality and length
+    models are fitted on those columns only and their weights are expanded to full length with
+    zeros in the dropped block; the OOD detector always sees the hashed part.
     """
     check_calibrator(calibrator)
+    design.check_feature_set(feature_set)
     require_splits(train.items, {"train"})
     require_splits(calib.items, {"calib"})
     models = list(pool["models"])
@@ -163,8 +175,8 @@ def fit_pool(
     h_train, d_train = features.extract_texts(train.items["prompt"].tolist(), dim)
     h_calib, d_calib = features.extract_texts(calib.items["prompt"].tolist(), dim)
     mean, std = design.standardizer(d_train)
-    x_train = design.stack(h_train, d_train, mean, std)
-    x_calib = design.stack(h_calib, d_calib, mean, std)
+    x_train = design.select_features(h_train, d_train, mean, std, feature_set)
+    x_calib = design.select_features(h_calib, d_calib, mean, std, feature_set)
     prompt_bytes = train.items["prompt_bytes"].to_numpy(dtype=np.int64)
 
     fitted, rows = [], []
@@ -187,10 +199,13 @@ def fit_pool(
         fitted.append(
             {
                 "id": model,
-                "quality": q,
+                "quality": {**q, "coef": design.expand_weights(q["coef"], dim, feature_set)},
                 "calibrator": calibrator_fit,
                 "lcb": table,
-                "length": fitted_length,
+                "length": {
+                    **fitted_length,
+                    "coef": design.expand_weights(fitted_length["coef"], dim, feature_set),
+                },
             }
         )
         row = {
@@ -226,12 +241,18 @@ def fit_pool(
 
 
 def _results(
-    pool_name: str, version: str, fit: PoolFit, wall_time: float, calibrator: str
+    pool_name: str,
+    version: str,
+    fit: PoolFit,
+    wall_time: float,
+    calibrator: str,
+    feature_set: str = "both",
 ) -> dict[str, Any]:
     return {
         "pool": pool_name,
         "artifact_version": version,
         "calibrator": calibrator,
+        "features": feature_set,
         "dim": fit.dim,
         "n_train": fit.n_train,
         "n_calib": fit.n_calib,
@@ -244,11 +265,14 @@ def _results(
     }
 
 
-def _tables(pool_name: str, version: str, fit: PoolFit, wall_time: float) -> dict[str, Any]:
+def _tables(
+    pool_name: str, version: str, fit: PoolFit, wall_time: float, feature_set: str = "both"
+) -> dict[str, Any]:
     summary = [
         ("pool", pool_name),
         ("artifact version", version),
         ("dim", fit.dim),
+        ("features", feature_set),
         ("train items", fit.n_train),
         ("calibration items", fit.n_calib),
         ("ood k", fit.ood["k"]),
@@ -287,6 +311,7 @@ def run(
     created_at: str | None = None,
     progress: Callable[[str], None] | None = None,
     calibrator: str = "switch",
+    feature_set: str = "both",
 ) -> dict[str, Any]:
     """Train ``pool_name``, export its artifact and write the run under ``results_root``.
 
@@ -294,10 +319,12 @@ def run(
     ``<results_root>/train/<run-id>/``. ``created_at`` (UTC ISO text) is recorded in the
     manifest and is the only input the artifact depends on besides the data; it defaults to
     now. ``calibrator`` is ``switch`` (the spec rule: isotonic from 1000 calibration samples,
-    else Platt), ``isotonic`` or ``platt``. Returns the version, the artifact and results
-    directories and the wall time.
+    else Platt), ``isotonic`` or ``platt``. ``feature_set`` is ``both``, ``hashed`` or ``dense``
+    (see ``fit_pool``). Returns the version, the artifact and results directories and the wall
+    time.
     """
     check_calibrator(calibrator)
+    design.check_feature_set(feature_set)
     started = datetime.now(UTC)
     clock = time.perf_counter()
     derived = Path(derived)
@@ -305,7 +332,7 @@ def run(
     pool = json.loads(pool_path.read_text(encoding="utf-8"))
 
     train, calib = load_fit_data(derived, pool)
-    fit = fit_pool(train, calib, pool, dim, progress, calibrator)
+    fit = fit_pool(train, calib, pool, dim, progress, calibrator, feature_set)
     git_sha, _ = runinfo.git_state()
     bundle, weights = artifact.assemble_bundle(
         dim=fit.dim,
@@ -340,13 +367,15 @@ def run(
         str(dim),
         "--calibrator",
         calibrator,
+        "--features",
+        feature_set,
     ]
     version = artifact_dir.name
     report.write_results(
         results_dir,
         EXPERIMENT,
-        _results(pool_name, version, fit, wall_time, calibrator),
-        _tables(pool_name, version, fit, wall_time),
+        _results(pool_name, version, fit, wall_time, calibrator, feature_set),
+        _tables(pool_name, version, fit, wall_time, feature_set),
         {},
         {"split_salt": splits.SALT, "kfold": 0, "kmeans": 0},
         command,
@@ -378,6 +407,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         "Platt; isotonic and platt force one; histogram is a study-only experiment and is "
         "refused here",
     )
+    parser.add_argument(
+        "--features",
+        choices=design.FEATURE_SETS,
+        default="both",
+        help="the columns the quality and length models are fitted on (the ablation): both "
+        "(default), hashed or dense; the artifact keeps full-length weights with zeros in the "
+        "dropped block",
+    )
     args = parser.parse_args(argv)
 
     def progress(line: str) -> None:
@@ -391,6 +428,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.results_root,
         progress=progress,
         calibrator=args.calibrator,
+        feature_set=args.features,
     )
     print(f"artifact version: {summary['version']}")
     print(f"artifact: {summary['artifact_dir'].as_posix()}")
