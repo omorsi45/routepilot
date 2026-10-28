@@ -83,7 +83,8 @@ type Stats struct {
 	EventsWritten int64
 }
 
-// Handler serves POST /v1/chat/completions and GET /v1/models.
+// Handler serves POST /v1/chat/completions and GET /v1/models, and GET /mock/stats for its
+// own counters.
 type Handler struct {
 	cfg       Config
 	failKeys  []string // FailRates keys, sorted for a stable cumulative draw
@@ -158,12 +159,28 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"object":"list","data":[{"id":"mock","object":"model","created":0,"owned_by":"rp-mock"}]}`+"\n")
+	case "/mock/stats":
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w, http.MethodGet)
+			return
+		}
+		h.writeStats(w)
 	default:
 		openai.WriteError(w, &openai.APIError{
 			Status: http.StatusNotFound, Type: "invalid_request_error", Code: "not_found",
 			Message: fmt.Sprintf("unknown path %q", r.URL.Path),
 		})
 	}
+}
+
+// writeStats serves the counters of Stats as JSON at GET /mock/stats. The path is outside
+// /v1, so it cannot be mistaken for part of the OpenAI API a gateway forwards, and reading it
+// is not a chat request.
+func (h *Handler) writeStats(w http.ResponseWriter) {
+	s := h.Stats()
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = fmt.Fprintf(w, `{"requests":%d,"completed":%d,"canceled":%d,"events_written":%d}`+"\n",
+		s.Requests, s.Completed, s.Canceled, s.EventsWritten)
 }
 
 func methodNotAllowed(w http.ResponseWriter, allow string) {
