@@ -9,7 +9,10 @@ import (
 	"github.com/omorsi45/routepilot/internal/version"
 )
 
-const usage = "usage: routepilot <command>\n\ncommands:\n  serve     run the gateway (routepilot serve -config <path>)\n  version   print the version and exit\n"
+const usage = "usage: routepilot <command>\n\ncommands:\n" +
+	"  serve     run the gateway (routepilot serve -config <path>)\n" +
+	"  replay    replay recorded outcomes through a routing policy (routepilot replay --help)\n" +
+	"  version   print the version and exit\n"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -26,6 +29,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "serve":
 		return runServe(args[1:], stdout, stderr)
+	case "replay":
+		return runReplay(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, version.String())
 		return 0
