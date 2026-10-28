@@ -101,6 +101,9 @@ type Optimizer struct {
 	// floorOnPoint compares the quality floor with P instead of the lower bound L. It is an
 	// experiment switch (WithFloorOnPoint), not part of the policy configuration.
 	floorOnPoint bool
+	// oodOff makes the optimizer ignore the out-of-distribution verdict: neither the
+	// conservative nor the strongest action is taken. Also an experiment switch (WithOODOff).
+	oodOff bool
 }
 
 // NewOptimizer returns an Optimizer. A nil est means there are no latency estimates, so a
@@ -122,12 +125,28 @@ func (o *Optimizer) WithFloorOnPoint() *Optimizer {
 // Name implements Learned.
 func (o *Optimizer) Name() string { return PolicyLearned }
 
+// WithOODOff returns a copy of o that ignores the out-of-distribution verdict when it
+// chooses: the conservative action does not replace P and L by the pooled numbers and the
+// strongest action does not take the highest rank, so the request is scored and explored like
+// an in-distribution one. The decision still reports OOD and OODScore as the scorer computed
+// them. It exists only for the shift experiment that measures what the action buys; the
+// gateway never calls it, and the copy's Version says so.
+func (o *Optimizer) WithOODOff() *Optimizer {
+	c := *o
+	c.oodOff = true
+	return &c
+}
+
 // Version is the scorer's version and the first 8 hex digits of the configuration hash,
-// plus "+floor-point" for the experiment arm that compares the floor with P.
+// plus "+floor-point" for the experiment arm that compares the floor with P and "+ood-off"
+// for the one that ignores the out-of-distribution verdict, in that order.
 func (o *Optimizer) Version() string {
 	v := o.scorer.Version() + "+" + o.cfg.Hash8()
 	if o.floorOnPoint {
 		v += "+floor-point"
+	}
+	if o.oodOff {
+		v += "+ood-off"
 	}
 	return v
 }
@@ -173,11 +192,16 @@ type optCand struct {
 //     uniformly random model of S, and Propensity records the probability of the choice.
 //  7. The failover order is the choice, the rest of S, then (best_effort) the rest of the
 //     budget set by lower bound. A model outside the budget set is never a candidate.
+//
+// Steps 1 to 7 treat an out-of-distribution request as the policy's OODAction says, unless
+// the optimizer came from WithOODOff, which ignores the verdict (the decision still reports it).
 func (o *Optimizer) Choose(models []*catalog.Model, in Input) (Choice, *openai.APIError) {
 	floor := o.floor(in)
 	ch := Choice{Floor: floor, Propensity: 1}
 	scores := o.scorer.Score(in.Messages)
 	ch.OOD, ch.OODScore = scores.OOD, scores.OODScore
+	// The verdict is always reported; it is acted on unless the experiment switch is on.
+	acting := scores.OOD && !o.oodOff
 
 	cands := make([]*optCand, 0, len(models))
 	var covered []*optCand
@@ -187,7 +211,7 @@ func (o *Optimizer) Choose(models []*catalog.Model, in Input) (Choice, *openai.A
 			cands = append(cands, &optCand{m: m, s: ModelScore{Model: m.ID, Reasons: []string{reasonNotInPolicy}}})
 			continue
 		}
-		c := o.evaluate(m, sc, scores.OOD, floor, in)
+		c := o.evaluate(m, sc, acting, floor, in)
 		cands = append(cands, c)
 		covered = append(covered, c)
 	}
@@ -218,7 +242,7 @@ func (o *Optimizer) Choose(models []*catalog.Model, in Input) (Choice, *openai.A
 		}
 	}
 
-	useRank := scores.OOD && o.cfg.OODAction == policy.OODStrongest
+	useRank := acting && o.cfg.OODAction == policy.OODStrongest
 	onInfeasible := o.onInfeasible(in)
 	sloSet := in.SLOTTFTMs != nil || in.SLOE2EMs != nil
 

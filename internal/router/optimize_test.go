@@ -3,6 +3,7 @@ package router
 import (
 	"math"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -989,5 +990,113 @@ func TestFloorOnPointRejectMessageNamesPointEstimate(t *testing.T) {
 	_, err = r.decide(withFloor(0.95), withOptimizer(lcb.WithFloorOnPoint()))
 	if err == nil || !strings.Contains(err.Message, "quality floor 0.95 above best point estimate 0.90") {
 		t.Fatalf("point arm error = %v, want the best point estimate", err)
+	}
+}
+
+// oodScores gives every model an own estimate well above its pooled one, so a decision that
+// acts on the out-of-distribution verdict and one that ignores it pick different models:
+//
+//	cheap own L 0.80 pooled L 0.20   mid own L 0.80 pooled L 0.45   top own L 0.90 pooled L 0.50
+func oodScores() map[string]policy.ModelScore {
+	return map[string]policy.ModelScore{
+		"cheap": {P: 0.9, L: 0.8, PooledRate: 0.3, PooledLCB: 0.2, EOut: 20, InRatio: 1},
+		"mid":   {P: 0.9, L: 0.8, PooledRate: 0.5, PooledLCB: 0.45, EOut: 20, InRatio: 1},
+		"top":   {P: 0.95, L: 0.9, PooledRate: 0.6, PooledLCB: 0.5, EOut: 20, InRatio: 1},
+	}
+}
+
+// TestOODOffSkipsAction: with WithOODOff the optimizer ignores the out-of-distribution
+// verdict. The conservative action does not replace P and L by the pooled numbers and the
+// strongest action does not take the highest rank, but the decision still reports the verdict
+// and the score as computed. Nothing changes for a request that is in distribution.
+func TestOODOffSkipsAction(t *testing.T) {
+	cfg := defaultPolicyConfig()
+	cfg.DefaultFloor = 0.4
+	r := newOptRig(t, oodScores(), cfg)
+	shipped := NewOptimizer(r.scorer, r.cfg, nil)
+	off := shipped.WithOODOff()
+
+	// In distribution the two arms are the same decision, score for score.
+	inShipped, inOff := mustDecide(t, r, withOptimizer(shipped)), mustDecide(t, r, withOptimizer(off))
+	if !slices.Equal(candidateIDs(inShipped), candidateIDs(inOff)) || !reflect.DeepEqual(inShipped.Scores, inOff.Scores) ||
+		inShipped.OOD || inOff.OOD {
+		t.Fatalf("in distribution: shipped %v off %v, want the same decision and no ood", candidateIDs(inShipped), candidateIDs(inOff))
+	}
+
+	r.scorer.scores.OOD, r.scorer.scores.OODScore = true, 0.97
+
+	// Conservative: the pooled bound 0.2 drops cheap under the floor; with the action off its
+	// own bound 0.8 stays, so cheap is chosen on its own numbers.
+	d := mustDecide(t, r, withOptimizer(shipped))
+	if got := candidateIDs(d); !slices.Equal(got, []string{"mid", "top", "cheap"}) {
+		t.Fatalf("conservative arm: candidates %v, want [mid top cheap]", got)
+	}
+	d = mustDecide(t, r, withOptimizer(off))
+	if got := candidateIDs(d); !slices.Equal(got, []string{"cheap", "mid", "top"}) {
+		t.Errorf("off arm, conservative config: candidates %v, want [cheap mid top]", got)
+	}
+	if s := scoreOf(t, d, "cheap"); s.P != 0.9 || s.L != 0.8 || !s.Feasible {
+		t.Errorf("off arm: cheap score = %+v, want its own P 0.9 and L 0.8, feasible", s)
+	}
+	if !d.OOD || d.OODScore != 0.97 {
+		t.Errorf("off arm: ood %v score %v, want the computed true and 0.97", d.OOD, d.OODScore)
+	}
+	if len(d.Relaxed) != 0 {
+		t.Errorf("off arm: relaxed %v, want none", d.Relaxed)
+	}
+
+	// Strongest: shipped takes the highest rank; with the action off the cheapest safe model.
+	strongest := r.cfg
+	strongest.OODAction = policy.OODStrongest
+	strongest.Epsilon = 0.5
+	shippedStrongest := NewOptimizer(r.scorer, strongest, nil)
+	calls := 0
+	draw := func() float64 { calls++; return 0 }
+	d = mustDecide(t, r, withOptimizer(shippedStrongest), withRand(draw))
+	if got := candidateIDs(d)[0]; got != "top" || d.Explored || calls != 0 {
+		t.Fatalf("strongest arm: first %s explored %v draws %d, want top and no exploration", got, d.Explored, calls)
+	}
+	d = mustDecide(t, r, withOptimizer(shippedStrongest.WithOODOff()), withRand(draw))
+	if got := candidateIDs(d)[0]; got != "cheap" {
+		t.Errorf("off arm, strongest config: first = %s, want cheap (lowest cost among the safe models on their own numbers, not the rank)", got)
+	}
+	if !d.OOD || d.OODScore != 0.97 {
+		t.Errorf("off arm, strongest config: ood %v score %v, want the computed true and 0.97", d.OOD, d.OODScore)
+	}
+	// With the action off the request is an ordinary one: it explores, which strongest forbids.
+	if !d.Explored || d.Epsilon != 0.5 || calls == 0 {
+		t.Errorf("off arm, strongest config: explored %v epsilon %v draws %d, want an exploration at 0.5", d.Explored, d.Epsilon, calls)
+	}
+	// Greedy on the own numbers it is cheap (lowest cost among the safe), not the top rank.
+	d = mustDecide(t, r, withOptimizer(shippedStrongest.WithOODOff()))
+	if got := candidateIDs(d)[0]; got != "cheap" {
+		t.Errorf("off arm, strongest config, greedy: first = %s, want cheap", got)
+	}
+}
+
+func TestOODOffShowsInTheVersion(t *testing.T) {
+	cfg := defaultPolicyConfig()
+	shipped := NewOptimizer(&fakeScorer{version: "abc123"}, cfg, nil)
+	off := shipped.WithOODOff()
+	if shipped.Version() != "abc123+"+cfg.Hash8() {
+		t.Errorf("shipped version = %q, want abc123+%s", shipped.Version(), cfg.Hash8())
+	}
+	if want := "abc123+" + cfg.Hash8() + "+ood-off"; off.Version() != want {
+		t.Errorf("off version = %q, want %q", off.Version(), want)
+	}
+	if off.Name() != "learned" {
+		t.Errorf("off name = %q, want learned", off.Name())
+	}
+	// WithOODOff returns a copy: the optimizer it was called on keeps acting on the verdict.
+	if shipped.Version() == off.Version() {
+		t.Error("WithOODOff changed the receiver")
+	}
+	// The two experiment switches combine, in one fixed order.
+	want := "abc123+" + cfg.Hash8() + "+floor-point+ood-off"
+	if got := shipped.WithFloorOnPoint().WithOODOff().Version(); got != want {
+		t.Errorf("floor-point then ood-off = %q, want %q", got, want)
+	}
+	if got := shipped.WithOODOff().WithFloorOnPoint().Version(); got != want {
+		t.Errorf("ood-off then floor-point = %q, want %q", got, want)
 	}
 }

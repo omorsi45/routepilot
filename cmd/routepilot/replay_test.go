@@ -671,3 +671,114 @@ func TestReplayCLIFloorOnUsageErrors(t *testing.T) {
 		t.Error("a usage error created the out file")
 	}
 }
+
+type oodLine struct {
+	ItemID        string   `json:"item_id"`
+	OOD           bool     `json:"ood"`
+	OODScore      *float64 `json:"ood_score"`
+	P             *float64 `json:"p"`
+	L             *float64 `json:"l"`
+	PolicyVersion *string  `json:"policy_version"`
+}
+
+func readOODLines(t *testing.T, path string) []oodLine {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lines []oodLine
+	for _, l := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var rec oodLine
+		if err := json.Unmarshal([]byte(l), &rec); err != nil {
+			t.Fatalf("decode %q: %v", l, err)
+		}
+		lines = append(lines, rec)
+	}
+	return lines
+}
+
+// TestReplayCLILearnedOODOff: --ood on is the default; --ood off keeps ood and ood_score as the
+// artifact computed them but scores the request on the model's own numbers instead of the pooled
+// ones, and the policy version names the arm.
+func TestReplayCLILearnedOODOff(t *testing.T) {
+	dir := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	run1 := func(name string, extra ...string) string {
+		t.Helper()
+		out := filepath.Join(dir, name)
+		args := learnedArgs(out, append([]string{"--mode", "min_cost", "--floor", "0.3"}, extra...)...)
+		if code := run(args, &stdout, &stderr); code != 0 {
+			t.Fatalf("run(%v) = %d; stderr = %q", extra, code, stderr.String())
+		}
+		return out
+	}
+
+	// The default and an explicit on give the same file.
+	a, _ := os.ReadFile(run1("default.jsonl"))
+	b, _ := os.ReadFile(run1("on.jsonl", "--ood", "on"))
+	if !bytes.Equal(a, b) {
+		t.Error("--ood on differs from the default")
+	}
+
+	shipped := readOODLines(t, filepath.Join(dir, "default.jsonl"))
+	off := readOODLines(t, run1("off.jsonl", "--ood", "off"))
+	if len(shipped) != len(off) || len(off) == 0 {
+		t.Fatalf("%d shipped and %d off records", len(shipped), len(off))
+	}
+	cfg := policy.Config{Mode: "min_cost", DefaultFloor: 0.3, OODAction: "conservative", OnInfeasible: "best_effort"}
+	oodItems, changed := 0, 0
+	for i, rec := range off {
+		ref := shipped[i]
+		// The verdict and the score are those of the artifact whatever the arm.
+		if rec.ItemID != ref.ItemID || rec.OOD != ref.OOD || rec.OODScore == nil || ref.OODScore == nil || *rec.OODScore != *ref.OODScore {
+			t.Errorf("%s: off ood %v score %v, shipped ood %v score %v; the record must carry them as computed", rec.ItemID, rec.OOD, rec.OODScore, ref.OOD, ref.OODScore)
+		}
+		if want := "0782d801a5a3+" + cfg.Hash8() + "+ood-off"; rec.PolicyVersion == nil || *rec.PolicyVersion != want {
+			t.Errorf("%s: off version = %v, want %s", rec.ItemID, rec.PolicyVersion, want)
+		}
+		if ref.PolicyVersion == nil || strings.Contains(*ref.PolicyVersion, "ood-off") {
+			t.Errorf("%s: shipped version = %v, want no ood-off suffix", rec.ItemID, ref.PolicyVersion)
+		}
+		if rec.P == nil || rec.L == nil || ref.P == nil || ref.L == nil {
+			t.Fatalf("%s: missing p or l", rec.ItemID)
+		}
+		same := *rec.P == *ref.P && *rec.L == *ref.L
+		switch {
+		case rec.OOD:
+			oodItems++
+			if !same {
+				changed++
+			}
+		case !same:
+			t.Errorf("%s: in distribution but p/l differ between the arms (%v %v) and (%v %v)", rec.ItemID, *ref.P, *ref.L, *rec.P, *rec.L)
+		}
+	}
+	if oodItems == 0 || changed == 0 {
+		t.Errorf("%d out-of-distribution items, %d scored differently with --ood off; the flag changes nothing", oodItems, changed)
+	}
+}
+
+func TestReplayCLIOODUsageErrors(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "out.jsonl")
+	cfg := filepath.Join(learnedFixtureDir, "config.yaml")
+	in := filepath.Join(learnedFixtureDir, "items.jsonl")
+	cases := map[string][]string{
+		"unknown value":      learnedArgs(out, "--ood", "maybe"),
+		"empty value":        learnedArgs(out, "--ood", ""),
+		"with cheapest":      {"replay", "--config", cfg, "--input", in, "--out", out, "--split", "all", "--policy", "cheapest", "--ood", "off"},
+		"with cheapest (on)": {"replay", "--config", cfg, "--input", in, "--out", out, "--split", "all", "--policy", "cheapest", "--ood", "on"},
+	}
+	for name, args := range cases {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr); code != 2 {
+			t.Errorf("%s: run = %d, want 2; stderr = %q", name, code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "--ood") || !strings.Contains(stderr.String(), "usage") {
+			t.Errorf("%s: stderr = %q, want a message naming --ood and a usage line", name, stderr.String())
+		}
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("a usage error created the out file")
+	}
+}

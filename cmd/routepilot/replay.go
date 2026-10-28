@@ -22,10 +22,17 @@ const (
 	floorOnPoint = "point"
 )
 
+// The values of --ood: whether a learned policy acts on the out-of-distribution verdict
+// (the action of its policy config) or ignores it.
+const (
+	oodOn  = "on"
+	oodOff = "off"
+)
+
 const replayUsage = "usage: routepilot replay --config FILE --input FILE --split SPLIT --policy NAME [--seed N] [--model ID] --out FILE\n" +
 	"                        [--latency-profiles FILE [--latency-seed N] [--slo-ttft-ms MS | --slo-e2e-ms MS]]\n" +
 	"                        [--artifact DIR --policy-config FILE [--mode M] [--lambda X] [--floor Q] [--epsilon E]\n" +
-	"                         [--floor-on lcb|point] [--emit-candidates]]\n" +
+	"                         [--floor-on lcb|point] [--ood on|off] [--emit-candidates]]\n" +
 	"                        [--mf FILE --threshold T]\n" +
 	"\n" +
 	"policies: cheapest, strongest, rules, random, oracle, fixed (fixed needs --model),\n" +
@@ -33,6 +40,9 @@ const replayUsage = "usage: routepilot replay --config FILE --input FILE --split
 	"          --epsilon override the policy config, --floor sets its default floor;\n" +
 	"          --floor-on point compares the floor with P instead of the lower confidence\n" +
 	"          bound L, an experiment switch, the default is lcb;\n" +
+	"          --ood off ignores the out-of-distribution verdict (no pooled replacement, no\n" +
+	"          strongest action; the records still carry ood and ood_score), an experiment\n" +
+	"          switch, the default is on;\n" +
 	"          --emit-candidates adds every model's scores to each record),\n" +
 	"          routellm_mf (needs --mf, an exported matrix factorization scorer, and --threshold in\n" +
 	"          [0, 1]: items scoring at least T go to the scorer's strong model, the rest to its weak one)\n" +
@@ -68,6 +78,7 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	threshold := fs.Float64("threshold", 0, "score at or above which routellm_mf picks the strong model, in [0, 1]")
 	emitCandidates := fs.Bool("emit-candidates", false, "add the learned policy's per-model scores to every record (policy learned)")
 	floorOn := fs.String("floor-on", floorOnLCB, "what the quality floor is compared with: lcb (the lower confidence bound, the default) or point (P; experiment only)")
+	ood := fs.String("ood", oodOn, "whether the out-of-distribution verdict is acted on: on (the policy config's action, the default) or off (ignored; experiment only)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -77,7 +88,7 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 
 	given := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
-	learnedFlags := []string{"artifact", "policy-config", "mode", "lambda", "floor", "epsilon", "floor-on"}
+	learnedFlags := []string{"artifact", "policy-config", "mode", "lambda", "floor", "epsilon", "floor-on", "ood"}
 	mfFlags := []string{"mf", "threshold"}
 
 	opts := replay.Options{
@@ -95,9 +106,11 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	case *policyName == replay.PolicyLearned && (*artifactDir == "" || *policyConfigPath == ""):
 		usageErr = errors.New("policy learned needs --artifact and --policy-config")
 	case *policyName != replay.PolicyLearned && anyGiven(given, learnedFlags):
-		usageErr = errors.New("--artifact, --policy-config, --mode, --lambda, --floor, --epsilon and --floor-on are only valid with --policy learned")
+		usageErr = errors.New("--artifact, --policy-config, --mode, --lambda, --floor, --epsilon, --floor-on and --ood are only valid with --policy learned")
 	case *floorOn != floorOnLCB && *floorOn != floorOnPoint:
 		usageErr = fmt.Errorf("--floor-on must be %q or %q, got %q", floorOnLCB, floorOnPoint, *floorOn)
+	case *ood != oodOn && *ood != oodOff:
+		usageErr = fmt.Errorf("--ood must be %q or %q, got %q", oodOn, oodOff, *ood)
 	case *policyName == replay.PolicyRouteLLMMF && (*mfPath == "" || !given["threshold"]):
 		usageErr = errors.New("policy routellm_mf needs --mf and --threshold")
 	case *policyName != replay.PolicyRouteLLMMF && anyGiven(given, mfFlags):
@@ -146,6 +159,9 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 		}
 		if *floorOn == floorOnPoint {
 			learned = learned.WithFloorOnPoint()
+		}
+		if *ood == oodOff {
+			learned = learned.WithOODOff()
 		}
 		opts.Learned = learned
 	}
