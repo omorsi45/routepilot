@@ -31,17 +31,24 @@ type attemptPlan struct {
 	cands  []router.Candidate
 	max    int
 
+	// gate, when set, rules once on each candidate, just before the first of its
+	// deployments that looks available is claimed. A candidate it refuses is skipped with all
+	// its deployments, and the skip is not an attempt. The budget uses it to raise the
+	// request's reservation before a pricier fallback is called.
+	gate  func(router.Candidate) bool
+	ruled int // index of the last candidate the gate ruled on, -1 before the first
+
 	ci, di int // cursor: the next pair is cands[ci].Deployments[di]
 	issued int // pairs returned so far
 }
 
 func (s *Server) newAttemptPlan(d router.Decision) *attemptPlan {
-	return &attemptPlan{health: s.health, cands: d.Candidates, max: s.cfg.Reliability.MaxAttempts}
+	return &attemptPlan{health: s.health, cands: d.Candidates, max: s.cfg.Reliability.MaxAttempts, ruled: -1}
 }
 
 // next returns the next pair whose breaker admits an attempt, with the output
-// token budget K its model was admitted with. Pairs the breaker refuses are
-// skipped and do not count toward the attempt limit.
+// token budget K its model was admitted with. Pairs the breaker refuses, and the
+// candidates the gate refuses, are skipped and do not count toward the attempt limit.
 func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, int, bool) {
 	for p.issued < p.max && p.ci < len(p.cands) {
 		c := p.cands[p.ci]
@@ -51,6 +58,13 @@ func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, int, bool) {
 		}
 		dep := c.Deployments[p.di]
 		p.di++
+		if p.gate != nil && p.ruled < p.ci && p.health.Available(dep.Name) {
+			p.ruled = p.ci
+			if !p.gate(c) {
+				p.ci, p.di = p.ci+1, 0
+				continue
+			}
+		}
 		if p.health.Allow(dep.Name) {
 			p.issued++
 			return *c.Model, dep, c.K, true
@@ -240,10 +254,11 @@ const (
 // paths. For the first attempt it just claims the next pair. After a failure
 // (lastErr) it checks that another pair can be tried, waits out the backoff or
 // Retry-After, and rechecks the deadline before claiming anything, so a wait
-// that ran past the deadline never takes a half-open probe. On claimOK it has
-// counted the attempt and recorded it for the request log; the caller owes the
-// pair exactly one Record or Abort. A claimClientGone has already marked the
-// request canceled.
+// that ran past the deadline never takes a half-open probe. For a tenant with a budget
+// it also raises the reservation before claiming a pair of a pricier model, and skips the
+// model when the raise is refused. On claimOK it has counted the attempt and recorded it
+// for the request log and the budget (rs.attemptUsages); the caller owes the pair exactly
+// one Record or Abort. A claimClientGone has already marked the request canceled.
 func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan, req *openai.ChatCompletionRequest, lastErr error) (catalog.Model, catalog.Deployment, *openai.ChatCompletionRequest, claimOutcome) {
 	if rs.attempts > 0 {
 		if !plan.more() {
@@ -261,11 +276,15 @@ func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan,
 			return catalog.Model{}, catalog.Deployment{}, nil, claimClientGone
 		}
 	}
+	if rs.budget != nil {
+		plan.gate = rs.budget.gate(ctx)
+	}
 	model, dep, k, ok := plan.next()
 	if !ok {
 		return catalog.Model{}, catalog.Deployment{}, nil, claimNone
 	}
 	rs.attempts++
+	rs.beginAttempt(model, dep, k)
 	return model, dep, s.prepareUpstream(rs, req, model.ID, dep, k), claimOK
 }
 

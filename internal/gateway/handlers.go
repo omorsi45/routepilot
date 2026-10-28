@@ -115,6 +115,27 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	}
 
 	reqs := catalog.Derive(req)
+	rs.reqs = reqs
+	// The attempt records are final once the handler returns, with or without a budget.
+	defer rs.settleAttempts()
+	// A tenant with a budget is routed against what it may still spend, so each model is
+	// admitted at the output budget it can afford. The reservation that makes the spend
+	// safe is taken below, once the request is admitted.
+	lim, budgeted := s.budgets[tenant.ID]
+	if budgeted {
+		left, err := s.budgetRemaining(r.Context(), tenant.ID, lim)
+		if err != nil {
+			if r.Context().Err() != nil { // the client left; there is nobody to answer
+				rs.canceled = true
+				lease.release()
+				return
+			}
+			s.limiterWarn(rs, "budget remaining", err)
+			failEarly(openai.ErrOverloaded())
+			return
+		}
+		rs.budgetLeft = &left
+	}
 	dec, apiErr := s.decide(rs, tenant, req, reqs)
 	rs.policy = dec.Policy
 	// The decision headers go on before anything is written, so every response that
@@ -145,6 +166,29 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	}
 	defer finish()
 
+	if budgeted {
+		// Hold the worst case of the first candidate for the life of the request. The hold is
+		// ended on every exit path, after the response, by committing what the attempts
+		// cost or releasing the hold when none was sent.
+		hold := &budgetHold{s: s, rs: rs, r: r, tenant: tenant.ID, lim: lim, ttl: timeout + leaseGrace}
+		rs.budget = hold
+		defer hold.finish()
+		reserved, err := hold.reserve(r.Context(), dec.Candidates[0].CostMax)
+		switch {
+		case err != nil:
+			if r.Context().Err() != nil { // the client left; there is nobody to answer
+				rs.canceled = true
+				return
+			}
+			s.limiterWarn(rs, "budget reserve", err)
+			s.fail(w, rs, openai.ErrOverloaded())
+			return
+		case !reserved:
+			// Another request took the budget between the read and the reservation.
+			s.fail(w, rs, openai.ErrInsufficientQuota("tenant budget exhausted"))
+			return
+		}
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 	if req.Stream {

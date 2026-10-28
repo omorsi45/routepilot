@@ -48,9 +48,11 @@ func NewPolicy(cfg config.RoutingConfig, cat *catalog.Catalog) (Policy, error) {
 }
 
 // outputBudget is the output token budget a model is costed at for this
-// request, the same K the router reports in its Candidate.
+// request, the same K the router reports in its Candidate: the effective K
+// reduced to what the request's remaining budget pays for.
 func outputBudget(m *catalog.Model, in Input) int {
-	return m.EffectiveK(in.Req, in.Tenant.DefaultMaxTokens)
+	k, _ := m.AffordableK(in.Req, in.Tenant.DefaultMaxTokens, in.Budget)
+	return k
 }
 
 func costMax(m *catalog.Model, in Input) money.PicoUSD {

@@ -18,6 +18,7 @@ func NewMemory() Limiters {
 		Requests:    memRequests{newStore()},
 		Tokens:      memTokens{newStore()},
 		Concurrency: &memConcurrency{leases: map[string]map[string]time.Time{}},
+		Budget:      NewMemoryBudget(),
 	}
 }
 

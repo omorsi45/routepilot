@@ -37,7 +37,7 @@ func limiterCtx(ctx context.Context) (context.Context, context.CancelFunc) {
 // fillLimiters returns lim with every nil limiter replaced by its in-process
 // memory implementation.
 func fillLimiters(lim quota.Limiters) quota.Limiters {
-	if lim.Requests != nil && lim.Tokens != nil && lim.Concurrency != nil {
+	if lim.Requests != nil && lim.Tokens != nil && lim.Concurrency != nil && lim.Budget != nil {
 		return lim
 	}
 	mem := quota.NewMemory()
@@ -49,6 +49,9 @@ func fillLimiters(lim quota.Limiters) quota.Limiters {
 	}
 	if lim.Concurrency == nil {
 		lim.Concurrency = mem.Concurrency
+	}
+	if lim.Budget == nil {
+		lim.Budget = mem.Budget
 	}
 	return lim
 }

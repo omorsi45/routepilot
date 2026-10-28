@@ -11,6 +11,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/omorsi45/routepilot/internal/catalog"
@@ -73,6 +74,10 @@ type Server struct {
 	latency  *latency.Estimator
 
 	limits quota.Limiters
+	// budgets holds the budget limit of each tenant that has budget_usd, by tenant ID.
+	budgets map[string]quota.BudgetLimit
+	// budgetOvershoot is the total committed above reservations (see BudgetOvershoot).
+	budgetOvershoot atomic.Int64
 	// readBodyTimeout is Options.ReadBodyTimeout; zero means the default.
 	readBodyTimeout time.Duration
 	// sem is the global in-flight limit: one token per request in progress.
@@ -148,6 +153,9 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 		s.sleep = sleepTimer
 	}
 	s.limits = fillLimiters(opts.Limiters)
+	if s.budgets, err = tenantBudgets(cfg); err != nil {
+		return nil, fmt.Errorf("gateway: %w", err)
+	}
 	s.readBodyTimeout = opts.ReadBodyTimeout
 	if n := cfg.Server.MaxInflight; n > 0 {
 		s.sem = make(chan struct{}, n)
@@ -234,6 +242,21 @@ type reqState struct {
 	// estCost is the expected cost of each candidate model under the learned policy, for
 	// x-routepilot-estimated-cost-usd.
 	estCost map[string]money.PicoUSD
+
+	// The fields below are the budget accounting of the request (Task 20).
+
+	// reqs are the request's derived requirements: the input bound and the cap an attempt is
+	// priced with.
+	reqs catalog.Requirements
+	// budgetLeft is what the tenant may still spend when the request is routed, nil for a
+	// tenant without a budget. The router drops the models that do not fit it.
+	budgetLeft *money.PicoUSD
+	// budget is the request's reservation, nil for a tenant without a budget.
+	budget *budgetHold
+	// attemptUsages has one record per attempt sent, in order: the model and deployment, the
+	// tokens charged, whether they were estimated, and the cost. The budget commit is their
+	// sum (budgetHold.finish) and the usage ledger writes one row per record.
+	attemptUsages []*attemptUsage
 }
 
 // statusWriter records the response status. It forwards Flush and exposes the

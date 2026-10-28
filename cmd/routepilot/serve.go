@@ -49,6 +49,10 @@ var notifyReload = func() (<-chan os.Signal, func()) {
 // replace it.
 var policyPollEvery = 5 * time.Second
 
+// budgetSweepEvery is how often serve drops the expired leases of the budget ledger. Tests
+// replace it.
+var budgetSweepEvery = 30 * time.Second
+
 const serveUsage = "usage: routepilot serve -config <path>\n"
 
 // runServe implements `routepilot serve`. It returns 0 after a clean
@@ -118,6 +122,9 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		return err
 	}
 	defer closeLimiters()
+	if limiters.Budget == nil { // the memory backend: serve owns the ledger so it can sweep it
+		limiters.Budget = quota.NewMemoryBudget()
+	}
 	opts := gateway.Options{Logger: logger, Limiters: limiters}
 	opts.Latency, err = buildEstimator(cfg)
 	if err != nil {
@@ -136,13 +143,25 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		return err
 	}
 
-	// Reload the learned policies on SIGHUP and when their files change. Both stop with
-	// the server, and serve waits for them so nothing logs after it returns.
+	// Background work stops with the server, and serve waits for it so nothing logs after
+	// it returns.
+	bgCtx, stopBG := context.WithCancel(ctx)
+	var bg sync.WaitGroup
+	defer bg.Wait()
+	defer stopBG()
+
+	// Drop the budget leases of requests that never ended, but only when some tenant has a
+	// budget: the Redis sweep scans the keyspace.
+	if hasBudget(cfg) {
+		bg.Add(1)
+		go func() {
+			defer bg.Done()
+			sweepBudgets(bgCtx, limiters.Budget, budgetSweepEvery, logger)
+		}()
+	}
+
+	// Reload the learned policies on SIGHUP and when their files change.
 	if reg != nil {
-		bgCtx, stopBG := context.WithCancel(ctx)
-		var bg sync.WaitGroup
-		defer bg.Wait()
-		defer stopBG()
 		hup, stopHup := notifyReload()
 		defer stopHup()
 		bg.Add(2)
@@ -192,6 +211,39 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
+}
+
+// hasBudget reports whether any tenant of cfg has a budget.
+func hasBudget(cfg *config.Config) bool {
+	for _, t := range cfg.Tenants {
+		if t.BudgetUSD != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// sweepBudgets drops the expired leases of l every interval until ctx is done. A lease
+// expires at the deadline of its request plus a minute, so one left behind by a request
+// that never ended stops holding budget even before the sweep; the sweep keeps them from
+// piling up.
+func sweepBudgets(ctx context.Context, l quota.BudgetLedger, every time.Duration, logger *slog.Logger) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			n, err := l.Sweep(ctx, time.Now())
+			switch {
+			case err != nil && ctx.Err() == nil:
+				logger.Warn("budget sweep failed", slog.String("error", err.Error()))
+			case n > 0:
+				logger.Info("budget leases expired", slog.Int("count", n))
+			}
+		}
+	}
 }
 
 // buildEstimator returns the latency estimator the gateway learns from. Its priors come

@@ -40,8 +40,11 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 		if err == nil && resp == nil {
 			err = openai.ErrInternal()
 		}
+		att := rs.lastAttempt() // the record of what this attempt is charged
+		att.failed(err)
 		switch {
 		case err == nil:
+			att.observeResponse(resp)
 			s.settle(ctx, rs, dep.Name, nil, elapsed)
 			rs.usage = resp.Usage
 			resp.ID = "chatcmpl-" + rs.id

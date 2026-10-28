@@ -128,8 +128,11 @@ type optCand struct {
 
 // Choose implements Learned. The selection follows Ruling V1-R10:
 //
-//  1. The budget set keeps the models whose worst-case cost fits the remaining budget. If
-//     it is empty the request fails with 429 insufficient_quota and nothing is relaxed.
+//  1. The budget set keeps the models that can be admitted within the remaining budget: with
+//     no explicit max_tokens each model gets the output budget the budget pays for (see
+//     catalog.Model.AffordableK), and is out if not even one output token fits; with an
+//     explicit cap its worst case must fit. If the set is empty the request fails with 429
+//     insufficient_quota and nothing is relaxed.
 //  2. The safe set S keeps those whose lower bound clears the floor and whose p95 meets
 //     the SLO (a missing estimate fails it).
 //  3. If S is not empty, min_cost takes its cheapest expected cost and dual its highest
@@ -177,7 +180,7 @@ func (o *Optimizer) Choose(models []*catalog.Model, in Input) (Choice, *openai.A
 		}
 	}
 	if len(bset) == 0 {
-		return done(openai.ErrInsufficientQuota("budget remaining below the cheapest worst-case cost"))
+		return done(openai.ErrInsufficientQuota(budgetMessage))
 	}
 	for _, c := range bset {
 		if c.floorOK && c.sloOK {
@@ -292,7 +295,7 @@ func (o *Optimizer) evaluate(m *catalog.Model, sc policy.ModelScore, ood bool, f
 		l = 0
 	}
 
-	k := m.EffectiveK(in.Req, in.Tenant.DefaultMaxTokens)
+	k, affordable := m.AffordableK(in.Req, in.Tenant.DefaultMaxTokens, in.Budget)
 	ratio := sc.InRatio
 	if !(ratio > 0) { // also catches NaN: no usable ratio means no reduction
 		ratio = 1
@@ -309,9 +312,9 @@ func (o *Optimizer) evaluate(m *catalog.Model, sc policy.ModelScore, ood bool, f
 	}
 	c.obj = p - o.cfg.Lambda*float64(c.s.CostExp)/1e12
 
-	c.budgetOK = in.Budget == nil || c.s.CostMax <= *in.Budget
+	c.budgetOK = affordable
 	if !c.budgetOK {
-		c.s.Reasons = append(c.s.Reasons, fmt.Sprintf("budget: worst-case cost %d picousd above the remaining %d", c.s.CostMax, *in.Budget))
+		c.s.Reasons = append(c.s.Reasons, budgetReason(m, in, k))
 	}
 	c.floorOK = l >= floor
 	if !c.floorOK {

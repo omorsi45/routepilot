@@ -203,6 +203,40 @@ func (m *Model) InUpper(r Requirements) int {
 	return r.InUpper + m.PromptOverhead
 }
 
+// AffordableK is the output token budget m can be admitted with when the request may spend at
+// most budget, and whether it can be admitted at all. A nil budget is unlimited, and then k
+// is EffectiveK and ok is true.
+//
+// With an explicit max_tokens the cap is kept as the client set it: k is r.MaxTokens and ok
+// reports whether its worst case fits the budget. Without one, k is EffectiveK reduced to
+// what the budget pays for after the input bound,
+//
+//	floor((budget - InUpper*PriceIn) / PriceOut)
+//
+// computed in integer picodollars (never below zero), and ok means that at least one output
+// token fits and the worst case at k is within the budget. A model with no output price is
+// not reduced. Whenever ok is true and budget is set, CostMax(r, k) <= *budget.
+func (m *Model) AffordableK(r Requirements, tenantDefault int, budget *money.PicoUSD) (k int, ok bool) {
+	if r.HasMaxTokens {
+		k = r.MaxTokens
+		return k, budget == nil || m.CostMax(r, k) <= *budget
+	}
+	k = m.EffectiveK(r, tenantDefault)
+	if budget == nil {
+		return k, true
+	}
+	if m.PriceOut > 0 {
+		afford := int64(0)
+		if inCost := money.MulSat(m.PriceIn, int64(m.InUpper(r))); inCost < *budget {
+			afford = int64(*budget-inCost) / int64(m.PriceOut)
+		}
+		if afford < int64(k) {
+			k = int(afford)
+		}
+	}
+	return k, k >= 1 && m.CostMax(r, k) <= *budget
+}
+
 // Reason explains why a model cannot serve a request.
 type Reason string
 

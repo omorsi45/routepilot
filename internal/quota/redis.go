@@ -33,13 +33,15 @@ const redisMaxExact = int64(1) << 52
 // Keys are <prefix>:rpm:{key}, <prefix>:tpm:{key} and <prefix>:conc:{key}. The
 // braces are a Redis Cluster hash tag, so every key for one tenant lands in the
 // same slot. Keys expire on their own once their state no longer matters.
-// Redis errors are returned wrapped; they never include the key.
+// Redis errors are returned wrapped; they never include the key. The budget ledger
+// (NewRedisBudget) keeps its own keys under <prefix>:budget:.
 func NewRedis(client redis.UniversalClient, prefix string) Limiters {
 	b := &redisBackend{client: client, prefix: prefix}
 	return Limiters{
 		Requests:    redisRequests{b},
 		Tokens:      redisTokens{b},
 		Concurrency: redisConcurrency{b},
+		Budget:      NewRedisBudget(client, prefix),
 	}
 }
 

@@ -321,10 +321,13 @@ func TestBudgetIsHard(t *testing.T) {
 	cfg.DefaultFloor = 0.5
 	r := newOptRig(t, tieredScores(0.4, 0.6, 0.9), cfg)
 
-	// Nothing fits: 429, never relaxed, whatever on_infeasible says.
+	// Nothing fits: 429, never relaxed, whatever on_infeasible says. With no explicit
+	// max_tokens a model is admitted at the output budget it can afford (Task 20), so the
+	// budget must be below the input cost plus one output token of the cheapest model
+	// (100,000,000 + 2,000,000); 199,999,999 now buys cheap 49 tokens.
 	for _, onInf := range []string{config.OnInfeasibleBestEffort, config.OnInfeasibleReject} {
 		r.cfg.OnInfeasible = onInf
-		d, err := r.decide(withBudget(199_999_999))
+		d, err := r.decide(withBudget(101_999_999))
 		if err == nil || err.Status != 429 || err.Code != "insufficient_quota" || err.Type != "insufficient_quota" {
 			t.Fatalf("%s: err = %+v, want 429 insufficient_quota", onInf, err)
 		}

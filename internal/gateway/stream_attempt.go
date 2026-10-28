@@ -44,6 +44,10 @@ type streamAttempt struct {
 	idlePhase atomic.Bool
 	start     time.Time // just before the provider call, for settle's elapsed time
 	settled   bool      // the attempt's health outcome was reported
+
+	// usage is the attempt's record for the budget: the usage it reports, the bytes it
+	// streams, and how it fails.
+	usage *attemptUsage
 }
 
 // attempt streams from one deployment. It returns once the response has ended
@@ -53,7 +57,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 	pcfg := c.s.providerCfgs[dep.Provider]
 	ctx, cancel := context.WithCancelCause(c.ctx)
 	defer cancel(nil)
-	a := &streamAttempt{c: c, model: modelID, dep: dep, ctx: ctx, cancel: cancel}
+	a := &streamAttempt{c: c, model: modelID, dep: dep, ctx: ctx, cancel: cancel, usage: c.rs.lastAttempt()}
 
 	// One timer is the TTFT watchdog until the first committing chunk arrives,
 	// then the idle watchdog. It starts before Stream() so it also covers
@@ -104,10 +108,12 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 			return a.fail(err)
 		}
 
+		a.usage.addStreamed(chunkBytes(chunk))
 		if chunk.Usage != nil {
 			// Capture before a client that did not ask for usage has it stripped.
 			u := *chunk.Usage
 			c.rs.usage = &u
+			a.usage.reportUsage(&u)
 		}
 		if !includeUsage {
 			chunk.Usage = nil
@@ -249,6 +255,7 @@ func (a *streamAttempt) clientGone() attemptResult {
 // mistaking it for a complete answer.
 func (a *streamAttempt) fail(err error) attemptResult {
 	c := a.c
+	a.usage.failed(err)
 	if !c.started {
 		// No attempt has answered, so usage seen on this one is not the
 		// usage of a response and must not drive a refund (M2-R18).

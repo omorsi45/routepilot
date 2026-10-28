@@ -40,6 +40,7 @@ func (s *Server) decide(rs *reqState, tenant *config.TenantConfig, req *openai.C
 		Requested: req.Model,
 		Req:       reqs,
 		Available: s.health.Available,
+		Budget:    rs.budgetLeft,
 	}
 	if s.policies == nil || req.Model != config.ReservedModelAuto {
 		return s.router.Decide(in)

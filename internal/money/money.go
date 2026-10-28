@@ -21,6 +21,8 @@ const (
 	// token: USD/Mtok * 1e12 picodollars/USD / 1e6 tokens/Mtok.
 	perMTokScale     = 1_000_000
 	maxFractionDigit = 6
+	// maxUSDFractionDigit is the fractional digits ParseUSD accepts: a picodollar is 1e-12 USD.
+	maxUSDFractionDigit = 12
 	// maxPerToken caps a parsed per-token price at half of MaxInt64 so the sum
 	// of an input and an output price can never overflow.
 	maxPerToken = math.MaxInt64 / 2
@@ -72,6 +74,54 @@ func ParseUSDPerMTok(s string) (PicoUSD, error) {
 		return 0, fmt.Errorf("invalid price %q: too large", s)
 	}
 	return PicoUSD(value), nil
+}
+
+// ParseUSD parses an amount in US dollars, such as "25.50", and returns the exact amount in
+// picodollars.
+//
+// The accepted syntax is digits with an optional '.' and at most twelve fractional digits,
+// so every accepted amount is a whole number of picodollars. Signs, exponents, spaces,
+// empty input, and amounts above the int64 range (about 9,223,372 USD) are errors.
+func ParseUSD(s string) (PicoUSD, error) {
+	if s == "" {
+		return 0, errors.New("empty amount")
+	}
+	whole, frac, _ := strings.Cut(s, ".")
+	if whole == "" && frac == "" {
+		return 0, fmt.Errorf("invalid amount %q", s)
+	}
+	if len(frac) > maxUSDFractionDigit {
+		return 0, fmt.Errorf("invalid amount %q: at most %d fractional digits", s, maxUSDFractionDigit)
+	}
+
+	var dollars int64
+	for _, r := range whole {
+		if r < '0' || r > '9' {
+			return 0, fmt.Errorf("invalid amount %q: want digits and an optional '.'", s)
+		}
+		d := int64(r - '0')
+		if dollars > (math.MaxInt64/picoPerUSD-d)/10 {
+			return 0, fmt.Errorf("invalid amount %q: too large", s)
+		}
+		dollars = dollars*10 + d
+	}
+
+	var fracValue int64
+	for _, r := range frac {
+		if r < '0' || r > '9' {
+			return 0, fmt.Errorf("invalid amount %q: want digits and an optional '.'", s)
+		}
+		fracValue = fracValue*10 + int64(r-'0')
+	}
+	for i := len(frac); i < maxUSDFractionDigit; i++ {
+		fracValue *= 10
+	}
+
+	value := dollars * picoPerUSD
+	if value > math.MaxInt64-fracValue {
+		return 0, fmt.Errorf("invalid amount %q: too large", s)
+	}
+	return PicoUSD(value + fracValue), nil
 }
 
 // MulSat returns a*n, saturating at the maximum PicoUSD on overflow. A

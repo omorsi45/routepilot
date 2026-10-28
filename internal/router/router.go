@@ -69,7 +69,9 @@ type Decision struct {
 	Policy     string
 	Candidates []Candidate
 	// Rejected lists allowed models that failed the capability and limit
-	// checks, in catalog order. Models the tenant may not use never appear.
+	// checks, in catalog order, then the models that passed them but cannot be
+	// admitted within the request's budget (reason "budget: ..."), in the
+	// policy's order. Models the tenant may not use never appear.
 	Rejected []Rejection
 
 	// The fields below are set by a Learned policy. They stay set on a routing error
@@ -266,15 +268,24 @@ func mergeScores(allowed []*catalog.Model, excluded map[string][]string, scored 
 	return out
 }
 
-// finish turns ordered feasible models into candidates, dropping models with
-// no available deployment. It fails with no_healthy_deployment when none is left.
+// finish turns ordered feasible models into candidates, dropping models with no available
+// deployment and models that cannot be admitted within the budget (each is costed with the
+// output budget it can afford, see catalog.Model.AffordableK). It fails with
+// insufficient_quota when a model was dropped for its cost and none is left, and with
+// no_healthy_deployment when none is left otherwise.
 func finish(d Decision, models []*catalog.Model, in Input) (Decision, *openai.APIError) {
+	unaffordable := false
 	for _, m := range models {
 		deps := availableDeployments(m, in.Available)
 		if len(deps) == 0 {
 			continue
 		}
-		k := m.EffectiveK(in.Req, in.Tenant.DefaultMaxTokens)
+		k, ok := m.AffordableK(in.Req, in.Tenant.DefaultMaxTokens, in.Budget)
+		if !ok {
+			unaffordable = true
+			d.Rejected = append(d.Rejected, Rejection{Model: m.ID, Reasons: []catalog.Reason{catalog.Reason(budgetReason(m, in, k))}})
+			continue
+		}
 		d.Candidates = append(d.Candidates, Candidate{
 			Model:       m,
 			K:           k,
@@ -283,9 +294,25 @@ func finish(d Decision, models []*catalog.Model, in Input) (Decision, *openai.AP
 		})
 	}
 	if len(d.Candidates) == 0 {
+		if unaffordable {
+			return d, openai.ErrInsufficientQuota(budgetMessage)
+		}
 		return d, openai.ErrNoHealthyDeployment()
 	}
 	return d, nil
+}
+
+// budgetMessage is the message of the 429 insufficient_quota a request gets when no model
+// that could serve it fits its tenant's remaining budget.
+const budgetMessage = "budget remaining below the cheapest worst-case cost"
+
+// budgetReason says why m cannot be admitted within in.Budget, which must be set, at the
+// output budget k that AffordableK returned.
+func budgetReason(m *catalog.Model, in Input, k int) string {
+	if cost := m.CostMax(in.Req, k); cost > *in.Budget {
+		return fmt.Sprintf("budget: worst-case cost %d picousd above the remaining %d", cost, *in.Budget)
+	}
+	return fmt.Sprintf("budget: remaining %d picousd cannot pay for the input and one output token", *in.Budget)
 }
 
 // availableDeployments copies the available deployments of m in config order.

@@ -93,11 +93,13 @@ type ConcurrencyLimiter interface {
 	Release(ctx context.Context, key, lease string) error
 }
 
-// Limiters bundles the three limiter kinds a gateway needs.
+// Limiters bundles the limiters a gateway needs: the three rate kinds and the tenant
+// budget ledger.
 type Limiters struct {
 	Requests    RequestLimiter
 	Tokens      TokenLimiter
 	Concurrency ConcurrencyLimiter
+	Budget      BudgetLedger
 }
 
 // gcraParams returns the cost of n units and the burst limit for lim, both in

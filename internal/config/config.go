@@ -291,6 +291,37 @@ type TenantConfig struct {
 	// the floor and any latency SLO: OnInfeasibleBestEffort or OnInfeasibleReject. Empty
 	// means the policy's own setting.
 	OnInfeasible string `yaml:"on_infeasible"`
+
+	// BudgetUSD is the tenant's spending limit per budget period as a decimal number of US
+	// dollars with at most twelve fractional digits (money.ParseUSD). Empty means no budget:
+	// the tenant never touches the budget ledger. BudgetPeriod is quota.PeriodMonthly (the
+	// default when BudgetUSD is set) or quota.PeriodTotal.
+	BudgetUSD    string `yaml:"budget_usd"`
+	BudgetPeriod string `yaml:"budget_period"`
+}
+
+// maxRedisBudgetUSD is the largest budget_usd the Redis ledger keeps exactly (Ruling V1-R29):
+// its Lua arithmetic is exact for integers below 2^53, and 9,000 USD is 9e15 picodollars.
+const (
+	maxRedisBudgetUSD  = 9000
+	maxRedisBudgetPico = money.PicoUSD(maxRedisBudgetUSD) * 1_000_000_000_000
+)
+
+// BudgetLimit returns the tenant's budget limit and whether it has one. The period defaults
+// to monthly. A malformed budget_usd is an error, which a validated config never has.
+func (t TenantConfig) BudgetLimit() (quota.BudgetLimit, bool, error) {
+	if t.BudgetUSD == "" {
+		return quota.BudgetLimit{}, false, nil
+	}
+	limit, err := money.ParseUSD(t.BudgetUSD)
+	if err != nil {
+		return quota.BudgetLimit{}, false, fmt.Errorf("tenant %q budget_usd: %w", t.ID, err)
+	}
+	period := t.BudgetPeriod
+	if period == "" {
+		period = quota.PeriodMonthly
+	}
+	return quota.BudgetLimit{Limit: limit, Period: period}, true, nil
 }
 
 // RoutingConfig configures static routing for the "auto" model.
@@ -442,6 +473,9 @@ func (c *Config) applyDefaults() {
 		}
 		if t.DefaultMaxTokens == 0 {
 			t.DefaultMaxTokens = defaultMaxTokens
+		}
+		if t.BudgetUSD != "" && t.BudgetPeriod == "" {
+			t.BudgetPeriod = quota.PeriodMonthly
 		}
 	}
 	if c.Quota.Backend == "" {
@@ -681,6 +715,39 @@ func (c *Config) validateTenants(models map[string]bool, add addFunc) {
 		if burstWindowTooLong(t.TPM, t.TPMBurst) {
 			add(path+".tpm_burst", "window exceeds 24h")
 		}
+		// N3 (Ruling V1-R16): a request without max_tokens reserves up to its input bound plus
+		// default_max_tokens tokens, and the input bound is at least 24 (fixed and per-message
+		// overhead), so a smaller burst could never admit it.
+		if t.TPM > 0 && t.TPMBurst < t.DefaultMaxTokens+n3MinInputBound {
+			add(path+".tpm_burst", "below default_max_tokens + %d; requests without max_tokens could never be admitted", n3MinInputBound)
+		}
+		c.validateTenantBudget(path, t, add)
+	}
+}
+
+// n3MinInputBound is the smallest input token bound a request can have: the fixed overhead
+// (16) plus the per-message overhead (8) of one message.
+const n3MinInputBound = 24
+
+func (c *Config) validateTenantBudget(path string, t TenantConfig, add addFunc) {
+	switch t.BudgetPeriod {
+	case "", quota.PeriodMonthly, quota.PeriodTotal:
+	default:
+		add(path+".budget_period", "unknown value %q (want %q or %q)", t.BudgetPeriod, quota.PeriodMonthly, quota.PeriodTotal)
+	}
+	if t.BudgetUSD == "" {
+		if t.BudgetPeriod != "" {
+			add(path+".budget_period", "budget_period set without budget_usd")
+		}
+		return
+	}
+	limit, err := money.ParseUSD(t.BudgetUSD)
+	if err != nil {
+		add(path+".budget_usd", "%v", err)
+		return
+	}
+	if c.Quota.Backend == QuotaRedis && limit > maxRedisBudgetPico {
+		add(path+".budget_usd", "above %d USD, which the Redis budget ledger cannot keep exactly", maxRedisBudgetUSD)
 	}
 }
 
