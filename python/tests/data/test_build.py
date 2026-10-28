@@ -170,6 +170,39 @@ def test_flagship_replay_keeps_recorded_costs_and_heldout_items(derived: Path):
         assert line["prompt_sha256"] == sha(prompt_for(line["item_id"]))
 
 
+def test_pool_json_and_config_carry_the_prompt_overheads(derived: Path):
+    """Ruling V1-R24: per model, the largest train+calib excess over bytes + 24, minus outliers."""
+    build.build(derived)
+    outcomes = pd.read_parquet(derived / "outcomes.parquet")
+    prompts = pd.read_parquet(derived / "prompts.parquet")
+    splits = pd.read_parquet(derived / "splits.parquet")
+    frame = outcomes.merge(prompts[["item_id", "prompt_bytes"]], on="item_id").merge(
+        splits[["item_id", "split"]], on="item_id"
+    )
+    frame = frame.loc[frame["split"].isin(["train", "calib"])]
+    frame["excess"] = (frame["prompt_tokens"] - (frame["prompt_bytes"] + 24)).clip(lower=0)
+
+    for name in ("flagship", "mixed"):
+        pool = json.loads((derived / "pools" / f"{name}.json").read_text(encoding="utf-8"))
+        cfg = yaml.safe_load((derived / "pools" / f"{name}.config.yaml").read_text("utf-8"))
+        overheads = pool["prompt_overhead_tokens"]
+        assert sorted(overheads) == pool["models"]
+        assert all(type(v) is int and v >= 0 for v in overheads.values())
+        assert {m["id"]: m["prompt_overhead_tokens"] for m in cfg["models"]} == overheads
+
+        outliers = {(a["item_id"], a["model"]) for a in pool["anomalies"]}
+        for a in pool["anomalies"]:
+            assert set(a) == {"item_id", "model", "prompt_tokens", "others_median"}
+        in_pool = frame.loc[frame["model"].isin(pool["models"])]
+        counts = in_pool.groupby("item_id")["model"].nunique()
+        in_pool = in_pool.loc[in_pool["item_id"].isin(counts.index[counts == len(pool["models"])])]
+        keys = zip(in_pool["item_id"], in_pool["model"], strict=True)
+        kept = in_pool.loc[[key not in outliers for key in keys]]
+        want = kept.groupby("model")["excess"].max().reindex(pool["models"]).fillna(0).astype(int)
+        assert overheads == want.to_dict()
+        assert any(v > 0 for v in overheads.values())  # the synthetic tokens exceed bytes + 24
+
+
 def test_only_the_replay_export_holds_prompt_text(derived: Path):
     build.build(derived)
     for path in [derived / "splits.parquet", *sorted((derived / "pools").iterdir())]:

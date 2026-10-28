@@ -62,7 +62,10 @@ type Item struct {
 }
 
 // Record is one line of the replay output. Fields that do not apply to the
-// policy that ran are null. It holds no prompt text.
+// policy that ran are null. It holds no prompt text. InUpper is the
+// request-level bound; PromptOverhead is the chosen model's hidden prompt
+// tokens (Ruling V1-R24, null when no model was chosen), so the model's own
+// bound is InUpper plus PromptOverhead.
 type Record struct {
 	ItemID         string   `json:"item_id"`
 	Dataset        string   `json:"dataset"`
@@ -74,6 +77,7 @@ type Record struct {
 	Success        bool     `json:"success"`
 	CostPicoUSD    int64    `json:"cost_picousd"`
 	InUpper        int      `json:"in_upper"`
+	PromptOverhead *int     `json:"prompt_overhead"`
 	K              *int     `json:"k"`
 	P              *float64 `json:"p"`
 	L              *float64 `json:"l"`
@@ -285,8 +289,10 @@ func replayItem(sel selector, tenant *config.TenantConfig, item *Item, opts Opti
 		return Record{}, fmt.Errorf("item %s: no recorded outcome for chosen model %s", item.ItemID, cand.Model.ID)
 	}
 	model, k, costMax := cand.Model.ID, cand.K, int64(cand.CostMax)
+	overhead := cand.Model.PromptOverhead
 	rec.Model = &model
 	rec.K = &k
+	rec.PromptOverhead = &overhead
 	rec.CostMaxPicoUSD = &costMax
 	rec.Success = outcome.Success
 	rec.CostPicoUSD = outcome.CostPicoUSD

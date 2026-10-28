@@ -38,6 +38,13 @@ REPLAY_CONTEXT_WINDOW = 1048576
 REPLAY_MAX_OUTPUT_TOKENS = 65536
 REPLAY_CAPABILITIES = ("streaming", "tools", "json_object", "json_schema", "vision")
 
+# The router bounds the prompt tokens of a one-message request by its text bytes plus this
+# framing (8 per message and 16 per request, catalog.perMessageOverhead and fixedOverhead).
+PROMPT_FRAMING_TOKENS = 24
+# A recorded prompt count above this many times the median of the other models' counts for
+# the same item is an anomaly (Ruling V1-R24), not a hidden per-model overhead.
+ANOMALY_FACTOR = 3
+
 _MICRO = Decimal("0.000001")
 
 
@@ -198,6 +205,80 @@ def build_pool(
     }
 
 
+def token_anomalies(records: pd.DataFrame) -> pd.DataFrame:
+    """The records whose prompt count is far above what the other models recorded.
+
+    ``records`` has ``item_id``, ``model`` and ``prompt_tokens`` and a unique index. A
+    record is an anomaly when ``prompt_tokens`` is above ``ANOMALY_FACTOR`` times the
+    median ``prompt_tokens`` of the other models' records on the same item. Counts of zero
+    or less are gaps in the dataset: they are never anomalies and never enter a median, and
+    an item with no other positive count has nothing to compare with. Returns the
+    anomalous rows (same index) with an ``others_median`` column.
+    """
+    positive = records.loc[records["prompt_tokens"] > 0]
+    labels: list[Any] = []
+    medians: list[float] = []
+    for _, group in positive.groupby("item_id", sort=False):
+        tokens = group["prompt_tokens"].to_numpy(dtype=float)
+        if tokens.size < 2:
+            continue
+        for position, label in enumerate(group.index):
+            others_median = float(np.median(np.delete(tokens, position)))
+            if tokens[position] > ANOMALY_FACTOR * others_median:
+                labels.append(label)
+                medians.append(others_median)
+    found = records.loc[labels].copy()
+    found["others_median"] = medians
+    return found
+
+
+def prompt_overheads(
+    outcomes: pd.DataFrame,
+    prompts: pd.DataFrame,
+    splits: pd.DataFrame,
+    models: Sequence[str],
+) -> tuple[dict[str, int], list[dict[str, Any]]]:
+    """Hidden prompt tokens per model (Ruling V1-R24) and the records excluded from the fit.
+
+    Some providers add prompt tokens the router cannot see. For each model this is the
+    largest ``max(0, prompt_tokens - (prompt_bytes + PROMPT_FRAMING_TOKENS))`` over its
+    train and calibration records, so the gateway's bound ``in_upper + overhead`` covers
+    every record it was fitted on. Test and held-out records are never read. Records that
+    ``token_anomalies`` flags are left out and returned as ``item_id``, ``model``,
+    ``prompt_tokens`` and ``others_median``, sorted by item and model.
+    """
+    names = sorted(set(models))
+    if not names:
+        raise ValueError("no models to fit prompt overheads for")
+    rows = outcomes.loc[outcomes["model"].isin(names), ["item_id", "model", "prompt_tokens"]]
+    joined = rows.merge(
+        prompts[["item_id", "prompt_bytes"]], on="item_id", how="left", validate="m:1"
+    )
+    if joined["prompt_bytes"].isna().any():
+        raise ValueError("some items have no prompt")
+    joined = joined.merge(splits[["item_id", "split"]], on="item_id", how="left", validate="m:1")
+    if joined["split"].isna().any():
+        raise ValueError("some items have no split")
+    tuning = joined.loc[joined["split"].isin(["train", "calib"])].reset_index(drop=True)
+    require_splits(tuning, {"train", "calib"})
+
+    flagged = token_anomalies(tuning)
+    kept = tuning.drop(index=flagged.index)
+    excess = (kept["prompt_tokens"] - (kept["prompt_bytes"] + PROMPT_FRAMING_TOKENS)).clip(lower=0)
+    largest = excess.groupby(kept["model"]).max()
+    overheads = {model: int(largest.get(model, 0)) for model in names}
+    anomalies = [
+        {
+            "item_id": str(row.item_id),
+            "model": str(row.model),
+            "prompt_tokens": int(row.prompt_tokens),
+            "others_median": float(row.others_median),
+        }
+        for row in flagged.sort_values(["item_id", "model"]).itertuples(index=False)
+    ]
+    return overheads, anomalies
+
+
 def usd_per_mtok(usd_per_token: float) -> str:
     """USD per million tokens as a decimal with 6 fractional digits, rounded half up."""
     exact = Decimal(repr(float(usd_per_token))) * 1_000_000
@@ -213,10 +294,13 @@ def write_pool_config(
     """Write a RoutePilot config that replays ``pool`` without calling any provider.
 
     The routing policy is ``strongest`` when ``rules`` is None, else ``rules``
-    with ``default_model`` as the fallback.
+    with ``default_model`` as the fallback. Each model carries
+    ``prompt_overhead_tokens`` from ``pool["prompt_overhead_tokens"]`` (0 when the
+    pool has none).
     """
     if rules is not None and not default_model:
         raise ValueError("default_model is required when rules are given")
+    overheads = pool.get("prompt_overhead_tokens", {})
     models = []
     for model in pool["models"]:
         price = pool["prices"][model]
@@ -226,6 +310,7 @@ def write_pool_config(
                 "rank": pool["rank"][model],
                 "context_window": REPLAY_CONTEXT_WINDOW,
                 "max_output_tokens": REPLAY_MAX_OUTPUT_TOKENS,
+                "prompt_overhead_tokens": int(overheads.get(model, 0)),
                 "capabilities": list(REPLAY_CAPABILITIES),
                 "input_price_per_mtok": usd_per_mtok(price["in_usd_per_token"]),
                 "output_price_per_mtok": usd_per_mtok(price["out_usd_per_token"]),
@@ -255,7 +340,9 @@ def write_pool_config(
         "\n# Prices are USD per million tokens, fitted from recorded costs and rounded half up\n"
         "# to 6 fractional digits. rank is 1 + position in ascending train+calib success.\n"
         "# context_window and max_output_tokens are placeholders:\n"
-        "# replay does not test context feasibility.\n",
+        "# replay does not test context feasibility.\n"
+        "# prompt_overhead_tokens (Ruling V1-R24) is the largest excess of a recorded prompt\n"
+        "# count over prompt bytes + 24 on the train and calib items, outliers left out.\n",
         _dump({"models": models}),
         "\n",
         _dump({"routing": routing}),

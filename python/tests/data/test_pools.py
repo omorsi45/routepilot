@@ -323,6 +323,174 @@ def test_pool_config_with_rules(tmp_path: Path):
         pools.write_pool_config(hand_pool(), tmp_path / "bad.yaml", rules=rules)
 
 
+def test_pool_config_writes_prompt_overhead_tokens_per_model(tmp_path: Path):
+    pool = hand_pool() | {"prompt_overhead_tokens": {"m-a": 0, "m-b": 150, "m-c": 12}}
+    out = tmp_path / "overhead.config.yaml"
+    pools.write_pool_config(pool, out)
+    text = out.read_text(encoding="utf-8")
+    cfg = yaml.safe_load(text)
+    assert {m["id"]: m["prompt_overhead_tokens"] for m in cfg["models"]} == {
+        "m-a": 0,
+        "m-b": 150,
+        "m-c": 12,
+    }
+    assert "Ruling V1-R24" in text and "\u2014" not in text
+
+    # a pool without the key writes an explicit zero for every model
+    plain = tmp_path / "plain.config.yaml"
+    pools.write_pool_config(hand_pool(), plain)
+    cfg = yaml.safe_load(plain.read_text(encoding="utf-8"))
+    assert [m["prompt_overhead_tokens"] for m in cfg["models"]] == [0, 0, 0]
+
+
+# The router bounds a one-message prompt by its bytes + 8 + 16 tokens.
+FRAMING = 24
+LONG = 400  # prompt bytes: long enough that +150 hidden tokens stay under 3x the others
+
+
+def token_rows(
+    tokens_of: dict[str, dict[str, int]],
+) -> list[tuple[str, str, bool, int, int, float]]:
+    """Rows (item_id, model, ...) from ``{item_id: {model: prompt_tokens}}``."""
+    return [
+        (item_id, model, True, tokens, 10, 0.1)
+        for item_id, by_model in tokens_of.items()
+        for model, tokens in by_model.items()
+    ]
+
+
+def overhead_inputs(
+    tokens_of: dict[str, dict[str, int]], split_of: dict[str, str], prompt_bytes: int = LONG
+):
+    outcomes = outcome_frame(token_rows(tokens_of))
+    prompts = prompts_frame(tokens_of, overrides={i: "x" * prompt_bytes for i in tokens_of})
+    return outcomes, prompts, splits_frame(split_of)
+
+
+def test_prompt_overheads_is_the_largest_excess_over_prompt_bytes_plus_framing():
+    bound = LONG + FRAMING
+    tokens_of = {
+        "a/0": {"plain-a": 300, "plain-b": 300, "hidden": bound + 150},
+        "a/1": {"plain-a": 310, "plain-b": 310, "hidden": bound + 120},
+        "a/2": {"plain-a": 290, "plain-b": 290, "hidden": bound + 20},
+    }
+    split_of = {"a/0": "train", "a/1": "calib", "a/2": "train"}
+    outcomes, prompts, splits = overhead_inputs(tokens_of, split_of)
+
+    overheads, anomalies = pools.prompt_overheads(
+        outcomes, prompts, splits, ["hidden", "plain-a", "plain-b"]
+    )
+
+    assert overheads == {
+        "hidden": 150,
+        "plain-a": 0,
+        "plain-b": 0,
+    }  # below the bound: 0, not negative
+    assert anomalies == []
+    assert all(type(v) is int for v in overheads.values())
+
+
+def test_prompt_overheads_excludes_and_reports_a_ten_fold_outlier():
+    bound = LONG + FRAMING
+    tokens_of = {
+        "a/0": {"plain-a": 300, "plain-b": 300, "wild": 3000},  # 10x the others' median
+        "a/1": {"plain-a": 300, "plain-b": 300, "wild": bound + 7},
+        "a/2": {"plain-a": 300, "plain-b": 300, "wild": 200},
+    }
+    split_of = {"a/0": "train", "a/1": "calib", "a/2": "train"}
+    outcomes, prompts, splits = overhead_inputs(tokens_of, split_of)
+
+    overheads, anomalies = pools.prompt_overheads(
+        outcomes, prompts, splits, ["plain-a", "plain-b", "wild"]
+    )
+
+    assert overheads["wild"] == 7  # the 3000 record is not what sets it
+    assert anomalies == [
+        {"item_id": "a/0", "model": "wild", "prompt_tokens": 3000, "others_median": 300.0}
+    ]
+    assert json.loads(json.dumps(anomalies)) == anomalies  # plain JSON types
+
+
+@pytest.mark.parametrize(("tokens", "excluded"), [(900, False), (901, True)])
+def test_prompt_overheads_anomaly_limit_is_strictly_above_three_times_the_median(
+    tokens: int, excluded: bool
+):
+    tokens_of = {"a/0": {"plain-a": 300, "plain-b": 300, "edge": tokens}}
+    outcomes, prompts, splits = overhead_inputs(tokens_of, {"a/0": "train"})
+
+    overheads, anomalies = pools.prompt_overheads(
+        outcomes, prompts, splits, ["edge", "plain-a", "plain-b"]
+    )
+
+    assert [a["model"] for a in anomalies] == (["edge"] if excluded else [])
+    assert overheads["edge"] == (0 if excluded else tokens - (LONG + FRAMING))
+
+
+def test_prompt_overheads_median_is_over_the_other_models_only():
+    """Counted with the record itself, the median would be 400 and 1000 would pass."""
+    tokens_of = {"a/0": {"plain": 100, "mid": 400, "big": 1000}}
+    outcomes, prompts, splits = overhead_inputs(tokens_of, {"a/0": "train"}, prompt_bytes=10)
+
+    overheads, anomalies = pools.prompt_overheads(
+        outcomes, prompts, splits, ["big", "mid", "plain"]
+    )
+
+    # others of big: median(100, 400) = 250 and 1000 > 750; mid (others 100, 1000: 550) and
+    # plain (others 400, 1000: 700) are kept
+    assert anomalies == [
+        {"item_id": "a/0", "model": "big", "prompt_tokens": 1000, "others_median": 250.0}
+    ]
+    assert overheads == {"big": 0, "mid": 400 - (10 + FRAMING), "plain": 100 - (10 + FRAMING)}
+
+
+def test_prompt_overheads_ignores_nonpositive_counts():
+    tokens_of = {
+        "a/0": {"plain-a": 300, "plain-b": 300, "gap": 0},
+        "a/1": {"plain-a": 300, "plain-b": 300, "gap": -3},
+        "a/2": {"plain-a": 0, "plain-b": 0, "gap": 5000},  # no positive count from the others
+    }
+    outcomes, prompts, splits = overhead_inputs(
+        tokens_of, {"a/0": "train", "a/1": "train", "a/2": "train"}
+    )
+
+    overheads, anomalies = pools.prompt_overheads(
+        outcomes, prompts, splits, ["gap", "plain-a", "plain-b"]
+    )
+
+    assert anomalies == []  # nothing to compare a/2 with, and zero or negative is not an outlier
+    assert overheads["gap"] == 5000 - (LONG + FRAMING)
+    assert overheads["plain-a"] == 0 and overheads["plain-b"] == 0
+
+
+def test_prompt_overheads_never_reads_test_or_heldout_rows():
+    bound = LONG + FRAMING
+    tokens_of = {
+        "a/0": {"plain-a": 300, "plain-b": 300, "hidden": bound + 40},  # train
+        "a/1": {"plain-a": 300, "plain-b": 300, "hidden": bound + 90},  # calib
+        "a/2": {"plain-a": 300, "plain-b": 300, "hidden": bound + 500},  # test: not read
+        "b/0": {"plain-a": 300, "plain-b": 300, "hidden": bound + 600},  # heldout: not read
+        "a/3": {"plain-a": 300, "plain-b": 300, "hidden": 9000},  # test outlier: not reported
+    }
+    split_of = {"a/0": "train", "a/1": "calib", "a/2": "test", "b/0": "heldout", "a/3": "test"}
+    outcomes, prompts, splits = overhead_inputs(tokens_of, split_of)
+
+    overheads, anomalies = pools.prompt_overheads(
+        outcomes, prompts, splits, ["hidden", "plain-a", "plain-b"]
+    )
+
+    assert overheads["hidden"] == 90  # the calib row counts, the test and heldout rows do not
+    assert anomalies == []
+
+
+def test_prompt_overheads_needs_a_prompt_and_a_split_for_every_item():
+    tokens_of = {"a/0": {"m1": 100, "m2": 100}, "a/1": {"m1": 100, "m2": 100}}
+    outcomes, prompts, splits = overhead_inputs(tokens_of, {"a/0": "train", "a/1": "train"})
+    with pytest.raises(ValueError, match="prompt"):
+        pools.prompt_overheads(outcomes, prompts.loc[prompts["item_id"] != "a/1"], splits, ["m1"])
+    with pytest.raises(ValueError, match="split"):
+        pools.prompt_overheads(outcomes, prompts, splits.loc[splits["item_id"] != "a/1"], ["m1"])
+
+
 def pick(outcomes: pd.DataFrame, splits: pd.DataFrame, **kw) -> list[str]:
     return pools.pick_seven_b(outcomes, splits, flagship=("f1", "f2"), not_seven_b=("big",), **kw)
 

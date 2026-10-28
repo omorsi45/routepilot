@@ -99,7 +99,9 @@ type Deployment struct {
 }
 
 // Model is a public model with its limits, capabilities, prices, and
-// deployments. Prices are picodollars per token.
+// deployments. Prices are picodollars per token. PromptOverhead is the hidden
+// prompt tokens the provider adds to every request of this model (Ruling
+// V1-R24); see InUpper.
 type Model struct {
 	ID              string
 	ContextWindow   int
@@ -108,6 +110,7 @@ type Model struct {
 	PriceIn         money.PicoUSD
 	PriceOut        money.PicoUSD
 	Rank            int
+	PromptOverhead  int
 	Deployments     []Deployment
 }
 
@@ -155,6 +158,7 @@ func New(cfg *config.Config) (*Catalog, error) {
 			PriceIn:         priceIn,
 			PriceOut:        priceOut,
 			Rank:            mc.Rank,
+			PromptOverhead:  mc.PromptOverheadTokens,
 			Deployments:     make([]Deployment, 0, len(mc.Deployments)),
 		}
 		for _, dc := range mc.Deployments {

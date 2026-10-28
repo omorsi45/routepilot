@@ -24,6 +24,7 @@ COLUMNS = [
     "success",
     "cost_picousd",
     "in_upper",
+    "prompt_overhead",
     "k",
     "p",
     "l",
@@ -43,6 +44,7 @@ COLUMNS = [
     "error",
 ]
 _FLOAT_COLUMNS = [
+    "prompt_overhead",
     "k",
     "p",
     "l",

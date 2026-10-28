@@ -341,9 +341,65 @@ func TestReplayRecordFields(t *testing.T) {
 			t.Errorf("key %q = %s, want %s", key, got, want)
 		}
 	}
-	wantKeys := 27
+	wantKeys := 28
 	if len(generic) != wantKeys {
 		t.Errorf("record has %d keys, want %d", len(generic), wantKeys)
+	}
+}
+
+// TestReplayRecordsPromptOverhead pins Ruling V1-R24 in the replay: in_upper
+// stays the request-level bound, prompt_overhead is the chosen model's own
+// value, and cost_max_picousd is the model's CostMax with that overhead.
+func TestReplayRecordsPromptOverhead(t *testing.T) {
+	cfg := loadFixtureConfig(t)
+	for i := range cfg.Models {
+		if cfg.Models[i].ID == "cheap-a" {
+			cfg.Models[i].PromptOverheadTokens = 40
+		}
+	}
+
+	recs, _, _ := replayInput(t, cfg, fixtureInput(t), Options{Split: "all", Policy: "cheapest"})
+	for _, r := range recs {
+		if r.PromptOverhead == nil || *r.PromptOverhead != 40 {
+			t.Errorf("%s: prompt_overhead = %v, want cheap-a's 40", r.ItemID, r.PromptOverhead)
+		}
+	}
+	// fx-a/2 has the request bound 66 (see TestReplayRecordFields). cheap-a costs
+	// 100000 pico per input token and 400000 per output token: with the overhead
+	// the input bound is 66+40, so (66+40)*100000 + 1024*400000.
+	if recs[1].InUpper != 66 || recs[1].CostMaxPicoUSD == nil || *recs[1].CostMaxPicoUSD != 420200000 {
+		t.Errorf("fx-a/2: in_upper %d, cost_max %v; want 66 (request bound) and 420200000", recs[1].InUpper, recs[1].CostMaxPicoUSD)
+	}
+
+	// Another model reports its own value, which is 0 here and still present.
+	recs, _, _ = replayInput(t, cfg, fixtureInput(t), Options{Split: "all", Policy: "strongest"})
+	for _, r := range recs {
+		if r.PromptOverhead == nil || *r.PromptOverhead != 0 {
+			t.Errorf("%s: prompt_overhead = %v, want top-c's 0", r.ItemID, r.PromptOverhead)
+		}
+	}
+
+	// No chosen model, no value: the key is null.
+	_, _, raw := replayInput(t, cfg, fixtureInput(t), Options{Split: "all", Policy: "fixed", Model: "ghost"})
+	if !bytes.Contains(raw, []byte(`"prompt_overhead":null`)) {
+		t.Error("a routing error must write prompt_overhead as null")
+	}
+}
+
+// TestReplayOverheadCanMakeAModelInfeasible: the context check uses the model's
+// bound, so an overhead that fills the window removes the model from routing.
+func TestReplayOverheadCanMakeAModelInfeasible(t *testing.T) {
+	cfg := loadFixtureConfig(t)
+	for i := range cfg.Models {
+		if cfg.Models[i].ID == "cheap-a" {
+			cfg.Models[i].PromptOverheadTokens = cfg.Models[i].ContextWindow
+		}
+	}
+	recs, _, _ := replayInput(t, cfg, fixtureInput(t), Options{Split: "all", Policy: "cheapest"})
+	for _, r := range recs {
+		if got := modelOf(r); got != "mid-b" {
+			t.Errorf("%s: cheapest picked %q, want mid-b (cheap-a no longer fits its context window)", r.ItemID, got)
+		}
 	}
 }
 

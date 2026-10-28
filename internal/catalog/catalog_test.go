@@ -267,6 +267,88 @@ func TestCostMaxSaturates(t *testing.T) {
 	}
 }
 
+func TestNewCopiesPromptOverhead(t *testing.T) {
+	cfg := testConfig()
+	cfg.Models[0].PromptOverheadTokens = 150
+	c, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	small, _ := c.Model("small")
+	big, _ := c.Model("big")
+	if small.PromptOverhead != 150 || big.PromptOverhead != 0 {
+		t.Errorf("PromptOverhead small/big = %d/%d, want 150/0", small.PromptOverhead, big.PromptOverhead)
+	}
+}
+
+// TestInUpperAddsModelOverhead pins Ruling V1-R24: the bound a model is
+// checked and costed with is the request bound plus the hidden prompt tokens
+// its provider adds. The request-level bound is unchanged.
+func TestInUpperAddsModelOverhead(t *testing.T) {
+	r := Requirements{InUpper: 100}
+	cases := []struct {
+		name     string
+		overhead int
+		inUpper  int
+		want     int
+	}{
+		{"no overhead", 0, 100, 100},
+		{"overhead is added", 150, 100, 250},
+		{"overhead on an empty bound", 150, 0, 150},
+		{"saturates instead of wrapping", 150, math.MaxInt - 10, math.MaxInt},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &Model{PromptOverhead: tc.overhead}
+			r.InUpper = tc.inUpper
+			if got := m.InUpper(r); got != tc.want {
+				t.Errorf("InUpper = %d, want %d", got, tc.want)
+			}
+			if r.InUpper != tc.inUpper {
+				t.Errorf("request-level InUpper changed to %d", r.InUpper)
+			}
+		})
+	}
+}
+
+// TestCheckUsesModelOverheadForContext: a request whose bound plus K fits the
+// context window is infeasible once the model's own overhead is added.
+func TestCheckUsesModelOverheadForContext(t *testing.T) {
+	r := Requirements{InUpper: 800}
+	plain := &Model{ID: "plain", ContextWindow: 1000, MaxOutputTokens: 200}
+	hidden := &Model{ID: "hidden", ContextWindow: 1000, MaxOutputTokens: 200, PromptOverhead: 150}
+
+	// 800 + 100 = 900 fits; 800 + 150 + 100 = 1050 does not.
+	if got := plain.Check(r, 100); len(got) != 0 {
+		t.Errorf("plain Check = %v, want feasible", got)
+	}
+	got := hidden.Check(r, 100)
+	want := []Reason{"context window 1000 below required 1050"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("hidden Check = %v, want %v", got, want)
+	}
+
+	// Exactly full is still feasible: 800 + 100 + 100 = 1000.
+	exact := &Model{ID: "exact", ContextWindow: 1000, MaxOutputTokens: 200, PromptOverhead: 100}
+	if got := exact.Check(r, 100); len(got) != 0 {
+		t.Errorf("exact Check = %v, want feasible at the boundary", got)
+	}
+}
+
+func TestCostMaxUsesModelOverhead(t *testing.T) {
+	r := Requirements{InUpper: 1000}
+	plain := &Model{PriceIn: 150000, PriceOut: 600000}
+	hidden := &Model{PriceIn: 150000, PriceOut: 600000, PromptOverhead: 100}
+	// plain: 1000*150000 + 200*600000 = 270,000,000
+	// hidden: 1100*150000 + 200*600000 = 285,000,000
+	if got := plain.CostMax(r, 200); got != 270000000 {
+		t.Errorf("plain CostMax = %d, want 270000000", got)
+	}
+	if got := hidden.CostMax(r, 200); got != 285000000 {
+		t.Errorf("hidden CostMax = %d, want 285000000", got)
+	}
+}
+
 func TestParseCapability(t *testing.T) {
 	// Every capability round-trips through its config name.
 	for c := Capability(0); c < numCaps; c++ {

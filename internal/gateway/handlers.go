@@ -135,13 +135,14 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 
 	timeout := s.deadline(tenant, req)
 	rs.blameBudget = s.blameBudget(tenant)
-	// A failover can land on any candidate, so reserve the largest budget
-	// among them, not just the first candidate's.
-	var maxK int
+	// A failover can land on any candidate, so reserve the largest bound among
+	// them: each candidate's own input bound (request bound plus the model's
+	// hidden prompt overhead) plus its own output budget.
+	var reserve int64
 	for _, c := range dec.Candidates {
-		maxK = max(maxK, c.K)
+		reserve = max(reserve, int64(c.Model.InUpper(reqs))+int64(c.K))
 	}
-	finish, ok := s.admit(w, rs, r, tenant, lease, int64(reqs.InUpper)+int64(maxK), timeout+leaseGrace)
+	finish, ok := s.admit(w, rs, r, tenant, lease, reserve, timeout+leaseGrace)
 	if !ok {
 		return
 	}

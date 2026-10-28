@@ -191,6 +191,18 @@ func (m *Model) EffectiveK(r Requirements, tenantDefault int) int {
 	return min(m.MaxOutputTokens, tenantDefault)
 }
 
+// InUpper is the upper bound on prompt tokens for m: the request-level bound
+// plus the hidden prompt tokens m's provider adds (Ruling V1-R24). It
+// saturates at the maximum int. Everything that judges a request against one
+// specific model (context window, worst-case cost, admission) uses it;
+// Requirements.InUpper stays the request-level bound.
+func (m *Model) InUpper(r Requirements) int {
+	if m.PromptOverhead > math.MaxInt-r.InUpper {
+		return math.MaxInt
+	}
+	return r.InUpper + m.PromptOverhead
+}
+
 // Reason explains why a model cannot serve a request.
 type Reason string
 
@@ -202,11 +214,12 @@ func (m *Model) Check(r Requirements, tenantDefault int) []Reason {
 		reasons = append(reasons, Reason("missing capability "+c.String()))
 	}
 	k := m.EffectiveK(r, tenantDefault)
+	in := m.InUpper(r)
 	// Compare by subtraction so a huge explicit k cannot overflow the sum.
-	if k > m.ContextWindow-r.InUpper {
+	if k > m.ContextWindow-in {
 		need := math.MaxInt
-		if k <= math.MaxInt-r.InUpper {
-			need = r.InUpper + k
+		if k <= math.MaxInt-in {
+			need = in + k
 		}
 		reasons = append(reasons, Reason(fmt.Sprintf("context window %d below required %d", m.ContextWindow, need)))
 	}
@@ -216,11 +229,11 @@ func (m *Model) Check(r Requirements, tenantDefault int) []Reason {
 	return reasons
 }
 
-// CostMax is the worst-case cost of a request: InUpper input tokens plus k
-// output tokens, saturating at the maximum PicoUSD.
+// CostMax is the worst-case cost of a request: the model's InUpper input
+// tokens plus k output tokens, saturating at the maximum PicoUSD.
 func (m *Model) CostMax(r Requirements, k int) money.PicoUSD {
 	return money.AddSat(
-		money.MulSat(m.PriceIn, int64(r.InUpper)),
+		money.MulSat(m.PriceIn, int64(m.InUpper(r))),
 		money.MulSat(m.PriceOut, int64(k)),
 	)
 }

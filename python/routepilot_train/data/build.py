@@ -6,6 +6,8 @@ writes, next to them:
 - ``splits.parquet``: ``item_id``, ``dataset``, ``split`` for every item.
 - ``pools/<pool>.json`` and ``pools/<pool>.config.yaml`` for ``flagship`` and ``mixed``. The
   config's ``rules`` routing policy carries the static rules mapped on train and calibration.
+  Both carry each model's ``prompt_overhead_tokens`` (Ruling V1-R24, fitted on train and
+  calibration); the JSON also lists the ``anomalies`` left out of that fit.
 - ``replay/<pool>.jsonl``: the only output that holds prompt text.
 
 Pool selection and fitting finish before the first file is written.
@@ -26,6 +28,7 @@ from routepilot_train.data.pools import (
     build_pool,
     pick_seven_b,
     pool_outcomes,
+    prompt_overheads,
     write_pool_config,
 )
 from routepilot_train.data.splits import assign_splits
@@ -55,6 +58,10 @@ def build(derived: Path) -> dict[str, Any]:
 
     pool_rows = ((flagship, flagship_rows, ()), (mixed, mixed_rows, seven_b))
     rules = {pool["pool"]: _pool_rules(pool, rows, prompts, splits) for pool, rows, _ in pool_rows}
+    for pool, rows, _ in pool_rows:
+        pool["prompt_overhead_tokens"], pool["anomalies"] = prompt_overheads(
+            rows, prompts, splits, pool["models"]
+        )
 
     # everything is computed; from here on only writing
     splits.to_parquet(derived / "splits.parquet", index=False, compression="zstd")

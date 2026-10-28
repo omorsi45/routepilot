@@ -125,6 +125,9 @@ type ModelConfig struct {
 	InputPricePerMTok  string `yaml:"input_price_per_mtok"`
 	OutputPricePerMTok string `yaml:"output_price_per_mtok"`
 	Rank               int    `yaml:"rank"`
+	// PromptOverheadTokens is the number of hidden prompt tokens the provider
+	// adds to every request of this model (Ruling V1-R24). Zero means none.
+	PromptOverheadTokens int `yaml:"prompt_overhead_tokens"`
 }
 
 // HasCapability reports whether the model supports capability c. A nil
@@ -453,6 +456,9 @@ func (c *Config) validateModelCatalog(path string, m ModelConfig, add addFunc) {
 	}
 	if m.Rank < 0 {
 		add(path+".rank", "must not be negative, got %d", m.Rank)
+	}
+	if m.PromptOverheadTokens < 0 {
+		add(path+".prompt_overhead_tokens", "must not be negative, got %d", m.PromptOverheadTokens)
 	}
 	seen := make(map[string]bool)
 	for k, cp := range m.Capabilities {

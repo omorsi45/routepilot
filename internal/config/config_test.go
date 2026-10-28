@@ -254,6 +254,9 @@ func TestModelDefaultsAndCapabilities(t *testing.T) {
 	if m.InputPricePerMTok != "0" || m.OutputPricePerMTok != "0" {
 		t.Errorf("price defaults = %q/%q", m.InputPricePerMTok, m.OutputPricePerMTok)
 	}
+	if m.PromptOverheadTokens != 0 {
+		t.Errorf("PromptOverheadTokens default = %d, want 0", m.PromptOverheadTokens)
+	}
 	if len(m.Capabilities) != 1 || m.Capabilities[0] != "streaming" {
 		t.Errorf("Capabilities = %v, want [streaming]", m.Capabilities)
 	}
@@ -279,6 +282,16 @@ func TestModelDefaultsAndCapabilities(t *testing.T) {
 	}
 }
 
+func TestParseReadsPromptOverheadTokens(t *testing.T) {
+	cfg, err := Parse([]byte(baseYAML(t, "    deployments:", "    prompt_overhead_tokens: 150\n    deployments:")))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if got := cfg.Models[0].PromptOverheadTokens; got != 150 {
+		t.Errorf("PromptOverheadTokens = %d, want 150", got)
+	}
+}
+
 func TestParseRejectsM2(t *testing.T) {
 	model2 := "  - id: big\n    deployments:\n      - provider: mock\n        upstream_model: m1\n"
 	rules := func(extra string) string {
@@ -301,6 +314,8 @@ func TestParseRejectsM2(t *testing.T) {
 			[]string{"models[0].rank"}},
 		{"negative context window", baseYAML(t, "    deployments:", "    context_window: -1\n    deployments:"),
 			[]string{"models[0].context_window"}},
+		{"negative prompt overhead", baseYAML(t, "    deployments:", "    prompt_overhead_tokens: -1\n    deployments:"),
+			[]string{"models[0].prompt_overhead_tokens"}},
 		{"max output above context", baseYAML(t, "    deployments:", "    context_window: 1000\n    max_output_tokens: 2000\n    deployments:"),
 			[]string{"models[0].max_output_tokens"}},
 		{"duplicate deployment name across models", baseYAML(t, "tenants:", model2+"tenants:"),

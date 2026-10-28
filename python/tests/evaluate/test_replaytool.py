@@ -40,6 +40,28 @@ def test_replay_returns_one_row_per_item_with_the_output_columns(binary, tmp_pat
     assert "messages" not in df.columns
 
 
+def test_replay_frame_carries_the_chosen_models_prompt_overhead(binary, tmp_path):
+    df = replaytool.replay(
+        binary,
+        FIXTURE / "config.yaml",
+        FIXTURE / "items.jsonl",
+        "all",
+        "cheapest",
+        tmp_path / "out.jsonl",
+    )
+    assert (df["prompt_overhead"] == 0).all()  # the fixture models declare no overhead
+    ghost = replaytool.replay(
+        binary,
+        FIXTURE / "config.yaml",
+        FIXTURE / "items.jsonl",
+        "all",
+        "fixed",
+        tmp_path / "ghost.jsonl",
+        ["--model", "ghost"],
+    )
+    assert ghost["prompt_overhead"].isna().all()  # no chosen model, no value
+
+
 def test_replay_passes_extra_flags_and_reports_routing_errors(binary, tmp_path):
     fixed = replaytool.replay(
         binary,
