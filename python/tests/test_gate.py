@@ -12,6 +12,8 @@ from routepilot_train.runinfo import repo_root
 ROOT = repo_root()
 SCRIPT = ROOT / "bench" / "scripts" / "gate.py"
 FIXTURE = ROOT / "testdata" / "bench" / "gate"
+LEARNED = ROOT / "testdata" / "replay" / "learned"
+TINY_ARTIFACT = ROOT / "testdata" / "policy" / "tiny" / "0782d801a5a3"
 
 BASELINE = {
     "pool": "demo",
@@ -206,3 +208,97 @@ def test_a_missing_baseline_is_an_input_error(
 
     assert code == 2
     assert "absent.json" in capsys.readouterr().err
+
+
+def learned_args(mode: str, baseline: Path, *extra: str) -> list[str]:
+    return [
+        mode,
+        "--pool",
+        "tiny",
+        "--policy",
+        "learned",
+        "--config",
+        str(LEARNED / "config.yaml"),
+        "--input",
+        str(LEARNED / "items.jsonl"),
+        "--baseline",
+        str(baseline),
+        "--artifact",
+        str(TINY_ARTIFACT),
+        "--policy-config",
+        str(LEARNED / "policy.yaml"),
+        *extra,
+    ]
+
+
+def test_learned_policy_is_gated_with_its_artifact_and_policy_config(
+    binary: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    gate = load_script()
+    target = tmp_path / "learned.json"
+
+    assert gate.main(learned_args("--update", target), binary=binary) == 0
+
+    written = json.loads(target.read_text(encoding="utf-8"))
+    assert written["policy"] == "learned" and written["pool"] == "tiny"
+    assert written["split"] == "test" and written["items"] == 4  # the test split of the fixture
+    # the version of the policy that was measured: artifact version, then the config hash
+    assert written["policy_version"].startswith("0782d801a5a3+")
+    assert list(written) == [
+        "pool",
+        "split",
+        "policy",
+        "items",
+        "policy_version",
+        "success_rate",
+        "mean_cost_picousd",
+        "git_sha",
+        "updated_at",
+    ]
+    assert gate.main(learned_args("--check", target), binary=binary) == 0
+    capsys.readouterr()
+
+
+def test_a_learned_baseline_fails_the_gate_when_the_policy_gets_worse(
+    binary: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    gate = load_script()
+    target = tmp_path / "learned.json"
+    assert gate.main(learned_args("--update", target), binary=binary) == 0
+    baseline = json.loads(target.read_text(encoding="utf-8"))
+    baseline["success_rate"] = min(1.0, baseline["success_rate"] + 0.3)
+    target.write_text(json.dumps(baseline), encoding="utf-8")
+
+    code = gate.main(learned_args("--check", target), binary=binary)
+
+    assert code == 1
+    assert "success_rate" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "drop",
+    [("--artifact",), ("--policy-config",), ("--artifact", "--policy-config")],
+)
+def test_the_learned_policy_needs_both_flags(
+    drop: tuple[str, ...], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    args = learned_args("--check", tmp_path / "b.json")
+    for flag in drop:
+        i = args.index(flag)
+        del args[i : i + 2]
+    with pytest.raises(SystemExit) as refused:
+        load_script().main(args)
+    assert refused.value.code == 2
+    err = capsys.readouterr().err
+    assert "learned" in err and "--artifact" in err and "--policy-config" in err
+
+
+def test_the_artifact_flags_are_refused_with_another_policy(capsys: pytest.CaptureFixture[str]):
+    for extra in (
+        ["--artifact", str(TINY_ARTIFACT)],
+        ["--policy-config", str(LEARNED / "policy.yaml")],
+    ):
+        with pytest.raises(SystemExit) as refused:
+            load_script().main(fixture_args("--check") + extra)
+        assert refused.value.code == 2
+        assert "only valid with --policy learned" in capsys.readouterr().err

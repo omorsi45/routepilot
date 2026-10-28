@@ -7,6 +7,11 @@ Run from the repository root:
         --input data/derived/replay/flagship.jsonl --baseline bench/gates/baseline.json
     python bench/scripts/gate.py --update ...   # same flags: write a new baseline
 
+The learned policy is gated with ``--policy learned --artifact DIR --policy-config FILE``: the
+replay then routes with the trained artifact and the mode, lambda and floor of the policy
+config, and the baseline records the policy version (artifact version and config hash) next to
+the numbers. ``make bench-gate`` gates the learned dual policy of the flagship pool.
+
 ``make bench-gate`` is the first (it needs the dataset) and ``make bench-smoke`` runs the same
 check on the synthetic fixture under testdata/bench/gate/ (no dataset). The gate builds the Go
 binary, replays the policy on the ``test`` split and compares two numbers with the baseline:
@@ -43,6 +48,7 @@ _UPDATE_KEYS = (
     "split",
     "policy",
     "items",
+    "policy_version",
     "success_rate",
     "mean_cost_picousd",
     "git_sha",
@@ -91,22 +97,35 @@ def compare(
 
 
 def measure(
-    binary: Path, config: Path, replay_input: Path, policy: str, pool: str
+    binary: Path,
+    config: Path,
+    replay_input: Path,
+    policy: str,
+    pool: str,
+    extra: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Replay ``policy`` on the test split and return the gated numbers."""
+    """Replay ``policy`` on the test split and return the gated numbers.
+
+    ``extra`` holds more replay flags (the artifact and policy config of the learned policy).
+    The result carries ``policy_version`` when the policy reports one.
+    """
     with tempfile.TemporaryDirectory() as scratch:
         frame = replaytool.replay(
-            binary, config, replay_input, SPLIT, policy, Path(scratch) / "gate.jsonl"
+            binary, config, replay_input, SPLIT, policy, Path(scratch) / "gate.jsonl", extra
         )
     items = len(frame)
-    return {
+    measured: dict[str, Any] = {
         "pool": pool,
         "split": SPLIT,
         "policy": policy,
         "items": items,
-        "success_rate": int(frame["success"].sum()) / items,
-        "mean_cost_picousd": int(frame["cost_picousd"].sum()) / items,
     }
+    versions = frame["policy_version"].dropna().unique()
+    if len(versions) == 1:
+        measured["policy_version"] = str(versions[0])
+    measured["success_rate"] = int(frame["success"].sum()) / items
+    measured["mean_cost_picousd"] = int(frame["cost_picousd"].sum()) / items
+    return measured
 
 
 def _summary(current: Mapping[str, Any], baseline: Mapping[str, Any]) -> str:
@@ -123,7 +142,7 @@ def _write_baseline(path: Path, current: Mapping[str, Any]) -> dict[str, Any]:
     sha, _ = runinfo.git_state()
     updated = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     baseline = {**current, "git_sha": sha, "updated_at": updated}
-    ordered = {key: baseline[key] for key in _UPDATE_KEYS}
+    ordered = {key: baseline[key] for key in _UPDATE_KEYS if key in baseline}
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(ordered, indent=2) + "\n", encoding="utf-8", newline="\n")
     return ordered
@@ -139,17 +158,30 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--artifact", type=Path, help="policy artifact directory (learned policy)")
+    parser.add_argument("--policy-config", type=Path, help="policy config YAML (learned policy)")
     return parser
 
 
 def main(argv: Sequence[str] | None = None, binary: Path | None = None) -> int:
     """Run the gate. ``binary`` is a prebuilt routepilot; by default it is built from the tree."""
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
+    learned = args.policy == "learned"
+    if learned and (args.artifact is None or args.policy_config is None):
+        parser.error("--policy learned needs --artifact and --policy-config")
+    if not learned and (args.artifact is not None or args.policy_config is not None):
+        parser.error("--artifact and --policy-config are only valid with --policy learned")
+    extra = (
+        ["--artifact", str(args.artifact), "--policy-config", str(args.policy_config)]
+        if learned
+        else []
+    )
     try:
         if args.check:
             baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
         binary = binary or replaytool.build_go(ROOT)
-        current = measure(binary, args.config, args.input, args.policy, args.pool)
+        current = measure(binary, args.config, args.input, args.policy, args.pool, extra)
     except (OSError, ValueError, RuntimeError) as err:
         print(f"gate: {err}", file=sys.stderr)
         return 2
