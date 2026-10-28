@@ -53,6 +53,14 @@ const (
 	QuotaRedis  = "redis"
 )
 
+// What to do when no model meets a request's quality floor and latency SLO, accepted in
+// TenantConfig.OnInfeasible and in the routing policy's configuration: relax the
+// constraints and answer anyway, or reject the request.
+const (
+	OnInfeasibleBestEffort = "best_effort"
+	OnInfeasibleReject     = "reject"
+)
+
 var knownCapabilities = map[string]bool{
 	CapStreaming: true, CapTools: true, CapJSONObject: true, CapJSONSchema: true, CapVision: true,
 }
@@ -166,6 +174,16 @@ type TenantConfig struct {
 	TPMBurst         int `yaml:"tpm_burst"`
 	MaxConcurrency   int `yaml:"max_concurrency"`
 	DefaultMaxTokens int `yaml:"default_max_tokens"`
+
+	// MinQuality is the quality floor the learned routing policy holds this tenant's
+	// requests to, a lower bound on the probability that the answer succeeds. Nil (key
+	// absent) means unset: the policy's default floor applies. A request may ask for its
+	// own floor.
+	MinQuality *float64 `yaml:"min_quality"`
+	// OnInfeasible is what the learned policy does for this tenant when no model meets
+	// the floor and any latency SLO: OnInfeasibleBestEffort or OnInfeasibleReject. Empty
+	// means the policy's own setting.
+	OnInfeasible string `yaml:"on_infeasible"`
 }
 
 // RoutingConfig configures static routing for the "auto" model.
@@ -525,6 +543,14 @@ func (c *Config) validateTenants(models map[string]bool, add addFunc) {
 			if f.v < 0 {
 				add(path+"."+f.name, "must not be negative, got %d", f.v)
 			}
+		}
+		if q := t.MinQuality; q != nil && !(*q >= 0 && *q <= 1) {
+			add(path+".min_quality", "must be between 0 and 1, got %v", *q)
+		}
+		switch t.OnInfeasible {
+		case "", OnInfeasibleBestEffort, OnInfeasibleReject:
+		default:
+			add(path+".on_infeasible", "unknown value %q (want %q or %q)", t.OnInfeasible, OnInfeasibleBestEffort, OnInfeasibleReject)
 		}
 		if t.RPM == 0 && t.RPMBurst > 0 {
 			add(path+".rpm_burst", "rpm_burst set without rpm")

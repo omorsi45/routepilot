@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/omorsi45/routepilot/internal/policy"
 )
 
 var replayFixtureDir = filepath.Join("..", "..", "testdata", "replay")
@@ -228,5 +230,217 @@ func TestReplayCLILatencyUsageAndInputErrors(t *testing.T) {
 	}
 	if _, err := os.Stat(out); err == nil {
 		t.Error("a failed latency run left the out file behind")
+	}
+}
+
+var (
+	learnedFixtureDir = filepath.Join("..", "..", "testdata", "replay", "learned")
+	tinyArtifactDir   = filepath.Join("..", "..", "testdata", "policy", "tiny", "0782d801a5a3")
+)
+
+func learnedArgs(out string, extra ...string) []string {
+	args := []string{
+		"replay",
+		"--config", filepath.Join(learnedFixtureDir, "config.yaml"),
+		"--input", filepath.Join(learnedFixtureDir, "items.jsonl"),
+		"--out", out, "--split", "all", "--policy", "learned",
+		"--artifact", tinyArtifactDir,
+		"--policy-config", filepath.Join(learnedFixtureDir, "policy.yaml"),
+	}
+	return append(args, extra...)
+}
+
+type learnedLine struct {
+	PolicyVersion *string  `json:"policy_version"`
+	Model         *string  `json:"model"`
+	Floor         *float64 `json:"floor"`
+	Policy        string   `json:"policy"`
+}
+
+func readLearnedLines(t *testing.T, path string) []learnedLine {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lines []learnedLine
+	for _, l := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var rec learnedLine
+		if err := json.Unmarshal([]byte(l), &rec); err != nil {
+			t.Fatalf("decode %q: %v", l, err)
+		}
+		lines = append(lines, rec)
+	}
+	return lines
+}
+
+func TestReplayCLILearned(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "out.jsonl")
+	var stdout, stderr bytes.Buffer
+	if code := run(learnedArgs(out), &stdout, &stderr); code != 0 {
+		t.Fatalf("run(replay learned) = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if !strings.HasPrefix(stdout.String(), "items=6 errors=0 ") {
+		t.Errorf("stdout = %q, want 6 items and no errors", stdout.String())
+	}
+	base := policy.Config{Mode: "min_cost", OODAction: "conservative", OnInfeasible: "best_effort"}
+	wantVersion := "0782d801a5a3+" + base.Hash8()
+	for _, rec := range readLearnedLines(t, out) {
+		if rec.Policy != "learned" || rec.PolicyVersion == nil || *rec.PolicyVersion != wantVersion || rec.Model == nil {
+			t.Errorf("record = %+v, want policy learned, version %s and a model", rec, wantVersion)
+		}
+		if rec.Floor == nil || *rec.Floor != 0 {
+			t.Errorf("floor = %v, want 0 from the policy config", rec.Floor)
+		}
+	}
+
+	// Flags override the policy config, and the version shows the config that ran.
+	out2 := filepath.Join(t.TempDir(), "out2.jsonl")
+	stdout.Reset()
+	args := learnedArgs(out2, "--mode", "dual", "--lambda", "5", "--floor", "0.9", "--epsilon", "0.1", "--seed", "4")
+	if code := run(args, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(replay learned with overrides) = %d; stderr = %q", code, stderr.String())
+	}
+	over := policy.Config{Mode: "dual", Lambda: 5, DefaultFloor: 0.9, Epsilon: 0.1, OODAction: "conservative", OnInfeasible: "best_effort"}
+	for _, rec := range readLearnedLines(t, out2) {
+		if rec.PolicyVersion == nil || *rec.PolicyVersion != "0782d801a5a3+"+over.Hash8() {
+			t.Errorf("version = %v, want 0782d801a5a3+%s", rec.PolicyVersion, over.Hash8())
+		}
+		if rec.Floor == nil || *rec.Floor != 0.9 {
+			t.Errorf("floor = %v, want the 0.9 override", rec.Floor)
+		}
+	}
+
+	// The same flags give the same file; a flag set to its zero value still overrides.
+	out3 := filepath.Join(t.TempDir(), "out3.jsonl")
+	if code := run(learnedArgs(out3, "--mode", "dual", "--lambda", "5", "--floor", "0.9", "--epsilon", "0.1", "--seed", "4"), &stdout, &stderr); code != 0 {
+		t.Fatal("second run failed")
+	}
+	a, _ := os.ReadFile(out2)
+	b, _ := os.ReadFile(out3)
+	if !bytes.Equal(a, b) {
+		t.Error("two runs with the same flags differ")
+	}
+	out4 := filepath.Join(t.TempDir(), "out4.jsonl")
+	if code := run(learnedArgs(out4, "--floor", "0"), &stdout, &stderr); code != 0 {
+		t.Fatal("run with --floor 0 failed")
+	}
+}
+
+func TestReplayCLILearnedWithLatency(t *testing.T) {
+	prof := filepath.Join(t.TempDir(), "profiles.yaml")
+	body := `profiles:
+  - model: tiny-strong
+    ttft_median_ms: 100
+    ttft_sigma: 0.5
+    tpot_median_ms: 1
+    tpot_sigma: 0.3
+    source: test
+    retrieved: "2026-10-28"
+  - model: tiny-weak
+    ttft_median_ms: 10000
+    ttft_sigma: 0.5
+    tpot_median_ms: 100
+    tpot_sigma: 0.3
+    source: test
+    retrieved: "2026-10-28"
+`
+	if err := os.WriteFile(prof, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "out.jsonl")
+	var stdout, stderr bytes.Buffer
+	args := learnedArgs(out, "--latency-profiles", prof, "--slo-e2e-ms", "5000")
+	if code := run(args, &stdout, &stderr); code != 0 {
+		t.Fatalf("run = %d; stderr = %q", code, stderr.String())
+	}
+	// Only tiny-strong meets 5000 ms on its simulated profile, so the SLO routes there.
+	for _, rec := range readLearnedLines(t, out) {
+		if rec.Model == nil || *rec.Model != "tiny-strong" {
+			t.Errorf("model = %v, want tiny-strong (the only one inside the SLO)", rec.Model)
+		}
+	}
+}
+
+func TestReplayCLILearnedUsageErrors(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "out.jsonl")
+	cfg := filepath.Join(learnedFixtureDir, "config.yaml")
+	in := filepath.Join(learnedFixtureDir, "items.jsonl")
+	polCfg := filepath.Join(learnedFixtureDir, "policy.yaml")
+	static := []string{"replay", "--config", cfg, "--input", in, "--out", out, "--split", "all", "--policy", "cheapest"}
+	cases := map[string][]string{
+		"learned without artifact":      {"replay", "--config", cfg, "--input", in, "--out", out, "--split", "all", "--policy", "learned", "--policy-config", polCfg},
+		"learned without policy config": {"replay", "--config", cfg, "--input", in, "--out", out, "--split", "all", "--policy", "learned", "--artifact", tinyArtifactDir},
+		"artifact with cheapest":        append(append([]string{}, static...), "--artifact", tinyArtifactDir),
+		"policy config with cheapest":   append(append([]string{}, static...), "--policy-config", polCfg),
+		"mode with cheapest":            append(append([]string{}, static...), "--mode", "dual"),
+		"lambda with cheapest":          append(append([]string{}, static...), "--lambda", "1"),
+		"floor with cheapest":           append(append([]string{}, static...), "--floor", "0.5"),
+		"epsilon with cheapest":         append(append([]string{}, static...), "--epsilon", "0.1"),
+		"unknown mode":                  learnedArgs(out, "--mode", "greedy"),
+		"negative lambda":               learnedArgs(out, "--lambda", "-1"),
+		"floor above one":               learnedArgs(out, "--floor", "1.5"),
+		"epsilon of one":                learnedArgs(out, "--epsilon", "1"),
+	}
+	for name, args := range cases {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr); code != 2 {
+			t.Errorf("%s: run = %d, want 2; stderr = %q", name, code, stderr.String())
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("%s: stdout = %q, want empty", name, stdout.String())
+		}
+		if !strings.Contains(stderr.String(), "usage") {
+			t.Errorf("%s: stderr = %q, want a usage line", name, stderr.String())
+		}
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("a usage error created the out file")
+	}
+}
+
+func TestReplayCLILearnedInputErrors(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.jsonl")
+
+	// A corrupt artifact: the same bundle with a truncated weights file.
+	corrupt := filepath.Join(dir, "corrupt", "0782d801a5a3")
+	if err := os.MkdirAll(corrupt, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"manifest.json", "weights.bin"} {
+		b, err := os.ReadFile(filepath.Join(tinyArtifactDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if name == "weights.bin" {
+			b = b[:len(b)/2]
+		}
+		if err := os.WriteFile(filepath.Join(corrupt, name), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	badPolicy := filepath.Join(dir, "bad-policy.yaml")
+	if err := os.WriteFile(badPolicy, []byte("mode: sideways\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string][]string{
+		"missing artifact":      learnedArgs(out, "--artifact", filepath.Join(dir, "none")),
+		"corrupt artifact":      learnedArgs(out, "--artifact", corrupt),
+		"missing policy config": learnedArgs(out, "--policy-config", filepath.Join(dir, "none.yaml")),
+		"invalid policy config": learnedArgs(out, "--policy-config", badPolicy),
+	}
+	for name, args := range cases {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr); code != 1 {
+			t.Errorf("%s: run = %d, want 1; stderr = %q", name, code, stderr.String())
+		}
+		if stdout.Len() != 0 || !strings.Contains(stderr.String(), "routepilot replay:") {
+			t.Errorf("%s: stdout %q stderr %q", name, stdout.String(), stderr.String())
+		}
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("an input error left the out file behind")
 	}
 }

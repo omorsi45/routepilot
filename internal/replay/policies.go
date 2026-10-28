@@ -11,6 +11,7 @@ import (
 
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/features"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/router"
 )
@@ -29,14 +30,24 @@ const (
 	PolicyOracle = "oracle"
 	// PolicyFixed always asks for Options.Model.
 	PolicyFixed = "fixed"
+	// PolicyLearned routes with Options.Learned, the constrained optimizer over a
+	// trained artifact.
+	PolicyLearned = router.PolicyLearned
 )
 
-const policyNames = "cheapest, strongest, rules, random, oracle or fixed"
+const policyNames = "cheapest, strongest, rules, random, oracle, fixed or learned"
 
-// selector routes one item and returns the candidate to replay. A routing
-// error comes back as the *openai.APIError; the error result is for problems
-// that stop the run.
-type selector func(item *Item, in router.Input) (router.Candidate, *openai.APIError, error)
+// selection is what a selector decided: the candidate to replay and the router's whole
+// decision, which carries the learned policy's evidence (zero for the oracle).
+type selection struct {
+	cand router.Candidate
+	dec  router.Decision
+}
+
+// selector routes one item and returns the selection to replay. A routing error comes back
+// as the *openai.APIError, with the selection's decision when the router made one; the
+// error result is for problems that stop the run.
+type selector func(item *Item, in router.Input) (selection, *openai.APIError, error)
 
 func newSelector(cat *catalog.Catalog, routing config.RoutingConfig, opts Options) (selector, error) {
 	switch opts.Policy {
@@ -47,7 +58,7 @@ func newSelector(cat *catalog.Catalog, routing config.RoutingConfig, opts Option
 			return nil, fmt.Errorf("build %s policy: %w", opts.Policy, err)
 		}
 		r := router.New(cat, p)
-		return func(_ *Item, in router.Input) (router.Candidate, *openai.APIError, error) {
+		return func(_ *Item, in router.Input) (selection, *openai.APIError, error) {
 			return decideFirst(r, in)
 		}, nil
 
@@ -56,7 +67,7 @@ func newSelector(cat *catalog.Catalog, routing config.RoutingConfig, opts Option
 		// tenant may use it and that it can serve the request. No policy needed.
 		r := router.New(cat, nil)
 		model := opts.Model
-		return func(_ *Item, in router.Input) (router.Candidate, *openai.APIError, error) {
+		return func(_ *Item, in router.Input) (selection, *openai.APIError, error) {
 			in.Requested = model
 			return decideFirst(r, in)
 		}, nil
@@ -65,7 +76,7 @@ func newSelector(cat *catalog.Catalog, routing config.RoutingConfig, opts Option
 		// A router is cheap to build, so each item gets one whose policy is
 		// fixed by the seed and the item ID.
 		seed := opts.Seed
-		return func(item *Item, in router.Input) (router.Candidate, *openai.APIError, error) {
+		return func(item *Item, in router.Input) (selection, *openai.APIError, error) {
 			return decideFirst(router.New(cat, randomPolicy{seed: seed, itemID: item.ItemID}), in)
 		}, nil
 
@@ -76,28 +87,52 @@ func newSelector(cat *catalog.Catalog, routing config.RoutingConfig, opts Option
 			return nil, fmt.Errorf("build oracle candidate set: %w", err)
 		}
 		r := router.New(cat, p)
-		return func(item *Item, in router.Input) (router.Candidate, *openai.APIError, error) {
+		return func(item *Item, in router.Input) (selection, *openai.APIError, error) {
 			d, apiErr := r.Decide(in)
 			if apiErr != nil {
-				return router.Candidate{}, apiErr, nil
+				return selection{dec: d}, apiErr, nil
 			}
 			c, err := pickOracle(item, d.Candidates)
-			return c, nil, err
+			return selection{cand: c, dec: d}, nil, err
+		}, nil
+
+	case PolicyLearned:
+		if opts.Learned == nil {
+			return nil, usageError("policy %s needs a learned policy (an artifact and a policy config)", PolicyLearned)
+		}
+		// No static policy: the learned one decides every item. Its exploration draws
+		// come from a stream seeded by the seed and the item, so an item's draw does not
+		// depend on the other items.
+		r := router.New(cat, nil)
+		learned, seed := opts.Learned, opts.Seed
+		slo := func(ms int) *int {
+			if ms > 0 {
+				return &ms
+			}
+			return nil
+		}
+		ttft, e2e := slo(opts.SLOTTFTMs), slo(opts.SLOE2EMs)
+		return func(item *Item, in router.Input) (selection, *openai.APIError, error) {
+			in.Learned = learned
+			in.Messages = features.Messages(&openai.ChatCompletionRequest{Messages: item.Messages})
+			in.SLOTTFTMs, in.SLOE2EMs = ttft, e2e
+			in.Rand = newStream(seed, item.ItemID).float64
+			return decideFirst(r, in)
 		}, nil
 	}
 	return nil, usageError("unknown policy %q (want %s)", opts.Policy, policyNames)
 }
 
 // decideFirst takes the first candidate of the router's decision.
-func decideFirst(r *router.Router, in router.Input) (router.Candidate, *openai.APIError, error) {
+func decideFirst(r *router.Router, in router.Input) (selection, *openai.APIError, error) {
 	d, apiErr := r.Decide(in)
 	if apiErr != nil {
-		return router.Candidate{}, apiErr, nil
+		return selection{dec: d}, apiErr, nil
 	}
 	if len(d.Candidates) == 0 {
-		return router.Candidate{}, nil, fmt.Errorf("router returned no candidate and no error for %q", in.Requested)
+		return selection{}, nil, fmt.Errorf("router returned no candidate and no error for %q", in.Requested)
 	}
-	return d.Candidates[0], nil, nil
+	return selection{cand: d.Candidates[0], dec: d}, nil, nil
 }
 
 // pickOracle chooses, among every feasible candidate, a model that succeeded at

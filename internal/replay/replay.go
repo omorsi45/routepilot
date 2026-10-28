@@ -41,6 +41,14 @@ var ErrUsage = errors.New("invalid replay options")
 var infeasibleCodes = map[string]bool{
 	openai.ErrCapabilityUnavailable("").Code: true,
 	openai.ErrNoHealthyDeployment().Code:     true,
+	openai.ErrNoFeasibleModel("").Code:       true,
+}
+
+// scoredCodes are the routing error codes that the learned policy returns after it has
+// scored the request, so the decision's floor and out-of-distribution verdict are real.
+var scoredCodes = map[string]bool{
+	openai.ErrNoFeasibleModel("").Code:   true,
+	openai.ErrInsufficientQuota("").Code: true,
 }
 
 // Outcome is the recorded result of one model on one item. Token counts are
@@ -104,7 +112,7 @@ type Record struct {
 type Options struct {
 	// Split keeps the items of one split; SplitAll keeps every item.
 	Split string
-	// Policy is cheapest, strongest, rules, random, oracle or fixed.
+	// Policy is cheapest, strongest, rules, random, oracle, fixed or learned.
 	Policy string
 	// Seed fixes the random policy.
 	Seed uint64
@@ -112,6 +120,9 @@ type Options struct {
 	Tenant string
 	// Model is the model the fixed policy always asks for.
 	Model string
+	// Learned is the policy the learned policy replays; it is required by, and only valid
+	// with, PolicyLearned. Epsilon, the floor, the mode and the rest are part of it.
+	Learned router.Learned
 	// Profiles are the simulated latency profiles by model. When set, every item that
 	// routes to a model gets a simulated latency drawn from that model's profile, seeded
 	// by LatencySeed, and a missing profile for a chosen model is an error.
@@ -160,9 +171,15 @@ func (o Options) Validate() error {
 		if o.Model == "" {
 			return usageError("policy %s requires a model", PolicyFixed)
 		}
-	case PolicyCheapest, PolicyStrongest, PolicyRules, PolicyRandom, PolicyOracle:
+		if o.Learned != nil {
+			return usageError("a learned policy is only valid with policy %s", PolicyLearned)
+		}
+	case PolicyCheapest, PolicyStrongest, PolicyRules, PolicyRandom, PolicyOracle, PolicyLearned:
 		if o.Model != "" {
 			return usageError("a model is only valid with policy %s", PolicyFixed)
+		}
+		if o.Learned != nil && o.Policy != PolicyLearned {
+			return usageError("a learned policy is only valid with policy %s", PolicyLearned)
 		}
 	default:
 		return usageError("unknown policy %q (want %s)", o.Policy, policyNames)
@@ -296,9 +313,13 @@ func replayItem(sel selector, tenant *config.TenantConfig, item *Item, opts Opti
 		Relaxed:        []string{},
 	}
 	input := router.Input{Tenant: tenant, Requested: config.ReservedModelAuto, Req: reqs}
-	cand, apiErr, err := sel(item, input)
+	chosen, apiErr, err := sel(item, input)
 	if err != nil {
 		return Record{}, err
+	}
+	cand := chosen.cand
+	if opts.Policy == PolicyLearned {
+		fillLearned(&rec, chosen.dec, apiErr)
 	}
 	if apiErr != nil {
 		rec.Error = apiErr.Code
@@ -318,6 +339,9 @@ func replayItem(sel selector, tenant *config.TenantConfig, item *Item, opts Opti
 	rec.CostMaxPicoUSD = &costMax
 	rec.Success = outcome.Success
 	rec.CostPicoUSD = outcome.CostPicoUSD
+	if opts.Policy == PolicyLearned {
+		fillChosenScore(&rec, chosen.dec, model)
+	}
 	if len(opts.Profiles) > 0 {
 		profile, ok := opts.Profiles[model]
 		if !ok {
@@ -335,6 +359,32 @@ func replayItem(sel selector, tenant *config.TenantConfig, item *Item, opts Opti
 		}
 	}
 	return rec, nil
+}
+
+// fillLearned records the learned policy's decision context: its version always, and
+// the floor, the out-of-distribution verdict and the exploration outcome whenever the
+// request was scored (a routing error that came before the scoring has none to report).
+func fillLearned(rec *Record, d router.Decision, apiErr *openai.APIError) {
+	version := d.PolicyVersion
+	rec.PolicyVersion = &version
+	if apiErr != nil && !scoredCodes[apiErr.Code] {
+		return
+	}
+	floor, oodScore, propensity := d.Floor, d.OODScore, d.Propensity
+	rec.Floor, rec.OODScore, rec.Propensity = &floor, &oodScore, &propensity
+	rec.OOD, rec.Explored = d.OOD, d.Explored
+	rec.Relaxed = append([]string{}, d.Relaxed...)
+}
+
+// fillChosenScore records the numbers the optimizer used for the model it chose.
+func fillChosenScore(rec *Record, d router.Decision, model string) {
+	for _, s := range d.Scores {
+		if s.Model == model {
+			p, l, costExp := s.P, s.L, int64(s.CostExp)
+			rec.P, rec.L, rec.CostExpPicoUSD = &p, &l, &costExp
+			return
+		}
+	}
 }
 
 func (s *Summary) add(rec Record) {

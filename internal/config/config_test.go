@@ -508,3 +508,46 @@ func TestParseBurstWindowIsExactAtHighRates(t *testing.T) {
 		t.Fatalf("burst window just over 24h at 40M/min: want a window error, got %v", err)
 	}
 }
+
+func tenantYAML(t *testing.T, extra string) string {
+	t.Helper()
+	return baseYAML(t, `allowed_models: ["small"]`, "allowed_models: [\"small\"]\n"+extra)
+}
+
+func TestTenantMinQualityAndOnInfeasible(t *testing.T) {
+	cfg, err := Parse([]byte(baseYAML(t)))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if tn := cfg.Tenants[0]; tn.MinQuality != nil || tn.OnInfeasible != "" {
+		t.Errorf("absent keys: min_quality %v on_infeasible %q, want unset", tn.MinQuality, tn.OnInfeasible)
+	}
+
+	cfg, err = Parse([]byte(tenantYAML(t, "    min_quality: 0.7\n    on_infeasible: reject")))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if tn := cfg.Tenants[0]; tn.MinQuality == nil || *tn.MinQuality != 0.7 || tn.OnInfeasible != OnInfeasibleReject {
+		t.Errorf("min_quality %v on_infeasible %q, want 0.7 and reject", tn.MinQuality, tn.OnInfeasible)
+	}
+
+	// An explicit zero is a floor of zero, not "unset".
+	cfg, err = Parse([]byte(tenantYAML(t, "    min_quality: 0\n    on_infeasible: best_effort")))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if tn := cfg.Tenants[0]; tn.MinQuality == nil || *tn.MinQuality != 0 || tn.OnInfeasible != OnInfeasibleBestEffort {
+		t.Errorf("min_quality %v on_infeasible %q, want an explicit 0 and best_effort", tn.MinQuality, tn.OnInfeasible)
+	}
+
+	for name, tc := range map[string]struct{ extra, want string }{
+		"above one":          {"    min_quality: 1.5", "tenants[0].min_quality"},
+		"negative":           {"    min_quality: -0.1", "tenants[0].min_quality"},
+		"not a number":       {"    min_quality: .nan", "tenants[0].min_quality"},
+		"unknown infeasible": {"    on_infeasible: ignore", "tenants[0].on_infeasible"},
+	} {
+		if _, err := Parse([]byte(tenantYAML(t, tc.extra))); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: err = %v, want one naming %s", name, err, tc.want)
+		}
+	}
+}

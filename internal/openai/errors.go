@@ -104,6 +104,19 @@ func ErrRateLimited(msg string) *APIError {
 	return &APIError{Status: http.StatusTooManyRequests, Type: "rate_limit_error", Code: "rate_limit_exceeded", Message: msg}
 }
 
+// ErrNoFeasibleModel is a 422 when the routing policy rejects a request because no
+// model meets its quality floor and latency SLO. The message names the binding
+// constraints.
+func ErrNoFeasibleModel(msg string) *APIError {
+	return &APIError{Status: http.StatusUnprocessableEntity, Type: "invalid_request_error", Code: "no_feasible_model", Message: msg}
+}
+
+// ErrInsufficientQuota is a 429 when the remaining budget cannot cover the worst-case
+// cost of any model that could serve the request.
+func ErrInsufficientQuota(msg string) *APIError {
+	return &APIError{Status: http.StatusTooManyRequests, Type: "insufficient_quota", Code: "insufficient_quota", Message: msg}
+}
+
 // ErrInternal is a 500.
 func ErrInternal() *APIError {
 	return &APIError{Status: http.StatusInternalServerError, Type: "server_error", Code: "internal_error", Message: "internal server error"}
