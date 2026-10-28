@@ -1,0 +1,10 @@
+{
+  "pool": "flagship",
+  "split": "test",
+  "policy": "rules",
+  "items": 1735,
+  "success_rate": 0.5463976945244957,
+  "mean_cost_picousd": 43970679178.674355,
+  "git_sha": "7753c32b80e2530e604c50dab0e9a4026ce3d01f",
+  "updated_at": "2026-10-28T01:15:05Z"
+}
