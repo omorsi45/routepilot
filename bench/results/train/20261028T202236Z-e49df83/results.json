@@ -1,0 +1,212 @@
+{
+  "pool": "mixed",
+  "artifact_version": "15201d82e792",
+  "calibrator": "switch",
+  "dim": 65536,
+  "n_train": 1067,
+  "n_calib": 382,
+  "ood": {
+    "k": 32,
+    "threshold": 1.0
+  },
+  "wall_time_s": 75.56170229999952,
+  "models": {
+    "DeepSeek-R1-0528-Qwen3-8B": {
+      "C": 10.0,
+      "cv_log_loss": 0.6106189737708363,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.08181851923751812,
+      "calib_brier": 0.20747828702496762,
+      "calib_success_rate": 0.5314136125654451,
+      "lcb_bins": 7,
+      "length_smear": 1.3969862222796006,
+      "in_ratio": 0.2743362831858407
+    },
+    "Llama-3.1-Nemotron-Nano-8B-v1": {
+      "C": 10.0,
+      "cv_log_loss": 0.4799941895221635,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.050275376240624,
+      "calib_brier": 0.14801111084625396,
+      "calib_success_rate": 0.3403141361256545,
+      "lcb_bins": 7,
+      "length_smear": 1.673670170831134,
+      "in_ratio": 0.28363047001620745
+    },
+    "NVIDIA-Nemotron-Nano-9B-v2": {
+      "C": 10.0,
+      "cv_log_loss": 0.5603083001570011,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.047563859022295,
+      "calib_brier": 0.19530997545650564,
+      "calib_success_rate": 0.4973821989528796,
+      "lcb_bins": 7,
+      "length_smear": 1.6526847709061265,
+      "in_ratio": 0.29046898638426627
+    },
+    "Qwen3-8B": {
+      "C": 10.0,
+      "cv_log_loss": 0.6219374268111049,
+      "alpha": 0.1,
+      "calibrator": "platt",
+      "calib_ece": 0.10653640294432898,
+      "calib_brier": 0.21599824345512092,
+      "calib_success_rate": 0.5575916230366492,
+      "lcb_bins": 7,
+      "length_smear": 1.4295769330633354,
+      "in_ratio": 0.2805872756933116
+    },
+    "claude-sonnet-4": {
+      "C": 10.0,
+      "cv_log_loss": 0.5922342513031885,
+      "alpha": 0.1,
+      "calibrator": "platt",
+      "calib_ece": 0.06053082071855659,
+      "calib_brier": 0.1913039236305053,
+      "calib_success_rate": 0.5942408376963351,
+      "lcb_bins": 7,
+      "length_smear": 1.1766127619182345,
+      "in_ratio": 0.30526516521892255
+    },
+    "deepseek-r1-0528": {
+      "C": 10.0,
+      "cv_log_loss": 0.4642524342225438,
+      "alpha": 0.1,
+      "calibrator": "platt",
+      "calib_ece": 0.062986325369748,
+      "calib_brier": 0.15873840315337304,
+      "calib_success_rate": 0.7722513089005235,
+      "lcb_bins": 7,
+      "length_smear": 1.441701302191317,
+      "in_ratio": 0.266735324407827
+    },
+    "deepseek-v3-0324": {
+      "C": 10.0,
+      "cv_log_loss": 0.6100406061425561,
+      "alpha": 0.1,
+      "calibrator": "platt",
+      "calib_ece": 0.06858275290342071,
+      "calib_brier": 0.2108507680581772,
+      "calib_success_rate": 0.662303664921466,
+      "lcb_bins": 7,
+      "length_smear": 1.6384005587438493,
+      "in_ratio": 0.266735324407827
+    },
+    "gemini-2.5-flash": {
+      "C": 10.0,
+      "cv_log_loss": 0.6222672352645899,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.07059914322077006,
+      "calib_brier": 0.1884497716533779,
+      "calib_success_rate": 0.6570680628272252,
+      "lcb_bins": 7,
+      "length_smear": 2.826399427249573,
+      "in_ratio": 0.28282244071717755
+    },
+    "gemini-2.5-pro": {
+      "C": 1.0,
+      "cv_log_loss": 0.42849338739322596,
+      "alpha": 10.0,
+      "calibrator": "platt",
+      "calib_ece": 0.05018734289705104,
+      "calib_brier": 0.1455648017358854,
+      "calib_success_rate": 0.8036649214659686,
+      "lcb_bins": 7,
+      "length_smear": 2.1454946368754633,
+      "in_ratio": 0.2816353704394951
+    },
+    "glm-4.6": {
+      "C": 10.0,
+      "cv_log_loss": 0.5599447018650816,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.07272223195912876,
+      "calib_brier": 0.19254697008767746,
+      "calib_success_rate": 0.6884816753926701,
+      "lcb_bins": 7,
+      "length_smear": 1.469054072377678,
+      "in_ratio": 0.27450980392156865
+    },
+    "gpt-5": {
+      "C": 1.0,
+      "cv_log_loss": 0.4257224179429346,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.062238527130003746,
+      "calib_brier": 0.1139269601102902,
+      "calib_success_rate": 0.8664921465968587,
+      "lcb_bins": 7,
+      "length_smear": 1.8412520605527674,
+      "in_ratio": 0.2730015082956259
+    },
+    "gpt-5-chat": {
+      "C": 10.0,
+      "cv_log_loss": 0.5590605690099977,
+      "alpha": 0.1,
+      "calibrator": "platt",
+      "calib_ece": 0.07803720348822603,
+      "calib_brier": 0.19127295379875603,
+      "calib_success_rate": 0.6701570680628273,
+      "lcb_bins": 7,
+      "length_smear": 1.3384215662583798,
+      "in_ratio": 0.2743972445464983
+    },
+    "intern-s1": {
+      "C": 1.0,
+      "cv_log_loss": 0.6098624805522518,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.059507841602706675,
+      "calib_brier": 0.18810715586331495,
+      "calib_success_rate": 0.5968586387434555,
+      "lcb_bins": 7,
+      "length_smear": 1.3831510680477093,
+      "in_ratio": 0.3691019786910198
+    },
+    "kimi-k2-0905": {
+      "C": 10.0,
+      "cv_log_loss": 0.5558290033555424,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.05768073961851448,
+      "calib_brier": 0.18492775610618353,
+      "calib_success_rate": 0.7094240837696335,
+      "lcb_bins": 7,
+      "length_smear": 1.8971696032725724,
+      "in_ratio": 0.29518072289156627
+    },
+    "qwen3-235b-a22b-2507": {
+      "C": 1.0,
+      "cv_log_loss": 0.5516283556920347,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.06948941533661149,
+      "calib_brier": 0.17729415047592603,
+      "calib_success_rate": 0.6884816753926701,
+      "lcb_bins": 7,
+      "length_smear": 1.5117813925860952,
+      "in_ratio": 0.28405275354570236
+    },
+    "qwen3-235b-a22b-thinking-2507": {
+      "C": 10.0,
+      "cv_log_loss": 0.455971259432743,
+      "alpha": 1.0,
+      "calibrator": "platt",
+      "calib_ece": 0.05090499256792895,
+      "calib_brier": 0.1398452913310232,
+      "calib_success_rate": 0.7958115183246073,
+      "lcb_bins": 7,
+      "length_smear": 4.890607533746409,
+      "in_ratio": 0.283329234300705
+    }
+  },
+  "labels": [
+    "calib_ece and calib_brier are measured on the calibration split, which is in-sample for the calibrator and the lower-bound tables",
+    "no test or held-out row was read",
+    "prices are not used here; nothing in this run is simulated or assumed"
+  ]
+}

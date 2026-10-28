@@ -1,0 +1,96 @@
+{
+  "pool": "mixed",
+  "strong": "gpt-5",
+  "weak": "Llama-3.1-Nemotron-Nano-8B-v1",
+  "models": [
+    "DeepSeek-R1-0528-Qwen3-8B",
+    "Llama-3.1-Nemotron-Nano-8B-v1",
+    "NVIDIA-Nemotron-Nano-9B-v2",
+    "Qwen3-8B",
+    "claude-sonnet-4",
+    "deepseek-r1-0528",
+    "deepseek-v3-0324",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "glm-4.6",
+    "gpt-5",
+    "gpt-5-chat",
+    "intern-s1",
+    "kimi-k2-0905",
+    "qwen3-235b-a22b-2507",
+    "qwen3-235b-a22b-thinking-2507"
+  ],
+  "dim": 65536,
+  "input_width": 65548,
+  "hyperparameters": {
+    "dim_h": 128,
+    "epochs": 10,
+    "lr": 0.001,
+    "l2": 1e-05,
+    "seed": 0,
+    "batch_items": 256
+  },
+  "n_items": 814,
+  "n_pairs": 35157,
+  "epochs": [
+    {
+      "epoch": 1,
+      "loss": 0.6918750910085187,
+      "seconds": 0.2908885000015289
+    },
+    {
+      "epoch": 2,
+      "loss": 0.6844538889859012,
+      "seconds": 0.30503260000114096
+    },
+    {
+      "epoch": 3,
+      "loss": 0.6762673319956987,
+      "seconds": 0.3120512999994389
+    },
+    {
+      "epoch": 4,
+      "loss": 0.6666588245598571,
+      "seconds": 0.3152845000004163
+    },
+    {
+      "epoch": 5,
+      "loss": 0.6551861571049373,
+      "seconds": 0.3061278000004677
+    },
+    {
+      "epoch": 6,
+      "loss": 0.641861457648377,
+      "seconds": 0.3083567999983643
+    },
+    {
+      "epoch": 7,
+      "loss": 0.6263167827232075,
+      "seconds": 0.30993950000083714
+    },
+    {
+      "epoch": 8,
+      "loss": 0.6086827961276691,
+      "seconds": 0.30133050000040384
+    },
+    {
+      "epoch": 9,
+      "loss": 0.5890368356157779,
+      "seconds": 0.3139382999997906
+    },
+    {
+      "epoch": 10,
+      "loss": 0.5677629023415791,
+      "seconds": 0.32256280000001425
+    }
+  ],
+  "train_wall_time_s": 3.190481900001032,
+  "total_wall_time_s": 3.97877790000166,
+  "mf_file": "data/derived/mf/mixed.json",
+  "mf_sha256": "d3fba3d30ed140c8af2e92afe4de18a097507ddf7cecbd8b0d52837f9c8ec5e5",
+  "labels": [
+    "trained on the train split only: no calibration, test or held-out row was read",
+    "no price and no latency is used or simulated here",
+    "the exported weights are derived data and are not committed; only their SHA-256 is recorded"
+  ]
+}

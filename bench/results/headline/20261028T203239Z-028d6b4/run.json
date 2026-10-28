@@ -1,0 +1,28 @@
+{
+  "run_id": "20261028T203239Z-028d6b4",
+  "experiment": "headline",
+  "git_sha": "028d6b442fee1770ace4dcecdd61cdae9e4a90f2",
+  "git_dirty": false,
+  "policy_version": "15201d82e792",
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {
+    "bootstrap": 0,
+    "random": 0,
+    "crossfit_salt": "routepilot-crossfit-v1"
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 31.2,
+    "os": "Windows-11-10.0.26300-SP0"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.7",
+  "started_at": "2026-10-28T20:32:39Z",
+  "ended_at": "2026-10-28T20:32:49Z",
+  "command": [
+    "python",
+    "bench/scripts/headline.py",
+    "--pool",
+    "mixed"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "run_id": "20261028T202400Z-e49df83",
+  "experiment": "mf_train",
+  "git_sha": "e49df833c624a5cbd4251308672ac6db833b1723",
+  "git_dirty": false,
+  "policy_version": "d3fba3d30ed1",
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {
+    "mf": 0
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 31.2,
+    "os": "Windows-11-10.0.26300-SP0"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.7",
+  "started_at": "2026-10-28T20:24:00Z",
+  "ended_at": "2026-10-28T20:24:04Z",
+  "command": [
+    "python",
+    "-m",
+    "routepilot_train.baselines.routellm_mf",
+    "--pool",
+    "mixed",
+    "--derived",
+    "data/derived"
+  ]
+}
