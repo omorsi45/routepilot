@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
@@ -123,6 +124,11 @@ type Options struct {
 	// Learned is the policy the learned policy replays; it is required by, and only valid
 	// with, PolicyLearned. Epsilon, the floor, the mode and the rest are part of it.
 	Learned router.Learned
+	// MF and Threshold are the scorer and the cut of PolicyRouteLLMMF: an item goes to the
+	// strong model when its score is at least Threshold, a number in [0, 1]. Both are
+	// required by, and only valid with, that policy.
+	MF        *MF
+	Threshold float64
 	// Profiles are the simulated latency profiles by model. When set, every item that
 	// routes to a model gets a simulated latency drawn from that model's profile, seeded
 	// by LatencySeed, and a missing profile for a chosen model is an error.
@@ -174,6 +180,13 @@ func (o Options) Validate() error {
 		if o.Learned != nil {
 			return usageError("a learned policy is only valid with policy %s", PolicyLearned)
 		}
+	case PolicyRouteLLMMF:
+		if o.Model != "" || o.Learned != nil {
+			return usageError("policy %s takes only an MF file and a threshold, no model or learned policy", PolicyRouteLLMMF)
+		}
+		if math.IsNaN(o.Threshold) || o.Threshold < 0 || o.Threshold > 1 {
+			return usageError("the %s threshold must be in [0, 1], got %v", PolicyRouteLLMMF, o.Threshold)
+		}
 	case PolicyCheapest, PolicyStrongest, PolicyRules, PolicyRandom, PolicyOracle, PolicyLearned:
 		if o.Model != "" {
 			return usageError("a model is only valid with policy %s", PolicyFixed)
@@ -183,6 +196,9 @@ func (o Options) Validate() error {
 		}
 	default:
 		return usageError("unknown policy %q (want %s)", o.Policy, policyNames)
+	}
+	if o.Policy != PolicyRouteLLMMF && (o.MF != nil || o.Threshold != 0) {
+		return usageError("an MF file and a threshold are only valid with policy %s", PolicyRouteLLMMF)
 	}
 	if o.SLOTTFTMs < 0 || o.SLOE2EMs < 0 {
 		return usageError("an SLO must be positive")
@@ -320,6 +336,10 @@ func replayItem(sel selector, tenant *config.TenantConfig, item *Item, opts Opti
 	cand := chosen.cand
 	if opts.Policy == PolicyLearned {
 		fillLearned(&rec, chosen.dec, apiErr)
+	}
+	if chosen.score != nil {
+		score := *chosen.score
+		rec.P = &score
 	}
 	if apiErr != nil {
 		rec.Error = apiErr.Code

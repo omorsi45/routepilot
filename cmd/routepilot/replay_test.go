@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -433,6 +436,134 @@ func TestReplayCLILearnedInputErrors(t *testing.T) {
 	}
 	for name, args := range cases {
 		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr); code != 1 {
+			t.Errorf("%s: run = %d, want 1; stderr = %q", name, code, stderr.String())
+		}
+		if stdout.Len() != 0 || !strings.Contains(stderr.String(), "routepilot replay:") {
+			t.Errorf("%s: stdout %q stderr %q", name, stdout.String(), stderr.String())
+		}
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("an input error left the out file behind")
+	}
+}
+
+// writeMFFile writes an MF file for the replay fixture models whose score is
+// sigmoid(standardized log1p(bytes)): it grows with the prompt length.
+func writeMFFile(t *testing.T, mutate func(map[string]any)) string {
+	t.Helper()
+	const dim = 8
+	u := make([]byte, 4*(dim+12))
+	binary.LittleEndian.PutUint32(u[4*dim:], math.Float32bits(1))
+	std := make([]float64, 12)
+	for i := range std {
+		std[i] = 1
+	}
+	mean := make([]float64, 12)
+	mean[0] = math.Log1p(40)
+	doc := map[string]any{
+		"strong": "top-c", "weak": "cheap-a", "dim": dim,
+		"dense_mean": mean, "dense_std": std,
+		"u": base64.StdEncoding.EncodeToString(u),
+	}
+	if mutate != nil {
+		mutate(doc)
+	}
+	body, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "mf.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestReplayCLIRouteLLMMF(t *testing.T) {
+	mf := writeMFFile(t, nil)
+	out := filepath.Join(t.TempDir(), "out.jsonl")
+	var stdout, stderr bytes.Buffer
+
+	// The score is sigmoid(log1p(bytes) - log1p(40)): above 0.5 for texts over 40 bytes.
+	args := replayArgs(t, out, "--split", "all", "--policy", "routellm_mf", "--mf", mf, "--threshold", "0.5")
+	if code := run(args, &stdout, &stderr); code != 0 {
+		t.Fatalf("run(replay routellm_mf) = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	raw, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "SENTINEL-PROMPT-7f3a") {
+		t.Error("out file carries prompt text")
+	}
+	want := map[string]string{ // fixture prompt lengths: 42, 42, 41, 55 and 39 bytes
+		"fx-a/1": "top-c", "fx-a/2": "top-c", "fx-b/3": "top-c", "fx-b/4": "top-c", "fx-b/5": "cheap-a",
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != len(want) {
+		t.Fatalf("out file has %d lines, want %d", len(lines), len(want))
+	}
+	for _, line := range lines {
+		var rec struct {
+			ItemID string   `json:"item_id"`
+			Policy string   `json:"policy"`
+			Model  string   `json:"model"`
+			P      *float64 `json:"p"`
+		}
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Policy != "routellm_mf" || rec.Model != want[rec.ItemID] || rec.P == nil {
+			t.Errorf("%s: policy %q model %q p %v, want routellm_mf, %q and a score", rec.ItemID, rec.Policy, rec.Model, rec.P, want[rec.ItemID])
+		}
+	}
+	if !strings.HasPrefix(stdout.String(), "items=5 errors=0 ") || stderr.Len() != 0 {
+		t.Errorf("stdout = %q, stderr = %q", stdout.String(), stderr.String())
+	}
+}
+
+func TestReplayCLIRouteLLMMFUsageErrors(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "out.jsonl")
+	mf := writeMFFile(t, nil)
+	mfArgs := func(extra ...string) []string {
+		return replayArgs(t, out, append([]string{"--split", "all"}, extra...)...)
+	}
+	cases := map[string][]string{
+		"no mf":                mfArgs("--policy", "routellm_mf", "--threshold", "0.5"),
+		"no threshold":         mfArgs("--policy", "routellm_mf", "--mf", mf),
+		"threshold above one":  mfArgs("--policy", "routellm_mf", "--mf", mf, "--threshold", "1.5"),
+		"negative threshold":   mfArgs("--policy", "routellm_mf", "--mf", mf, "--threshold", "-0.5"),
+		"nan threshold":        mfArgs("--policy", "routellm_mf", "--mf", mf, "--threshold", "NaN"),
+		"mf with cheapest":     mfArgs("--policy", "cheapest", "--mf", mf),
+		"threshold w cheapest": mfArgs("--policy", "cheapest", "--threshold", "0.5"),
+		"model with mf":        mfArgs("--policy", "routellm_mf", "--mf", mf, "--threshold", "0.5", "--model", "top-c"),
+	}
+	for name, args := range cases {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr); code != 2 {
+			t.Errorf("%s: run = %d, want 2; stderr = %q", name, code, stderr.String())
+		}
+		if stdout.Len() != 0 || !strings.Contains(stderr.String(), "usage") {
+			t.Errorf("%s: stdout %q stderr %q", name, stdout.String(), stderr.String())
+		}
+	}
+	if _, err := os.Stat(out); err == nil {
+		t.Error("a usage error created the out file")
+	}
+}
+
+func TestReplayCLIRouteLLMMFInputErrors(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out.jsonl")
+	cases := map[string]string{
+		"missing file":      filepath.Join(dir, "none.json"),
+		"truncated weights": writeMFFile(t, func(d map[string]any) { d["u"] = "AAAA" }),
+		"unknown model":     writeMFFile(t, func(d map[string]any) { d["strong"] = "ghost-model" }),
+	}
+	for name, mf := range cases {
+		var stdout, stderr bytes.Buffer
+		args := replayArgs(t, out, "--split", "all", "--policy", "routellm_mf", "--mf", mf, "--threshold", "0.5")
 		if code := run(args, &stdout, &stderr); code != 1 {
 			t.Errorf("%s: run = %d, want 1; stderr = %q", name, code, stderr.String())
 		}

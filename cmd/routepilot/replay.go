@@ -19,10 +19,13 @@ import (
 const replayUsage = "usage: routepilot replay --config FILE --input FILE --split SPLIT --policy NAME [--seed N] [--model ID] --out FILE\n" +
 	"                        [--latency-profiles FILE [--latency-seed N] [--slo-ttft-ms MS | --slo-e2e-ms MS]]\n" +
 	"                        [--artifact DIR --policy-config FILE [--mode M] [--lambda X] [--floor Q] [--epsilon E]]\n" +
+	"                        [--mf FILE --threshold T]\n" +
 	"\n" +
 	"policies: cheapest, strongest, rules, random, oracle, fixed (fixed needs --model),\n" +
 	"          learned (needs --artifact and --policy-config; --mode, --lambda, --floor and\n" +
-	"          --epsilon override the policy config, --floor sets its default floor)\n" +
+	"          --epsilon override the policy config, --floor sets its default floor),\n" +
+	"          routellm_mf (needs --mf, an exported matrix factorization scorer, and --threshold in\n" +
+	"          [0, 1]: items scoring at least T go to the scorer's strong model, the rest to its weak one)\n" +
 	"split: train, calib, test, heldout or all\n" +
 	"latency: with --latency-profiles every routed item gets a simulated latency drawn from the\n" +
 	"model's profile; an SLO marks the items whose simulated latency exceeds it\n"
@@ -37,7 +40,7 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	configPath := fs.String("config", "", "path to the YAML config file (required)")
 	inputPath := fs.String("input", "", "path to the replay JSONL input (required)")
 	split := fs.String("split", "", "split to replay: train, calib, test, heldout or all (required)")
-	policyName := fs.String("policy", "", "policy: cheapest, strongest, rules, random, oracle, fixed or learned (required)")
+	policyName := fs.String("policy", "", "policy: cheapest, strongest, rules, random, oracle, fixed, learned or routellm_mf (required)")
 	seed := fs.Uint64("seed", 0, "seed for the random policy")
 	model := fs.String("model", "", "model the fixed policy always asks for")
 	outPath := fs.String("out", "", "path of the JSONL output (required)")
@@ -51,6 +54,8 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	lambda := fs.Float64("lambda", 0, "override the policy config lambda, per USD of expected cost")
 	floor := fs.Float64("floor", 0, "override the policy config default floor, in [0, 1]")
 	epsilon := fs.Float64("epsilon", 0, "override the policy config exploration rate, in [0, 1)")
+	mfPath := fs.String("mf", "", "exported matrix factorization scorer (routellm_mf policy)")
+	threshold := fs.Float64("threshold", 0, "score at or above which routellm_mf picks the strong model, in [0, 1]")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -61,9 +66,10 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	given := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
 	learnedFlags := []string{"artifact", "policy-config", "mode", "lambda", "floor", "epsilon"}
+	mfFlags := []string{"mf", "threshold"}
 
 	opts := replay.Options{
-		Split: *split, Policy: *policyName, Seed: *seed, Model: *model,
+		Split: *split, Policy: *policyName, Seed: *seed, Model: *model, Threshold: *threshold,
 		LatencySeed: *latencySeed, SLOTTFTMs: *sloTTFT, SLOE2EMs: *sloE2E,
 	}
 	var usageErr error
@@ -78,6 +84,10 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 		usageErr = errors.New("policy learned needs --artifact and --policy-config")
 	case *policyName != replay.PolicyLearned && anyGiven(given, learnedFlags):
 		usageErr = errors.New("--artifact, --policy-config, --mode, --lambda, --floor and --epsilon are only valid with --policy learned")
+	case *policyName == replay.PolicyRouteLLMMF && (*mfPath == "" || !given["threshold"]):
+		usageErr = errors.New("policy routellm_mf needs --mf and --threshold")
+	case *policyName != replay.PolicyRouteLLMMF && anyGiven(given, mfFlags):
+		usageErr = errors.New("--mf and --threshold are only valid with --policy routellm_mf")
 	default:
 		usageErr = opts.Validate()
 	}
@@ -119,6 +129,15 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		opts.Learned = learned
+	}
+
+	if *policyName == replay.PolicyRouteLLMMF {
+		mf, err := replay.LoadMF(*mfPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "routepilot replay: %v\n", err)
+			return 1
+		}
+		opts.MF = mf
 	}
 
 	sum, err := replayFiles(*configPath, *inputPath, *outPath, opts)

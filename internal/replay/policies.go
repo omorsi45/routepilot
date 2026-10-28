@@ -35,13 +35,15 @@ const (
 	PolicyLearned = router.PolicyLearned
 )
 
-const policyNames = "cheapest, strongest, rules, random, oracle, fixed or learned"
+const policyNames = "cheapest, strongest, rules, random, oracle, fixed, learned or routellm_mf"
 
 // selection is what a selector decided: the candidate to replay and the router's whole
-// decision, which carries the learned policy's evidence (zero for the oracle).
+// decision, which carries the learned policy's evidence (zero for the oracle). score is the
+// MF baseline's score for the item, nil for every other policy.
 type selection struct {
-	cand router.Candidate
-	dec  router.Decision
+	cand  router.Candidate
+	dec   router.Decision
+	score *float64
 }
 
 // selector routes one item and returns the selection to replay. A routing error comes back
@@ -95,6 +97,9 @@ func newSelector(cat *catalog.Catalog, routing config.RoutingConfig, opts Option
 			c, err := pickOracle(item, d.Candidates)
 			return selection{cand: c, dec: d}, nil, err
 		}, nil
+
+	case PolicyRouteLLMMF:
+		return newMFSelector(cat, opts)
 
 	case PolicyLearned:
 		if opts.Learned == nil {
