@@ -22,6 +22,9 @@ import (
 
 const defaultKeyEnv = "RP_LOAD_API_KEY"
 
+// clockProbeDuration is how long --clock-probe reads the clock.
+const clockProbeDuration = 200 * time.Millisecond
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 }
@@ -77,6 +80,7 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 		seed        = fs.Int64("seed", 1, "seed of the arrival schedule")
 		maxInflight = fs.Int("max-inflight", 4096, "most requests in flight; further arrivals are dropped and counted")
 		maxTokens   = fs.Int("max-tokens", 16, "max_tokens of every request; 0 omits it")
+		clockProbe  = fs.Bool("clock-probe", false, "print the clock step and the share of equal consecutive time reads as JSON, then exit; sends no request")
 	)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -87,6 +91,9 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	if fs.NArg() > 0 {
 		fmt.Fprintf(stderr, "rp-load: unexpected argument %q\n", fs.Arg(0))
 		return 2
+	}
+	if *clockProbe {
+		return probeClock(stdout, stderr)
 	}
 
 	cfg := loadgen.Config{
@@ -117,6 +124,24 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(summarize(cfg, res)); err != nil {
 		fmt.Fprintf(stderr, "rp-load: write the result: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+// clockProbeResult is the JSON that --clock-probe prints.
+type clockProbeResult struct {
+	ClockStepNS  int64   `json:"clock_step_ns"`
+	ZeroFraction float64 `json:"zero_fraction"`
+}
+
+// probeClock prints how finely time.Now advances on this machine. Timing experiments run it
+// first: durations below the step are not measurable.
+func probeClock(stdout, stderr io.Writer) int {
+	step, zero := loadgen.ClockStep(clockProbeDuration)
+	result := clockProbeResult{ClockStepNS: step.Nanoseconds(), ZeroFraction: zero}
+	if err := json.NewEncoder(stdout).Encode(result); err != nil {
+		fmt.Fprintf(stderr, "rp-load: write the clock probe: %v\n", err)
 		return 1
 	}
 	return 0

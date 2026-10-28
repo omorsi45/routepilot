@@ -191,6 +191,37 @@ func TestRunUsageErrors(t *testing.T) {
 	}
 }
 
+func TestClockProbePrintsTheStepAndTheZeroFraction(t *testing.T) {
+	var so, se bytes.Buffer
+	code := run([]string{"--clock-probe"}, &so, &se, env(nil))
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr: %s", code, se.String())
+	}
+	if se.Len() != 0 {
+		t.Errorf("stderr = %q, want nothing: the probe sends no request and has no start marker", se.String())
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(so.Bytes(), &fields); err != nil {
+		t.Fatalf("stdout is not one JSON object: %v\n%s", err, so.String())
+	}
+	if len(fields) != 2 {
+		t.Errorf("keys = %v, want exactly clock_step_ns and zero_fraction", fields)
+	}
+	var out struct {
+		StepNS       int64   `json:"clock_step_ns"`
+		ZeroFraction float64 `json:"zero_fraction"`
+	}
+	if err := json.Unmarshal(so.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v\n%s", err, so.String())
+	}
+	if out.StepNS <= 0 {
+		t.Errorf("clock_step_ns = %d, want > 0", out.StepNS)
+	}
+	if out.ZeroFraction < 0 || out.ZeroFraction > 1 {
+		t.Errorf("zero_fraction = %v, want a value in [0, 1]", out.ZeroFraction)
+	}
+}
+
 func TestRunHelpExitsZero(t *testing.T) {
 	var so, se bytes.Buffer
 	if code := run([]string{"--help"}, &so, &se, env(nil)); code != 0 {

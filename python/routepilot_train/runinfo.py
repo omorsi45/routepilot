@@ -154,11 +154,14 @@ def write_run_json(
     command: Sequence[str],
     policy_version: str | None,
     started_at: datetime,
+    extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write ``dir/run.json`` (creating ``dir``) and return its content.
 
     ``run_id`` is the directory name, which callers build with ``new_run_id``.
-    ``ended_at`` is the time of this call.
+    ``ended_at`` is the time of this call. ``extra``, when given, is how the run was measured
+    (for example the clock step of a timing experiment) and is stored under ``measurement``;
+    without it the key is absent.
     """
     sha, dirty = git_state()
     info: dict[str, Any] = {
@@ -176,6 +179,8 @@ def write_run_json(
         "ended_at": _iso(datetime.now(UTC)),
         "command": list(command),
     }
+    if extra is not None:
+        info["measurement"] = dict(extra)
     dir.mkdir(parents=True, exist_ok=True)
     (dir / "run.json").write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8", newline="\n")
     return info

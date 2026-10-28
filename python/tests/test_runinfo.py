@@ -63,6 +63,18 @@ def test_run_json_keeps_a_policy_version(tmp_path: Path):
     assert info["started_at"] == "2026-01-02T03:04:05Z"  # a naive time is taken as UTC
 
 
+def test_run_json_merges_extra_under_a_measurement_key(tmp_path: Path):
+    extra = {"clock_step_ns": 40, "zero_fraction": 0.0}
+    info = runinfo.write_run_json(
+        tmp_path / "r", "e", {}, ["x"], None, datetime(2026, 1, 2, 3, 4, 5), extra=extra
+    )
+    on_disk = json.loads((tmp_path / "r" / "run.json").read_text(encoding="utf-8"))
+    assert on_disk == info
+    assert on_disk["measurement"] == extra
+    assert list(on_disk) == [*EXPECTED_KEYS, "measurement"]
+    assert on_disk["seeds"] == {}  # the extra fields do not leak into the other keys
+
+
 def test_new_run_id_format():
     now = datetime(2026, 10, 27, 23, 59, 58, tzinfo=UTC)
     run_id = runinfo.new_run_id(now)

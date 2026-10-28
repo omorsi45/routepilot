@@ -29,6 +29,14 @@ only; the request body is a fixed invented sentence and the key is a fake benchm
 processes bind loopback only and are always stopped, also on an error.
 
 ``--render DIR`` rewrites report.md of an earlier run from its results.json and run.json.
+
+Timing below a microsecond needs a clock that ticks that finely. Before any cell runs, the script
+calls ``rp-load --clock-probe`` and records the clock step and the share of equal consecutive
+reads in results.json, in the report's Labels line and in run.json (under ``measurement``). When
+the step is above 1000 ns the script stops with an error before measuring, because the
+sub-millisecond quantities it reports would be counts of clock ticks (this is what a Windows host
+with a 503 us tick produced). ``--allow-coarse-clock`` measures anyway and leaves every
+sub-millisecond quantity out of the report, with a line saying why.
 """
 
 import argparse
@@ -91,6 +99,8 @@ CLIENT_KEYS = ("p50", "p90", "p95", "p99", "p99.9")
 POLICY_VERSION_HEADER = "x-routepilot-policy-version"
 START_MARKER = "rp-load: started"
 COOLDOWN_S = 2.0
+# A clock that advances in steps above this cannot time the sub-millisecond quantities below.
+COARSE_CLOCK_NS = 1000
 LABEL_LE = re.compile(r'le="([^"]+)"')
 
 # Only these fields of a flagship pool model are kept in the learned catalog.
@@ -107,6 +117,64 @@ POOL_MODEL_FIELDS = (
 
 # Requests never go through a proxy: the processes are on loopback.
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+# --- the clock-resolution guard ----------------------------------------------------------------
+
+
+class CoarseClockError(RuntimeError):
+    """The host clock is too coarse for the sub-millisecond quantities this script reports."""
+
+
+def parse_probe(text: str) -> dict[str, Any]:
+    """The clock step (ns) and zero fraction from the JSON ``rp-load --clock-probe`` prints."""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as err:
+        raise ValueError(f"clock probe: output is not JSON: {text[:200]!r}") from err
+    if not isinstance(data, dict):
+        raise ValueError(f"clock probe: output is not a JSON object: {text[:200]!r}")
+    step, zero = data.get("clock_step_ns"), data.get("zero_fraction")
+    if isinstance(step, bool) or not isinstance(step, int) or step <= 0:
+        raise ValueError(f"clock probe: clock_step_ns must be a positive integer, got {step!r}")
+    if isinstance(zero, bool) or not isinstance(zero, int | float) or not 0 <= zero <= 1:
+        raise ValueError(f"clock probe: zero_fraction must be in [0, 1], got {zero!r}")
+    return {"clock_step_ns": step, "zero_fraction": float(zero)}
+
+
+def probe_clock(binary: Path) -> dict[str, Any]:
+    """Run ``rp-load --clock-probe`` (about 0.2 s) and return its parsed result."""
+    proc = subprocess.run(
+        [str(binary), "--clock-probe"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=60,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"rp-load --clock-probe exited with {proc.returncode}: {proc.stderr}")
+    return parse_probe(proc.stdout)
+
+
+def check_clock(probe: Mapping[str, Any], allow_coarse: bool) -> bool:
+    """Whether the clock is too coarse for sub-millisecond quantities.
+
+    Raises CoarseClockError for a coarse clock unless ``allow_coarse``; with it, returns True
+    so the caller leaves those quantities out of the report.
+    """
+    step = probe["clock_step_ns"]
+    if step <= COARSE_CLOCK_NS:
+        return False
+    if not allow_coarse:
+        raise CoarseClockError(
+            f"the clock step on this host is {step} ns ({probe['zero_fraction']:.4f} of "
+            f"consecutive time.Now reads are equal), above {COARSE_CLOCK_NS} ns, so "
+            "sub-millisecond overhead cannot be measured here. Run on a host with a finer clock "
+            "(for example Linux), or pass --allow-coarse-clock to measure anyway and leave every "
+            "sub-millisecond quantity out of the report."
+        )
+    return True
 
 
 # --- histograms and quantiles ------------------------------------------------------------------
@@ -693,11 +761,28 @@ larger bodies would cost the gateway more to copy.
 """
 
 
+def _clock_label(clock: Mapping[str, Any] | None) -> str:
+    """The sentence of the Labels line about the measured clock step ('' for older results)."""
+    if not clock:
+        return ""
+    step, zero = clock["clock_step_ns"], clock["zero_fraction"]
+    text = (
+        f"Measured with rp-load --clock-probe before the run, the clock step is {step} ns "
+        f"(the smallest non-zero difference between consecutive time.Now reads; {zero:.4f} of "
+        "the consecutive reads were equal)."
+    )
+    if clock.get("coarse"):
+        text += f" That is above {COARSE_CLOCK_NS} ns, so sub-millisecond quantities are omitted."
+    return text
+
+
 def _intro(
     results: Mapping[str, Any], machine: Mapping[str, Any], run_id: str, go_version: str | None
 ) -> list[str]:
     settings = results["settings"]
     go = f", {go_version}" if go_version else ""
+    clock = _clock_label(results.get("clock"))
+    coarse = bool((results.get("clock") or {}).get("coarse"))
     return [
         f"# Gateway overhead against the local mock ({run_id})",
         "",
@@ -707,7 +792,8 @@ def _intro(
         "talk over loopback. The mock's delays are configured constants (time to first token "
         "20 ms, 1 ms per output token, 16 output tokens), so absolute latencies are the mock's; "
         "only the difference between the gateway path and the direct path measures RoutePilot. "
-        "Latencies run from each request's scheduled time (open loop, coordinated-omission safe).",
+        "Latencies run from each request's scheduled time (open loop, coordinated-omission safe)."
+        + (f" {clock}" if clock else ""),
         "",
         f"Settings: {settings['warmup_s']} s warmup (sent, not recorded) and "
         f"{settings['duration_s']} s measurement window per cell, one run per cell, request body "
@@ -715,12 +801,12 @@ def _intro(
         f"max in-flight {MAX_INFLIGHT}, a fresh mock and gateway process for every cell.",
         "",
         f"Target: gateway overhead at p95 below {results['target_p95_ms']:g} ms. It is a target, "
-        "not a guarantee; each row below says whether it was met.",
+        "not a guarantee" + ("." if coarse else "; each row below says whether it was met."),
         "",
     ]
 
 
-def _runs_section(runs: Sequence[Mapping[str, Any]]) -> list[str]:
+def _runs_section(runs: Sequence[Mapping[str, Any]], with_lag: bool = True) -> list[str]:
     all_keys = ("p50", "p90", "p95", "p99", "p99.9", "max")
     rows = []
     for run in runs:
@@ -737,6 +823,8 @@ def _runs_section(runs: Sequence[Mapping[str, Any]]) -> list[str]:
         ttft = [[r["name"], *_pcts(r["load"], "ttft_ms", all_keys)] for r in streams]
         out += ["Time to first token (streaming runs, ms):", ""]
         out += [_table(["run", *all_keys], ttft), ""]
+    if not with_lag:
+        return out
     lag_keys = ("p50", "p99", "max")
     lag = [[r["name"], *_pcts(r["load"], "launch_lag_ms", lag_keys)] for r in runs]
     out += [
@@ -747,6 +835,18 @@ def _runs_section(runs: Sequence[Mapping[str, Any]]) -> list[str]:
         "",
     ]
     return out
+
+
+def _omitted_section(clock: Mapping[str, Any]) -> list[str]:
+    return [
+        "Omitted: the server-side overhead quantiles, the client-side differences between the "
+        "gateway and direct paths, the generator launch lag and the learned-policy comparison, "
+        f"because the clock step on this host is {clock['clock_step_ns']} ns, above the "
+        f"{COARSE_CLOCK_NS} ns limit: a duration below about a millisecond is then a count of "
+        "clock ticks, not a measurement. No verdict against the p95 target is given. Run the "
+        "experiment on a host with a finer clock (for example Linux) to measure the overhead.",
+        "",
+    ]
 
 
 def _client_section(gateway: Sequence[Mapping[str, Any]], target: float) -> list[str]:
@@ -869,13 +969,18 @@ def render_report(
     """The report.md text for a results dict (the content of results.json)."""
     runs = results["runs"]
     target = results["target_p95_ms"]
+    clock = results.get("clock")
+    coarse = bool(clock and clock.get("coarse"))
     gateway = [c for c in results["comparisons"] if c["kind"] == "gateway_vs_direct"]
     out = _intro(results, machine, run_id, go_version)
-    out += _runs_section(runs)
-    out += _client_section(gateway, target)
-    out += _server_section(gateway, runs, target)
-    out += _summary_section(gateway)
-    out += _learned_section(results["comparisons"], runs, target)
+    out += _runs_section(runs, with_lag=not coarse)
+    if coarse and clock:
+        out += _omitted_section(clock)
+    else:
+        out += _client_section(gateway, target)
+        out += _server_section(gateway, runs, target)
+        out += _summary_section(gateway)
+        out += _learned_section(results["comparisons"], runs, target)
     out.append(LIMITATIONS)
     return "\n".join(out)
 
@@ -898,6 +1003,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-learned", action="store_true", help="skip the learned-policy run")
     parser.add_argument("--out", type=Path, help="result directory (default: under bench/results)")
     parser.add_argument("--keep-scratch", action="store_true", help="keep logs and configs")
+    parser.add_argument(
+        "--allow-coarse-clock",
+        action="store_true",
+        help=f"measure on a clock step above {COARSE_CLOCK_NS} ns, leaving sub-millisecond "
+        "quantities out of the report",
+    )
     parser.add_argument("--render", type=Path, metavar="DIR", help="rewrite DIR/report.md and exit")
     return parser
 
@@ -932,6 +1043,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print(f"overhead: building binaries ({run_id})", flush=True)
     bins = build_binaries(scratch / "bin")
+    probe = probe_clock(bins["rp-load"])
+    print(
+        f"overhead: clock step {probe['clock_step_ns']} ns, "
+        f"zero fraction {probe['zero_fraction']:.4f}",
+        flush=True,
+    )
+    try:
+        coarse = check_clock(probe, args.allow_coarse_clock)
+    except CoarseClockError as err:
+        print(f"overhead: {err}", file=sys.stderr, flush=True)
+        return 1
     runs: list[dict[str, Any]] = []
     for index, spec in enumerate(specs, start=1):
         run = measure(spec, bins, scratch, args.warmup, args.duration, learned)
@@ -959,6 +1081,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         },
         "runs": runs,
         "comparisons": compare(runs),
+        "clock": {**probe, "coarse": coarse},
         "wall_time_s": round(time.monotonic() - clock, 1),
     }
 
@@ -976,6 +1099,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ["python", "bench/scripts/overhead.py", *(argv if argv is not None else sys.argv[1:])],
         policy_version,
         started,
+        extra=probe,
     )
     report = render_report(results, info["machine"], info["run_id"], info["go_version"])
     (out_dir / "report.md").write_text(report, encoding="utf-8", newline="\n")

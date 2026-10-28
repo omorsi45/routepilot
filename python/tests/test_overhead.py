@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import math
 import sys
 from types import ModuleType
@@ -266,3 +267,212 @@ def test_render_report_states_labels_target_and_verdicts(ov: ModuleType) -> None
     assert "learned" in text.lower()
     # 39.0 - 37.0 at p95 is 2.0 ms: the table carries it.
     assert "2.00" in text
+
+
+# --- the clock-resolution guard ----------------------------------------------------------------
+
+FINE_CLOCK = {"clock_step_ns": 40, "zero_fraction": 0.0}
+COARSE_CLOCK = {"clock_step_ns": 503_000, "zero_fraction": 0.9999}
+
+
+def test_parse_probe_reads_the_json_rp_load_prints(ov: ModuleType) -> None:
+    probe = ov.parse_probe('{"clock_step_ns": 40, "zero_fraction": 0.0123}\n')
+    assert probe == {"clock_step_ns": 40, "zero_fraction": 0.0123}
+    assert isinstance(probe["clock_step_ns"], int)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "not json",
+        "[1, 2]",
+        '{"clock_step_ns": 40}',
+        '{"zero_fraction": 0.5}',
+        '{"clock_step_ns": 0, "zero_fraction": 0.5}',
+        '{"clock_step_ns": 40, "zero_fraction": 1.5}',
+        '{"clock_step_ns": 40, "zero_fraction": -0.1}',
+    ],
+)
+def test_parse_probe_rejects_anything_but_a_valid_probe(ov: ModuleType, text: str) -> None:
+    with pytest.raises(ValueError, match="clock probe"):
+        ov.parse_probe(text)
+
+
+def test_check_clock_accepts_a_fine_clock(ov: ModuleType) -> None:
+    assert ov.check_clock(FINE_CLOCK, allow_coarse=False) is False
+    assert ov.check_clock(FINE_CLOCK, allow_coarse=True) is False
+
+
+def test_check_clock_threshold_is_one_microsecond(ov: ModuleType) -> None:
+    assert ov.COARSE_CLOCK_NS == 1000
+    assert ov.check_clock({"clock_step_ns": 1000, "zero_fraction": 0.5}, False) is False
+    with pytest.raises(ov.CoarseClockError):
+        ov.check_clock({"clock_step_ns": 1001, "zero_fraction": 0.5}, False)
+
+
+def test_check_clock_refuses_a_coarse_clock_and_names_the_way_out(ov: ModuleType) -> None:
+    with pytest.raises(ov.CoarseClockError) as raised:
+        ov.check_clock(COARSE_CLOCK, allow_coarse=False)
+    message = str(raised.value)
+    assert "503000 ns" in message
+    assert "--allow-coarse-clock" in message
+
+
+def test_check_clock_lets_a_coarse_clock_through_when_asked(ov: ModuleType) -> None:
+    assert ov.check_clock(COARSE_CLOCK, allow_coarse=True) is True
+
+
+def _synthetic_results(ov: ModuleType, clock: dict | None) -> dict:
+    runs = []
+    for stream in (False, True):
+        runs.append(_run(ov, "direct", 100, stream, 37.0, None))
+        runs.append(_run(ov, "gateway", 100, stream, 39.0, 1.5))
+    runs.append(_run(ov, "learned", 100, False, 40.0, 2.5))
+    results: dict = {
+        "experiment": "overhead",
+        "target_p95_ms": 15.0,
+        "settings": {"warmup_s": 10, "duration_s": 60, "levels": [100], "learned_rps": 100},
+        "runs": runs,
+    }
+    if clock is not None:
+        results["clock"] = clock
+    results["comparisons"] = ov.compare(results["runs"])
+    return results
+
+
+MACHINE = {"cpu": "Test CPU (8 threads)", "ram_gb": 16.0, "os": "Linux-6.1-microsoft-standard-WSL2"}
+
+
+def test_report_labels_line_states_the_measured_clock_step(ov: ModuleType) -> None:
+    clock = {**FINE_CLOCK, "coarse": False}
+    text = ov.render_report(_synthetic_results(ov, clock), MACHINE, "run-1", "go1.27.2")
+    labels = next(line for line in text.splitlines() if line.startswith("Labels:"))
+    assert "WSL2" in labels
+    assert "Test CPU (8 threads)" in labels
+    assert "share one machine" in labels
+    assert "clock step" in labels
+    assert "40 ns" in labels
+    assert EM_DASH not in text
+    # A fine clock leaves every section in place.
+    for heading in ("## Overhead, client side", "## Overhead, server side", "## Target summary"):
+        assert heading in text
+    assert "omitted" not in text.lower()
+
+
+def test_report_without_clock_data_still_renders(ov: ModuleType) -> None:
+    # Results written before the guard existed have no clock key.
+    text = ov.render_report(_synthetic_results(ov, None), MACHINE, "run-1", "go1.27.2")
+    assert "## Overhead, client side" in text
+    assert "clock step" not in text
+
+
+def test_coarse_clock_report_omits_every_sub_millisecond_quantity_and_says_why(
+    ov: ModuleType,
+) -> None:
+    clock = {**COARSE_CLOCK, "coarse": True}
+    text = ov.render_report(_synthetic_results(ov, clock), MACHINE, "run-1", "go1.27.2")
+    labels = next(line for line in text.splitlines() if line.startswith("Labels:"))
+    assert "503000 ns" in labels
+    for heading in (
+        "## Overhead, client side",
+        "## Overhead, server side",
+        "## Target summary",
+        "## Learned policy run",
+        "Generator launch lag",
+    ):
+        assert heading not in text
+    assert "rp_gateway_overhead_seconds" not in text
+    assert "rp_decision_duration_seconds" not in text
+    omitted = next(line for line in text.splitlines() if line.startswith("Omitted:"))
+    assert "503000 ns" in omitted
+    assert "server-side" in omitted and "client-side" in omitted
+    assert "1000 ns" in omitted
+    # The absolute client latencies (tens of milliseconds) stay.
+    assert "## Runs (client side, ms)" in text
+    assert EM_DASH not in text
+
+
+class _Pipeline:
+    """Replaces everything in main() that needs Go, a mock or a gateway."""
+
+    def __init__(
+        self, ov: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path, probe: dict
+    ) -> None:
+        self.ov = ov
+        self.measured: list[str] = []
+        monkeypatch.setattr(ov, "ROOT", tmp_path)
+        monkeypatch.setattr(ov, "COOLDOWN_S", 0.0)
+        monkeypatch.setattr(ov, "probe_clock", lambda binary: dict(probe))
+        monkeypatch.setattr(
+            ov,
+            "build_binaries",
+            lambda bin_dir: {n: bin_dir / n for n in ("rp-mock", "routepilot", "rp-load")},
+        )
+        monkeypatch.setattr(ov, "measure", self._measure)
+
+    def _measure(self, spec, bins, scratch, warmup_s, duration_s, learned):
+        self.measured.append(spec.name)
+        direct = spec.path == "direct"
+        p95 = 37.0 if direct else 37.1
+        return _run(self.ov, spec.path, spec.rps, spec.stream, p95, None if direct else 0.005)
+
+
+ARGS = ["--rps", "100", "--skip-learned", "--warmup", "0", "--duration", "1"]
+
+
+def test_main_refuses_a_coarse_clock_before_measuring(
+    ov: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pipeline = _Pipeline(ov, monkeypatch, tmp_path, COARSE_CLOCK)
+    out = tmp_path / "out"
+
+    code = ov.main([*ARGS, "--out", str(out)])
+
+    assert code != 0
+    assert pipeline.measured == []
+    assert not out.exists()
+    err = capsys.readouterr().err
+    assert "503000 ns" in err and "--allow-coarse-clock" in err
+
+
+def test_main_records_the_clock_everywhere_on_a_fine_clock(
+    ov: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    pipeline = _Pipeline(ov, monkeypatch, tmp_path, FINE_CLOCK)
+    out = tmp_path / "out"
+
+    assert ov.main([*ARGS, "--out", str(out)]) == 0
+
+    assert pipeline.measured == [
+        "direct-100rps-nonstream",
+        "gateway-100rps-nonstream",
+        "direct-100rps-stream",
+        "gateway-100rps-stream",
+    ]
+    results = json.loads((out / "results.json").read_text(encoding="utf-8"))
+    assert results["clock"] == {"clock_step_ns": 40, "zero_fraction": 0.0, "coarse": False}
+    info = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    assert info["measurement"] == FINE_CLOCK
+    report = (out / "report.md").read_text(encoding="utf-8")
+    assert "## Overhead, client side" in report
+    assert "40 ns" in next(line for line in report.splitlines() if line.startswith("Labels:"))
+
+
+def test_main_with_allow_coarse_clock_measures_but_omits_the_sub_millisecond_numbers(
+    ov: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    pipeline = _Pipeline(ov, monkeypatch, tmp_path, COARSE_CLOCK)
+    out = tmp_path / "out"
+
+    assert ov.main([*ARGS, "--allow-coarse-clock", "--out", str(out)]) == 0
+
+    assert len(pipeline.measured) == 4
+    results = json.loads((out / "results.json").read_text(encoding="utf-8"))
+    assert results["clock"] == {"clock_step_ns": 503_000, "zero_fraction": 0.9999, "coarse": True}
+    info = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    assert info["measurement"] == COARSE_CLOCK
+    report = (out / "report.md").read_text(encoding="utf-8")
+    assert "## Overhead, client side" not in report
+    assert "## Overhead, server side" not in report
+    assert any(line.startswith("Omitted:") for line in report.splitlines())
