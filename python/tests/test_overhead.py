@@ -476,3 +476,11 @@ def test_main_with_allow_coarse_clock_measures_but_omits_the_sub_millisecond_num
     assert "## Overhead, client side" not in report
     assert "## Overhead, server side" not in report
     assert any(line.startswith("Omitted:") for line in report.splitlines())
+
+
+def test_scratch_root_defaults_under_bench_and_can_move(ov: ModuleType, tmp_path) -> None:
+    """Logs and configs can live off the repo's filesystem (a slow /mnt/c mount under WSL)."""
+    default = ov._parser().parse_args([])
+    assert default.scratch_root == repo_root() / "bench" / "scratch"
+    moved = ov._parser().parse_args(["--scratch-root", str(tmp_path)])
+    assert moved.scratch_root == tmp_path

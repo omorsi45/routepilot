@@ -73,7 +73,9 @@ POLICY_NAME = "flagship"
 POLICY_CONFIG = ROOT / "bench" / "policies" / "flagship.yaml"
 LATENCY_PROFILES = ROOT / "bench" / "latency" / "profiles.yaml"
 
-BENCH_KEY = "bench-key-local"  # a fake benchmark key; its SHA-256 is computed at run time
+BENCH_KEY = (
+    "bench-key-local"  # a fake benchmark key; its SHA-256 is computed at run time
+)
 BENCH_MODEL = "bench-model"
 LEARNED_MODEL = "auto"
 LEVELS = (100, 500, 1000, 2000)
@@ -136,8 +138,14 @@ def parse_probe(text: str) -> dict[str, Any]:
         raise ValueError(f"clock probe: output is not a JSON object: {text[:200]!r}")
     step, zero = data.get("clock_step_ns"), data.get("zero_fraction")
     if isinstance(step, bool) or not isinstance(step, int) or step <= 0:
-        raise ValueError(f"clock probe: clock_step_ns must be a positive integer, got {step!r}")
-    if isinstance(zero, bool) or not isinstance(zero, int | float) or not 0 <= zero <= 1:
+        raise ValueError(
+            f"clock probe: clock_step_ns must be a positive integer, got {step!r}"
+        )
+    if (
+        isinstance(zero, bool)
+        or not isinstance(zero, int | float)
+        or not 0 <= zero <= 1
+    ):
         raise ValueError(f"clock probe: zero_fraction must be in [0, 1], got {zero!r}")
     return {"clock_step_ns": step, "zero_fraction": float(zero)}
 
@@ -153,7 +161,9 @@ def probe_clock(binary: Path) -> dict[str, Any]:
         check=False,
     )
     if proc.returncode != 0:
-        raise RuntimeError(f"rp-load --clock-probe exited with {proc.returncode}: {proc.stderr}")
+        raise RuntimeError(
+            f"rp-load --clock-probe exited with {proc.returncode}: {proc.stderr}"
+        )
     return parse_probe(proc.stdout)
 
 
@@ -228,7 +238,9 @@ def subtract(after: Histogram, before: Histogram) -> Histogram:
     """The observations between two scrapes of the same histogram."""
     if [b for b, _ in after.buckets] != [b for b, _ in before.buckets]:
         raise ValueError("the two scrapes have different bucket bounds")
-    merged = tuple((b, a - p) for (b, a), (_, p) in zip(after.buckets, before.buckets, strict=True))
+    merged = tuple(
+        (b, a - p) for (b, a), (_, p) in zip(after.buckets, before.buckets, strict=True)
+    )
     if any(c < 0 for _, c in merged) or after.count < before.count:
         raise ValueError("a bucket count decreased between the scrapes")
     return Histogram(merged, after.count - before.count, after.total - before.total)
@@ -253,7 +265,9 @@ def bucket_quantile(h: Histogram, q: float) -> Quantile:
             fraction = (rank - below) / width if width > 0 else 1.0
             return Quantile(lower + (bound - lower) * fraction, lower, bound)
         lower, below = bound, cumulative
-    raise ValueError("the histogram is not cumulative")  # unreachable for a sorted scrape
+    raise ValueError(
+        "the histogram is not cumulative"
+    )  # unreachable for a sorted scrape
 
 
 def _quantile_ms(q: Quantile) -> dict[str, float | None]:
@@ -272,7 +286,10 @@ def server_summary(before: Histogram, after: Histogram) -> dict[str, Any] | None
     delta = subtract(after, before)
     if delta.count <= 0:
         return None
-    summary: dict[str, Any] = {"count": delta.count, "mean_ms": delta.total / delta.count * 1000}
+    summary: dict[str, Any] = {
+        "count": delta.count,
+        "mean_ms": delta.total / delta.count * 1000,
+    }
     for key, q in QUANTILES:
         summary[key] = _quantile_ms(bucket_quantile(delta, q))
     return summary
@@ -286,7 +303,9 @@ def difference_of_percentiles(
 ) -> dict[str, float]:
     """Gateway minus direct, percentile by percentile (not the percentiles of per-request gaps)."""
     return {
-        k: round(gateway[k] - direct[k], 6) for k in CLIENT_KEYS if k in gateway and k in direct
+        k: round(gateway[k] - direct[k], 6)
+        for k in CLIENT_KEYS
+        if k in gateway and k in direct
     }
 
 
@@ -353,11 +372,17 @@ def _find(
     raise KeyError(f"no {path} run at {rps} rps, stream={stream}")
 
 
-def _compare_to(base: Mapping[str, Any], other: Mapping[str, Any], kind: str) -> dict[str, Any]:
-    diff = difference_of_percentiles(other["load"]["latency_ms"], base["load"]["latency_ms"])
+def _compare_to(
+    base: Mapping[str, Any], other: Mapping[str, Any], kind: str
+) -> dict[str, Any]:
+    diff = difference_of_percentiles(
+        other["load"]["latency_ms"], base["load"]["latency_ms"]
+    )
     ttft = None
     if other["load"].get("ttft_ms") and base["load"].get("ttft_ms"):
-        ttft = difference_of_percentiles(other["load"]["ttft_ms"], base["load"]["ttft_ms"])
+        ttft = difference_of_percentiles(
+            other["load"]["ttft_ms"], base["load"]["ttft_ms"]
+        )
     server = (other.get("server") or {}).get("overhead")
     return {
         "kind": kind,
@@ -429,7 +454,11 @@ def learned_config(
     for source in pool["models"]:
         model = {k: source[k] for k in POOL_MODEL_FIELDS if k in source}
         model["deployments"] = [
-            {"name": f"{source['id']}-mock", "provider": "mock", "upstream_model": source["id"]}
+            {
+                "name": f"{source['id']}-mock",
+                "provider": "mock",
+                "upstream_model": source["id"],
+            }
         ]
         models.append(model)
     cfg["models"] = models
@@ -447,7 +476,9 @@ def learned_config(
 
 
 def flagship_artifact_version() -> str:
-    versions = sorted(p.name for p in (POLICY_ROOT / POLICY_NAME).glob("*") if p.is_dir())
+    versions = sorted(
+        p.name for p in (POLICY_ROOT / POLICY_NAME).glob("*") if p.is_dir()
+    )
     if len(versions) != 1:
         raise RuntimeError(
             f"want exactly one artifact under policies/{POLICY_NAME} (run make train), "
@@ -519,7 +550,9 @@ def wait_ready(url: str, proc: subprocess.Popen[Any], timeout_s: float = 30.0) -
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if proc.poll() is not None:
-            raise RuntimeError(f"process exited with code {proc.returncode} before {url} answered")
+            raise RuntimeError(
+                f"process exited with code {proc.returncode} before {url} answered"
+            )
         try:
             with OPENER.open(url, timeout=1) as resp:
                 if resp.status == 200:
@@ -550,7 +583,9 @@ def post_chat(url: str, model: str, key: str, stream: bool) -> dict[str, Any]:
         with OPENER.open(request, timeout=10) as resp:
             resp.read()
             headers = {k.lower(): v for k, v in resp.getheaders()}
-            routepilot = {k: v for k, v in headers.items() if k.startswith("x-routepilot-")}
+            routepilot = {
+                k: v for k, v in headers.items() if k.startswith("x-routepilot-")
+            }
             return {"status": resp.status, "headers": routepilot}
     except urllib.error.HTTPError as err:
         excerpt = err.read(300).decode("utf-8", errors="replace")
@@ -589,7 +624,14 @@ def run_load(
     """
     command = [
         *(str(binary), "--url", url, "--model", spec.model, "--rps", str(spec.rps)),
-        *("--warmup", f"{warmup_s}s", "--duration", f"{duration_s}s", "--seed", str(LOAD_SEED)),
+        *(
+            "--warmup",
+            f"{warmup_s}s",
+            "--duration",
+            f"{duration_s}s",
+            "--seed",
+            str(LOAD_SEED),
+        ),
         *("--max-inflight", str(MAX_INFLIGHT), "--max-tokens", str(MAX_TOKENS)),
     ]
     if spec.stream:
@@ -611,8 +653,12 @@ def run_load(
     out_lines: list[str] = []
     err_lines: list[str] = []
     threads = [
-        threading.Thread(target=_pump, args=(proc.stdout, out_lines, None, stamp), daemon=True),
-        threading.Thread(target=_pump, args=(proc.stderr, err_lines, started, stamp), daemon=True),
+        threading.Thread(
+            target=_pump, args=(proc.stdout, out_lines, None, stamp), daemon=True
+        ),
+        threading.Thread(
+            target=_pump, args=(proc.stderr, err_lines, started, stamp), daemon=True
+        ),
     ]
     for thread in threads:
         thread.start()
@@ -654,9 +700,16 @@ def measure(
 ) -> dict[str, Any]:
     """Start the mock (and the gateway), check one request, run the load, stop everything."""
     mock_port = free_port()
-    mock_command = [str(bins["rp-mock"]), "--listen", f"127.0.0.1:{mock_port}", *MOCK_ARGS]
+    mock_command = [
+        str(bins["rp-mock"]),
+        "--listen",
+        f"127.0.0.1:{mock_port}",
+        *MOCK_ARGS,
+    ]
     with contextlib.ExitStack() as stack:
-        mock = stack.enter_context(service(mock_command, scratch / f"{spec.name}.mock.log"))
+        mock = stack.enter_context(
+            service(mock_command, scratch / f"{spec.name}.mock.log")
+        )
         wait_ready(f"http://127.0.0.1:{mock_port}/v1/models", mock)
 
         gateway_port: int | None = None
@@ -666,7 +719,9 @@ def measure(
             gateway_port = free_port()
             if spec.path == "learned":
                 if learned is None:
-                    raise RuntimeError("the learned run needs the flagship pool and artifact")
+                    raise RuntimeError(
+                        "the learned run needs the flagship pool and artifact"
+                    )
                 pool, version = learned
                 cfg = learned_config(gateway_port, mock_port, BENCH_KEY, pool, version)
             else:
@@ -675,7 +730,12 @@ def measure(
             config_path.write_text(
                 yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8", newline="\n"
             )
-            gateway_command = [str(bins["routepilot"]), "serve", "-config", str(config_path)]
+            gateway_command = [
+                str(bins["routepilot"]),
+                "serve",
+                "-config",
+                str(config_path),
+            ]
             gateway = stack.enter_context(
                 service(gateway_command, scratch / f"{spec.name}.gateway.log")
             )
@@ -686,7 +746,9 @@ def measure(
         if spec.path == "learned":
             served = preflight["headers"].get(POLICY_VERSION_HEADER, "")
             if served in ("", "pinned") or served.startswith("static-"):
-                raise RuntimeError(f"the learned run is not using the learned policy: {preflight}")
+                raise RuntimeError(
+                    f"the learned run is not using the learned policy: {preflight}"
+                )
             preflight["policy_version"] = served
 
         load, scrapes = run_load(
@@ -697,8 +759,13 @@ def measure(
     if scrapes is not None:
         before, after = scrapes
         server = {
-            metric: server_summary(parse_histogram(before, name), parse_histogram(after, name))
-            for metric, name in (("overhead", OVERHEAD_METRIC), ("decision", DECISION_METRIC))
+            metric: server_summary(
+                parse_histogram(before, name), parse_histogram(after, name)
+            )
+            for metric, name in (
+                ("overhead", OVERHEAD_METRIC),
+                ("decision", DECISION_METRIC),
+            )
         }
     return {
         "name": spec.name,
@@ -720,7 +787,10 @@ def _f(value: float | None, digits: int = 2) -> str:
 
 
 def _table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
-    lines = ["| " + " | ".join(headers) + " |", "|" + "|".join("---" for _ in headers) + "|"]
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "|" + "|".join("---" for _ in headers) + "|",
+    ]
     lines += ["| " + " | ".join(row) + " |" for row in rows]
     return "\n".join(lines)
 
@@ -777,7 +847,10 @@ def _clock_label(clock: Mapping[str, Any] | None) -> str:
 
 
 def _intro(
-    results: Mapping[str, Any], machine: Mapping[str, Any], run_id: str, go_version: str | None
+    results: Mapping[str, Any],
+    machine: Mapping[str, Any],
+    run_id: str,
+    go_version: str | None,
 ) -> list[str]:
     settings = results["settings"]
     go = f", {go_version}" if go_version else ""
@@ -801,12 +874,15 @@ def _intro(
         f"max in-flight {MAX_INFLIGHT}, a fresh mock and gateway process for every cell.",
         "",
         f"Target: gateway overhead at p95 below {results['target_p95_ms']:g} ms. It is a target, "
-        "not a guarantee" + ("." if coarse else "; each row below says whether it was met."),
+        "not a guarantee"
+        + ("." if coarse else "; each row below says whether it was met."),
         "",
     ]
 
 
-def _runs_section(runs: Sequence[Mapping[str, Any]], with_lag: bool = True) -> list[str]:
+def _runs_section(
+    runs: Sequence[Mapping[str, Any]], with_lag: bool = True
+) -> list[str]:
     all_keys = ("p50", "p90", "p95", "p99", "p99.9", "max")
     rows = []
     for run in runs:
@@ -816,7 +892,15 @@ def _runs_section(runs: Sequence[Mapping[str, Any]], with_lag: bool = True) -> l
             [run["name"], *counts, _f(load["throughput_rps"], 1)]
             + _pcts(load, "latency_ms", all_keys)
         )
-    headers = ["run", "scheduled", "completed", "errors", "dropped", "throughput rps", *all_keys]
+    headers = [
+        "run",
+        "scheduled",
+        "completed",
+        "errors",
+        "dropped",
+        "throughput rps",
+        *all_keys,
+    ]
     out = ["## Runs (client side, ms)", "", _table(headers, rows), ""]
     streams = [r for r in runs if r["stream"]]
     if streams:
@@ -869,15 +953,21 @@ def _client_section(gateway: Sequence[Mapping[str, Any]], target: float) -> list
     streaming = [c for c in gateway if c["ttft_diff_ms"]]
     if streaming:
         ttft = [
-            [str(c["rps"])] + [_f(c["ttft_diff_ms"].get(k)) for k in CLIENT_KEYS] for c in streaming
+            [str(c["rps"])] + [_f(c["ttft_diff_ms"].get(k)) for k in CLIENT_KEYS]
+            for c in streaming
         ]
-        out += ["Time to first token, gateway minus direct (ms, difference of percentiles):", ""]
+        out += [
+            "Time to first token, gateway minus direct (ms, difference of percentiles):",
+            "",
+        ]
         out += [_table(["rate", *CLIENT_KEYS], ttft), ""]
     return out
 
 
 def _server_section(
-    gateway: Sequence[Mapping[str, Any]], runs: Sequence[Mapping[str, Any]], target: float
+    gateway: Sequence[Mapping[str, Any]],
+    runs: Sequence[Mapping[str, Any]],
+    target: float,
 ) -> list[str]:
     by_name = {r["name"]: r for r in runs}
     rows = []
@@ -894,7 +984,16 @@ def _server_section(
                 c["server_verdict"] or "-",
             ]
         )
-    headers = ["rate", "mode", "server n", "completed", "p50", "p95", "p99", f"p95 < {target:g} ms"]
+    headers = [
+        "rate",
+        "mode",
+        "server n",
+        "completed",
+        "p50",
+        "p95",
+        "p99",
+        f"p95 < {target:g} ms",
+    ]
     return [
         "## Overhead, server side: rp_gateway_overhead_seconds (ms, from histogram buckets)",
         "",
@@ -925,7 +1024,9 @@ def _summary_section(gateway: Sequence[Mapping[str, Any]]) -> list[str]:
 
 
 def _learned_section(
-    comparisons: Sequence[Mapping[str, Any]], runs: Sequence[Mapping[str, Any]], target: float
+    comparisons: Sequence[Mapping[str, Any]],
+    runs: Sequence[Mapping[str, Any]],
+    target: float,
 ) -> list[str]:
     learned = [c for c in comparisons if c["kind"].startswith("learned")]
     if not learned:
@@ -954,7 +1055,9 @@ def _learned_section(
         "",
         _table(["comparison", "rate", *CLIENT_KEYS, f"p95 < {target:g} ms"], rows),
         "",
-        _table(["server side (from histogram buckets, ms)", *keys], [overhead, decision]),
+        _table(
+            ["server side (from histogram buckets, ms)", *keys], [overhead, decision]
+        ),
         "",
     ]
     version = run.get("preflight", {}).get("policy_version")
@@ -964,7 +1067,10 @@ def _learned_section(
 
 
 def render_report(
-    results: Mapping[str, Any], machine: Mapping[str, Any], run_id: str, go_version: str | None
+    results: Mapping[str, Any],
+    machine: Mapping[str, Any],
+    run_id: str,
+    go_version: str | None,
 ) -> str:
     """The report.md text for a results dict (the content of results.json)."""
     runs = results["runs"]
@@ -993,23 +1099,46 @@ def _levels(text: str) -> tuple[int, ...]:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Gateway overhead against the local mock.")
-    parser.add_argument("--rps", type=_levels, default=LEVELS, help="comma-separated rates")
-    parser.add_argument("--warmup", type=int, default=WARMUP_S, help="warmup seconds per cell")
+    parser = argparse.ArgumentParser(
+        description="Gateway overhead against the local mock."
+    )
+    parser.add_argument(
+        "--rps", type=_levels, default=LEVELS, help="comma-separated rates"
+    )
+    parser.add_argument(
+        "--warmup", type=int, default=WARMUP_S, help="warmup seconds per cell"
+    )
     parser.add_argument(
         "--duration", type=int, default=DURATION_S, help="measured seconds per cell"
     )
-    parser.add_argument("--learned-rps", type=int, default=LEARNED_RPS, help="rate of learned run")
-    parser.add_argument("--skip-learned", action="store_true", help="skip the learned-policy run")
-    parser.add_argument("--out", type=Path, help="result directory (default: under bench/results)")
-    parser.add_argument("--keep-scratch", action="store_true", help="keep logs and configs")
+    parser.add_argument(
+        "--learned-rps", type=int, default=LEARNED_RPS, help="rate of learned run"
+    )
+    parser.add_argument(
+        "--skip-learned", action="store_true", help="skip the learned-policy run"
+    )
+    parser.add_argument(
+        "--out", type=Path, help="result directory (default: under bench/results)"
+    )
+    parser.add_argument(
+        "--keep-scratch", action="store_true", help="keep logs and configs"
+    )
+    parser.add_argument(
+        "--scratch-root",
+        type=Path,
+        default=ROOT / "bench" / "scratch",
+        help="where the binaries, configs and process logs go; under WSL put it on the Linux "
+        "filesystem, since a /mnt/c mount makes every log write slow",
+    )
     parser.add_argument(
         "--allow-coarse-clock",
         action="store_true",
         help=f"measure on a clock step above {COARSE_CLOCK_NS} ns, leaving sub-millisecond "
         "quantities out of the report",
     )
-    parser.add_argument("--render", type=Path, metavar="DIR", help="rewrite DIR/report.md and exit")
+    parser.add_argument(
+        "--render", type=Path, metavar="DIR", help="rewrite DIR/report.md and exit"
+    )
     return parser
 
 
@@ -1031,7 +1160,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     clock = time.monotonic()
     run_id = runinfo.new_run_id(started)
     out_dir = args.out or ROOT / "bench" / "results" / EXPERIMENT / run_id
-    scratch = ROOT / "bench" / "scratch" / f"{EXPERIMENT}-{run_id}"
+    scratch = args.scratch_root / f"{EXPERIMENT}-{run_id}"
     scratch.mkdir(parents=True, exist_ok=True)
 
     learned_rps = None if args.skip_learned else args.learned_rps
@@ -1090,13 +1219,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(results, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
     policy_version = next(
-        (r["preflight"].get("policy_version") for r in runs if r["path"] == "learned"), None
+        (r["preflight"].get("policy_version") for r in runs if r["path"] == "learned"),
+        None,
     )
     info = runinfo.write_run_json(
         out_dir,
         EXPERIMENT,
         {"loadgen": LOAD_SEED, "mock": MOCK_SEED},
-        ["python", "bench/scripts/overhead.py", *(argv if argv is not None else sys.argv[1:])],
+        [
+            "python",
+            "bench/scripts/overhead.py",
+            *(argv if argv is not None else sys.argv[1:]),
+        ],
         policy_version,
         started,
         extra=probe,
@@ -1105,7 +1239,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     (out_dir / "report.md").write_text(report, encoding="utf-8", newline="\n")
     if not args.keep_scratch:
         shutil.rmtree(scratch, ignore_errors=True)
-    print(f"overhead: wrote {out_dir.as_posix()} in {results['wall_time_s']} s", flush=True)
+    print(
+        f"overhead: wrote {out_dir.as_posix()} in {results['wall_time_s']} s",
+        flush=True,
+    )
     return 0
 
 
