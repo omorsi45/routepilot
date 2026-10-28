@@ -127,7 +127,7 @@ func (c *streamCall) startResponse(modelID, deployment string) {
 	h.Set("Cache-Control", "no-cache")
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
-	setRouteHeaders(c.w, modelID, deployment)
+	c.rs.setRouteHeaders(c.w, modelID, deployment)
 	c.w.WriteHeader(http.StatusOK)
 	c.started = true
 }

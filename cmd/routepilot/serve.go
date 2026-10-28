@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"sync"
 	"syscall"
 	"time"
@@ -19,6 +20,8 @@ import (
 
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/gateway"
+	"github.com/omorsi45/routepilot/internal/latency"
+	"github.com/omorsi45/routepilot/internal/policy"
 	"github.com/omorsi45/routepilot/internal/provider/factory"
 	"github.com/omorsi45/routepilot/internal/quota"
 )
@@ -32,6 +35,19 @@ const (
 
 // notifyContext is signal.NotifyContext; tests replace it to inject signals.
 var notifyContext = signal.NotifyContext
+
+// notifyReload registers for the signal that reloads the learned policies (SIGHUP) and
+// returns the channel it arrives on and a function that unregisters. Tests replace it to
+// inject signals. On Windows the signal is never delivered, and the poll covers it.
+var notifyReload = func() (<-chan os.Signal, func()) {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGHUP)
+	return ch, func() { signal.Stop(ch) }
+}
+
+// policyPollEvery is how often serve checks the learned policy files for changes. Tests
+// replace it.
+var policyPollEvery = 5 * time.Second
 
 const serveUsage = "usage: routepilot serve -config <path>\n"
 
@@ -102,9 +118,49 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		return err
 	}
 	defer closeLimiters()
-	gw, err := gateway.New(cfg, providers, gateway.Options{Logger: logger, Limiters: limiters})
+	opts := gateway.Options{Logger: logger, Limiters: limiters}
+	opts.Latency, err = buildEstimator(cfg)
 	if err != nil {
 		return err
+	}
+	var reg *policy.Registry
+	if cfg.Routing.Policy == config.PolicyLearned {
+		reg, err = buildRegistry(cfg, logger)
+		if err != nil {
+			return err
+		}
+		opts.Policies = reg
+	}
+	gw, err := gateway.New(cfg, providers, opts)
+	if err != nil {
+		return err
+	}
+
+	// Reload the learned policies on SIGHUP and when their files change. Both stop with
+	// the server, and serve waits for them so nothing logs after it returns.
+	if reg != nil {
+		bgCtx, stopBG := context.WithCancel(ctx)
+		var bg sync.WaitGroup
+		defer bg.Wait()
+		defer stopBG()
+		hup, stopHup := notifyReload()
+		defer stopHup()
+		bg.Add(2)
+		go func() {
+			defer bg.Done()
+			reg.Watch(bgCtx, policyPollEvery)
+		}()
+		go func() {
+			defer bg.Done()
+			for {
+				select {
+				case <-bgCtx.Done():
+					return
+				case <-hup:
+					_ = reg.Reload() // the registry logs the outcome
+				}
+			}
+		}()
 	}
 
 	// No ReadTimeout or WriteTimeout: streams are long-lived, and the stream
@@ -136,6 +192,64 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
+}
+
+// buildEstimator returns the latency estimator the gateway learns from. Its priors come
+// from server.latency_profiles when that is set (a path relative to the config file); with
+// none, it knows only what the server observes.
+func buildEstimator(cfg *config.Config) (*latency.Estimator, error) {
+	var priors map[string]latency.Profile
+	if p := cfg.Server.LatencyProfiles; p != "" {
+		var err error
+		priors, err = latency.LoadProfiles(config.ResolvePath(cfg.BaseDir(), p))
+		if err != nil {
+			return nil, err
+		}
+	}
+	return latency.NewEstimator(priors, nil), nil
+}
+
+// buildRegistry loads the learned policies named by cfg. When cfg came from a file, a
+// reload re-reads that file but uses only its policies section; the other sections need a
+// restart, and a change to any of them is logged once per reload as ignored.
+func buildRegistry(cfg *config.Config, logger *slog.Logger) (*policy.Registry, error) {
+	load := func() (config.PoliciesConfig, error) { return cfg.Policies, nil }
+	if path := cfg.Path(); path != "" {
+		load = func() (config.PoliciesConfig, error) {
+			fresh, err := config.Load(path)
+			if err != nil {
+				return config.PoliciesConfig{}, err
+			}
+			if otherSectionsDiffer(cfg, fresh) {
+				logger.Warn("config sections other than policies changed and are ignored until restart",
+					slog.String("config", path))
+			}
+			return fresh.Policies, nil
+		}
+	}
+	reg, err := policy.NewRegistry(load, cfg.BaseDir())
+	if err != nil {
+		return nil, err
+	}
+	if path := cfg.Path(); path != "" {
+		reg.SetConfigFile(path)
+	}
+	reg.SetLogger(logger)
+	snap := reg.Snapshot()
+	attrs := []slog.Attr{slog.String("stable", snap.Stable.Version), slog.Int("shadow", len(snap.Shadow))}
+	if snap.Canary != nil {
+		attrs = append(attrs, slog.String("canary", snap.Canary.Version), slog.Float64("canary_percent", snap.CanaryPercent))
+	}
+	logger.LogAttrs(context.Background(), slog.LevelInfo, "policies loaded", attrs...)
+	return reg, nil
+}
+
+// otherSectionsDiffer reports whether the reloaded config differs from the running one in
+// anything but its policies section.
+func otherSectionsDiffer(running, reloaded *config.Config) bool {
+	a, b := *running, *reloaded
+	a.Policies, b.Policies = config.PoliciesConfig{}, config.PoliciesConfig{}
+	return !reflect.DeepEqual(a, b)
 }
 
 // buildLimiters returns the quota limiters selected by cfg.Quota and a func

@@ -16,7 +16,6 @@ import (
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/openai"
-	"github.com/omorsi45/routepilot/internal/router"
 )
 
 // handleText serves the unauthenticated health routes.
@@ -116,13 +115,11 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	}
 
 	reqs := catalog.Derive(req)
-	dec, apiErr := s.router.Decide(router.Input{
-		Tenant:    tenant,
-		Requested: req.Model,
-		Req:       reqs,
-		Available: s.health.Available,
-	})
+	dec, apiErr := s.decide(rs, tenant, req, reqs)
 	rs.policy = dec.Policy
+	// The decision headers go on before anything is written, so every response that
+	// reached the router carries them, an error from here on included.
+	s.setDecisionHeaders(w, rs, dec)
 	if apiErr != nil {
 		if apiErr.Code == "model_not_found" {
 			// The router echoes the whole client model; cap what we send back.

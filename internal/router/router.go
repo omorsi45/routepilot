@@ -95,6 +95,9 @@ type Decision struct {
 type Router struct {
 	cat    *catalog.Catalog
 	policy Policy
+	// learned is true for a router whose "auto" model is decided by a Learned policy that
+	// arrives with each request in Input.Learned.
+	learned bool
 }
 
 // New returns a Router. A nil policy means "auto" is not configured.
@@ -102,8 +105,15 @@ func New(cat *catalog.Catalog, policy Policy) *Router {
 	return &Router{cat: cat, policy: policy}
 }
 
+// NewLearned returns a Router whose "auto" model is available and is decided by the
+// Learned policy each request brings in Input.Learned. The router holds no policy of its
+// own because the one to use depends on the request (stable, canary).
+func NewLearned(cat *catalog.Catalog) *Router {
+	return &Router{cat: cat, learned: true}
+}
+
 // HasAuto reports whether the "auto" model is configured.
-func (r *Router) HasAuto() bool { return r.policy != nil }
+func (r *Router) HasAuto() bool { return r.policy != nil || r.learned }
 
 // Decide picks the candidates for in, or returns the OpenAI error to send.
 // On a capability error the Decision still carries Policy and Rejected.

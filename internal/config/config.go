@@ -12,7 +12,9 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -40,11 +42,13 @@ const (
 )
 
 // Routing policies accepted in RoutingConfig.Policy. The empty policy means
-// automatic routing is not configured.
+// automatic routing is not configured. PolicyLearned routes with a learned policy
+// artifact from the policies section (see PoliciesConfig).
 const (
 	PolicyCheapest  = "cheapest"
 	PolicyStrongest = "strongest"
 	PolicyRules     = "rules"
+	PolicyLearned   = "learned"
 )
 
 // Quota backends accepted in QuotaConfig.Backend.
@@ -82,6 +86,7 @@ const (
 	defaultMaxAttempts      = 3
 	maxMaxAttempts          = 5
 	rpmBurstDivisor         = 6
+	defaultPoliciesRoot     = "policies"
 )
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -96,6 +101,104 @@ type Config struct {
 	Routing     RoutingConfig     `yaml:"routing"`
 	Quota       QuotaConfig       `yaml:"quota"`
 	Reliability ReliabilityConfig `yaml:"reliability"`
+
+	// Policies names the learned policy artifacts: the stable one, an optional canary
+	// and shadow ones. It is the only section a running server reloads.
+	Policies PoliciesConfig `yaml:"policies"`
+
+	// path and baseDir are set by Load: the absolute path of the file the config was
+	// read from and its directory, which relative paths in the config resolve against.
+	// Parse leaves both empty, which means the working directory.
+	path, baseDir string
+}
+
+// BaseDir is the directory of the file Load read, the directory relative paths in the
+// config (policies.root, a policy's config, server.latency_profiles) are relative to. It
+// is empty for a config built by Parse, meaning the working directory.
+func (c *Config) BaseDir() string { return c.baseDir }
+
+// Path is the absolute path of the file Load read, empty for a config built by Parse.
+func (c *Config) Path() string { return c.path }
+
+// ResolvePath resolves p against baseDir: an absolute p, an empty p or an empty baseDir
+// leave p as it is.
+func ResolvePath(baseDir, p string) string {
+	if p == "" || baseDir == "" || filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(baseDir, p)
+}
+
+// PoliciesConfig lists the policy artifacts a learned routing policy serves with. An
+// artifact lives in the directory <Root>/<name>/<version>. Root and every Config path are
+// relative to the config file's directory.
+type PoliciesConfig struct {
+	// Root holds the artifact directories. It defaults to "policies".
+	Root string `yaml:"root"`
+	// Stable serves every request the canary does not take. Required by the learned policy.
+	Stable PolicyRef `yaml:"stable"`
+	// Canary, when set, takes Percent of the requests instead of Stable.
+	Canary *CanaryRef `yaml:"canary"`
+	// Shadow policies decide on every request but never act: their decisions are only logged.
+	Shadow []PolicyRef `yaml:"shadow"`
+}
+
+// PolicyRef names one policy: an artifact version and the optimizer configuration to run
+// it with.
+type PolicyRef struct {
+	// Name and Version are the artifact's directory under Root.
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
+	// Config is the path of the optimizer configuration file (mode, lambda, floor, ...).
+	Config string `yaml:"config"`
+}
+
+// CanaryRef is a policy that takes a share of the traffic.
+type CanaryRef struct {
+	PolicyRef `yaml:",inline"`
+	// Percent is the share of requests, from 0 to 100, that the canary serves.
+	Percent float64 `yaml:"percent"`
+}
+
+// Validate checks the shape of the section: every named policy needs a name, a version
+// and a configuration path, the name and version must be single path segments, and the
+// canary percent must be in [0, 100]. An absent stable policy is not an error here; the
+// learned routing policy requires it.
+func (p PoliciesConfig) Validate() error {
+	var errs []error
+	p.validate(func(path, format string, args ...any) {
+		errs = append(errs, fmt.Errorf("%s: %s", path, fmt.Sprintf(format, args...)))
+	})
+	return errors.Join(errs...)
+}
+
+func (p PoliciesConfig) validate(add addFunc) {
+	if p.Stable != (PolicyRef{}) {
+		p.Stable.validate("policies.stable", add)
+	}
+	if c := p.Canary; c != nil {
+		c.PolicyRef.validate("policies.canary", add)
+		if !(c.Percent >= 0 && c.Percent <= 100) {
+			add("policies.canary.percent", "must be between 0 and 100, got %v", c.Percent)
+		}
+	}
+	for i, s := range p.Shadow {
+		s.validate(fmt.Sprintf("policies.shadow[%d]", i), add)
+	}
+}
+
+func (r PolicyRef) validate(path string, add addFunc) {
+	for _, f := range []struct{ name, value string }{{"name", r.Name}, {"version", r.Version}} {
+		switch {
+		case f.value == "":
+			add(path+"."+f.name, "must not be empty")
+		case f.value == "." || f.value == ".." || strings.ContainsAny(f.value, `/\`):
+			add(path+"."+f.name, "must be a single directory name, got %q", f.value)
+		}
+	}
+	if r.Config == "" {
+		add(path+".config", "must not be empty")
+	}
 }
 
 // ServerConfig holds listener and request limits.
@@ -107,6 +210,10 @@ type ServerConfig struct {
 	ShutdownGraceMs  int    `yaml:"shutdown_grace_ms"`
 	MaxInflight      int    `yaml:"max_inflight"`
 	QueueWaitMs      int    `yaml:"queue_wait_ms"`
+	// LatencyProfiles is the path of a latency profile file (see the latency package)
+	// that gives the learned policy its prior TTFT and TPOT per model. Optional: without
+	// it the policy only has live observations.
+	LatencyProfiles string `yaml:"latency_profiles"`
 }
 
 // ProviderConfig describes one upstream provider.
@@ -250,7 +357,8 @@ func Parse(b []byte) (*Config, error) {
 	return &cfg, nil
 }
 
-// Load reads and parses the config file at path.
+// Load reads and parses the config file at path, and records the file's absolute path and
+// directory (see Config.BaseDir).
 func Load(path string) (*Config, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -260,6 +368,11 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load config %s: %w", path, err)
 	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
+	}
+	cfg.path, cfg.baseDir = abs, filepath.Dir(abs)
 	return cfg, nil
 }
 
@@ -337,6 +450,9 @@ func (c *Config) applyDefaults() {
 	if c.Reliability.MaxAttempts == 0 {
 		c.Reliability.MaxAttempts = defaultMaxAttempts
 	}
+	if c.Policies.Root == "" {
+		c.Policies.Root = defaultPoliciesRoot
+	}
 }
 
 // Validate checks the whole configuration and returns every problem found,
@@ -352,6 +468,7 @@ func (c *Config) Validate() error {
 	models := c.validateModels(providers, add)
 	c.validateTenants(models, add)
 	c.validateRouting(models, add)
+	c.Policies.validate(add)
 	c.validateQuota(add)
 	c.validateReliability(add)
 
@@ -585,9 +702,12 @@ func burstWindowTooLong(perMinute, burst int) bool {
 func (c *Config) validateRouting(models map[string]bool, add addFunc) {
 	r := c.Routing
 	switch r.Policy {
-	case "", PolicyCheapest, PolicyStrongest, PolicyRules:
+	case "", PolicyCheapest, PolicyStrongest, PolicyRules, PolicyLearned:
 	default:
-		add("routing.policy", "unknown policy %q (want %q, %q, or %q)", r.Policy, PolicyCheapest, PolicyStrongest, PolicyRules)
+		add("routing.policy", "unknown policy %q (want %q, %q, %q, or %q)", r.Policy, PolicyCheapest, PolicyStrongest, PolicyRules, PolicyLearned)
+	}
+	if r.Policy == PolicyLearned && c.Policies.Stable == (PolicyRef{}) {
+		add("policies.stable", "required when routing.policy is %q", PolicyLearned)
 	}
 	if r.DefaultModel != "" && !models[r.DefaultModel] {
 		add("routing.default_model", "unknown model %q", r.DefaultModel)

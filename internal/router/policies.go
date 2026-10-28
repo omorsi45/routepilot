@@ -23,11 +23,13 @@ type Policy interface {
 }
 
 // NewPolicy builds the configured policy. An empty policy name returns
-// (nil, nil): automatic routing is not configured. It fails on an unknown
-// policy name, or on a rule or default model missing from the catalog.
+// (nil, nil): automatic routing is not configured. The learned policy also returns
+// (nil, nil): it is not a static policy, and arrives with each request as Input.Learned
+// (see NewLearned). It fails on an unknown policy name, or on a rule or default model
+// missing from the catalog.
 func NewPolicy(cfg config.RoutingConfig, cat *catalog.Catalog) (Policy, error) {
 	switch cfg.Policy {
-	case "":
+	case "", config.PolicyLearned:
 		return nil, nil
 	case config.PolicyCheapest:
 		return cheapest{}, nil

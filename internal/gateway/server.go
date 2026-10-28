@@ -15,7 +15,10 @@ import (
 
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/latency"
+	"github.com/omorsi45/routepilot/internal/money"
 	"github.com/omorsi45/routepilot/internal/openai"
+	"github.com/omorsi45/routepilot/internal/policy"
 	"github.com/omorsi45/routepilot/internal/provider"
 	"github.com/omorsi45/routepilot/internal/quota"
 	"github.com/omorsi45/routepilot/internal/reliability"
@@ -28,8 +31,8 @@ type Options struct {
 	Logger *slog.Logger
 	// Now is the clock. Nil uses time.Now.
 	Now func() time.Time
-	// Rand returns a value in [0,1) for retry jitter. Nil uses a
-	// mutex-guarded math/rand/v2 source.
+	// Rand returns a value in [0,1) for retry jitter and for the learned policy's
+	// exploration. Nil uses a mutex-guarded math/rand/v2 source.
 	Rand func() float64
 	// Sleep waits d between attempts and returns ctx.Err() if ctx ends first.
 	// Nil sleeps on a timer.
@@ -40,6 +43,14 @@ type Options struct {
 	// ReadBodyTimeout bounds how long the gateway waits for a request body.
 	// Zero means 30 seconds.
 	ReadBodyTimeout time.Duration
+	// Policies holds the learned policies (stable, canary, shadow) that decide the
+	// "auto" model. Required, and used only, when routing.policy is learned: New returns
+	// an error without it.
+	Policies *policy.Registry
+	// Latency estimates time to first token and time per token per deployment for the
+	// learned policy's latency SLOs, and is fed from the streaming path. Nil builds an
+	// estimator with no prior profiles, so it knows only what this server observes.
+	Latency *latency.Estimator
 }
 
 // Server is the gateway HTTP server.
@@ -57,6 +68,10 @@ type Server struct {
 	rand   func() float64
 	sleep  func(ctx context.Context, d time.Duration) error
 
+	// policies is non-nil exactly when routing.policy is learned.
+	policies *policy.Registry
+	latency  *latency.Estimator
+
 	limits quota.Limiters
 	// readBodyTimeout is Options.ReadBodyTimeout; zero means the default.
 	readBodyTimeout time.Duration
@@ -69,6 +84,10 @@ type Server struct {
 func New(cfg *config.Config, providers map[string]provider.Provider, opts Options) (*Server, error) {
 	if cfg == nil {
 		return nil, errors.New("gateway: config is nil")
+	}
+	learned := cfg.Routing.Policy == config.PolicyLearned
+	if learned && opts.Policies == nil {
+		return nil, errors.New("gateway: routing.policy is learned, which needs Options.Policies")
 	}
 	for _, m := range cfg.Models {
 		for _, d := range m.Deployments {
@@ -92,13 +111,20 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 	if err != nil {
 		return nil, fmt.Errorf("gateway: build catalog: %w", err)
 	}
-	policy, err := router.NewPolicy(cfg.Routing, cat)
+	static, err := router.NewPolicy(cfg.Routing, cat)
 	if err != nil {
 		return nil, fmt.Errorf("gateway: build routing policy: %w", err)
 	}
+	rt := router.New(cat, static)
+	if learned {
+		rt = router.NewLearned(cat)
+	}
 	s := &Server{
 		cfg: cfg, providers: providers, logger: opts.Logger, now: opts.Now,
-		cat: cat, router: router.New(cat, policy), rand: opts.Rand, sleep: opts.Sleep,
+		cat: cat, router: rt, rand: opts.Rand, sleep: opts.Sleep,
+	}
+	if learned {
+		s.policies = opts.Policies
 	}
 	s.providerCfgs = make(map[string]config.ProviderConfig, len(cfg.Providers))
 	for _, p := range cfg.Providers {
@@ -109,6 +135,10 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 	}
 	if s.now == nil {
 		s.now = time.Now
+	}
+	s.latency = opts.Latency
+	if s.latency == nil {
+		s.latency = latency.NewEstimator(nil, s.now)
 	}
 	s.health = reliability.NewHealth(s.now)
 	if s.rand == nil {
@@ -180,6 +210,30 @@ type reqState struct {
 	usage    *openai.Usage
 	errCode  string
 	canceled bool
+
+	// upstream429 counts the sent attempts that ended in an upstream HTTP 429 and
+	// retryAfter is the smallest positive Retry-After among them. When every attempt was
+	// a 429 the client gets a 429 too (see failAttempts).
+	upstream429 int
+	retryAfter  time.Duration
+
+	// The fields below are set when the request reaches the learned policy and are what
+	// the decision log (Task 22) reads.
+
+	// policyRole is the role of the slot that decided the request, "stable" or
+	// "canary"; empty when the learned policy did not decide it.
+	policyRole string
+	// policyVersion is the version reported in x-routepilot-policy-version: the slot's
+	// version for the learned policy, "static-<policy>" or "pinned" otherwise.
+	policyVersion string
+	// shadow holds the decision of each shadow slot in snapshot order, and shadowErr the
+	// error each one hit (nil when it decided). A shadow decision is never acted on and
+	// its error is never answered. Each Decision's PolicyVersion names its slot.
+	shadow    []router.Decision
+	shadowErr []*openai.APIError
+	// estCost is the expected cost of each candidate model under the learned policy, for
+	// x-routepilot-estimated-cost-usd.
+	estCost map[string]money.PicoUSD
 }
 
 // statusWriter records the response status. It forwards Flush and exposes the

@@ -170,6 +170,9 @@ const deadlineBlameNum, deadlineBlameDen = 9, 10
 // longer than maxInlineRetryAfter trips its breaker for that long, capped at
 // reliability.MaxOpenFor so one upstream value cannot park it for hours.
 func (s *Server) settle(ctx context.Context, rs *reqState, dep string, err error, elapsed time.Duration) {
+	if err != nil {
+		rs.noteUpstreamError(err)
+	}
 	if err == nil || healthyOutcome(err) {
 		s.health.Record(dep, true)
 		return
@@ -268,9 +271,10 @@ func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan,
 
 // failAttempts writes the error for a request whose attempts are over without
 // a response: 503 if nothing was sent upstream, 504 if the deadline passed or
-// timedOut says the last attempt (or the next wait) ran out of time, else the
-// mapped error of lastErr, which lastDep produced. Nothing is written when
-// the client is gone.
+// timedOut says the last attempt (or the next wait) ran out of time, 429 if every
+// attempt that was sent ended in an upstream 429 (the client is told to back off for as
+// long as the shortest Retry-After an upstream gave), else the mapped error of lastErr,
+// which lastDep produced. Nothing is written when the client is gone.
 func (s *Server) failAttempts(ctx context.Context, w http.ResponseWriter, r *http.Request, rs *reqState, lastDep catalog.Deployment, lastErr error, timedOut bool) {
 	if r.Context().Err() != nil {
 		rs.canceled = true
@@ -281,6 +285,8 @@ func (s *Server) failAttempts(ctx context.Context, w http.ResponseWriter, r *htt
 		s.fail(w, rs, openai.ErrNoHealthyDeployment())
 	case timedOut || errors.Is(ctx.Err(), context.DeadlineExceeded):
 		s.fail(w, rs, openai.ErrUpstreamTimeout())
+	case rs.allUpstream429():
+		s.failUpstreamRateLimited(w, rs)
 	default:
 		if apiErr := mapUpstreamError(ctx, r.Context(), lastDep.Name, lastErr); apiErr != nil {
 			s.fail(w, rs, apiErr)

@@ -87,6 +87,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 
 	var held [][]byte // encoded non-committing chunks, in arrival order
 	var heldBytes int // their total size, capped at maxHeldBytes
+	var commitAt, endAt time.Time
 	for {
 		if c.started {
 			a.watchdog.Reset(idle) // time only the wait for the next upstream chunk
@@ -96,6 +97,7 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 			a.watchdog.Stop()
 		}
 		if errors.Is(err, io.EOF) {
+			endAt = c.s.now()
 			break
 		}
 		if err != nil {
@@ -146,6 +148,10 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 				return a.fail(&provider.Error{Kind: provider.KindTimeout, Message: "first token timeout"})
 			}
 			a.idlePhase.Store(true)
+			// The time to first token is how long the deployment took to produce the
+			// first committing chunk, counted from just before the provider call.
+			commitAt = c.s.now()
+			c.s.latency.ObserveTTFT(dep.Name, commitAt.Sub(a.start))
 			c.startResponse(modelID, dep.Name)
 			for _, h := range held {
 				if err := c.send(func() error { return c.sse.WriteData(h) }); err != nil {
@@ -165,10 +171,23 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, up *openai.
 		return a.fail(&provider.Error{Kind: provider.KindProtocol, Message: "stream ended without content"})
 	}
 	a.settle(nil) // the upstream finished cleanly, whatever the client does next
+	a.observeDecode(commitAt, endAt)
 	if err := c.send(c.sse.WriteDone); err != nil {
 		return a.clientGone()
 	}
 	return attemptResult{done: true}
+}
+
+// observeDecode feeds the latency estimator the time per output token of a stream that
+// ended cleanly: the time from the commit to the end of the upstream stream, over the
+// completion tokens the upstream reported. Without a usage report, or with at most one
+// completion token, there is nothing to divide by and nothing is observed.
+func (a *streamAttempt) observeDecode(commitAt, endAt time.Time) {
+	u := a.c.rs.usage
+	if u == nil || u.CompletionTokens <= 1 {
+		return
+	}
+	a.c.s.latency.ObserveTPOT(a.dep.Name, endAt.Sub(commitAt)/time.Duration(u.CompletionTokens))
 }
 
 // ttftFired stops the TTFT watchdog and reports whether it had already fired.

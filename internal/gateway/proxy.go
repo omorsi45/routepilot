@@ -50,7 +50,7 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 			if resp.Created == 0 {
 				resp.Created = s.now().Unix()
 			}
-			setRouteHeaders(w, model.ID, dep.Name)
+			rs.setRouteHeaders(w, model.ID, dep.Name)
 			writeJSON(w, http.StatusOK, resp)
 			return
 		case r.Context().Err() != nil:
@@ -87,12 +87,6 @@ func (s *Server) prepareUpstream(rs *reqState, req *openai.ChatCompletionRequest
 		up.MaxTokens = &k
 	}
 	return up
-}
-
-// setRouteHeaders tells the client which model and deployment served it.
-func setRouteHeaders(w http.ResponseWriter, modelID, deployment string) {
-	w.Header().Set("x-routepilot-model", modelID)
-	w.Header().Set("x-routepilot-deployment", deployment)
 }
 
 // mapUpstreamError converts a provider failure into the error to send. It
