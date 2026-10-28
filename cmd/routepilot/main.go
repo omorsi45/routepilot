@@ -12,6 +12,7 @@ import (
 const usage = "usage: routepilot <command>\n\ncommands:\n" +
 	"  serve     run the gateway (routepilot serve -config <path>)\n" +
 	"  replay    replay recorded outcomes through a routing policy (routepilot replay --help)\n" +
+	"  policy    verify or inspect a trained policy artifact (routepilot policy --help)\n" +
 	"  version   print the version and exit\n"
 
 func main() {
@@ -31,6 +32,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runServe(args[1:], stdout, stderr)
 	case "replay":
 		return runReplay(args[1:], stdout, stderr)
+	case "policy":
+		return runPolicy(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, version.String())
 		return 0

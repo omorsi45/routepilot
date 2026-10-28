@@ -57,6 +57,10 @@ data: ## download and verify the dataset, ingest it, then build splits, pools an
 	$(PY) -m routepilot_train.data.ingest --tar data/raw/bench-release.tar.gz --out data/derived
 	$(PY) -m routepilot_train.data.build --derived data/derived
 
+.PHONY: train
+train: ## train the flagship policy into policies/flagship/<version> and record the run in bench/results/train (needs make data)
+	$(PY) -m routepilot_train.train.pipeline --pool flagship --derived data/derived --out policies
+
 .PHONY: bench-gate
 bench-gate: ## replay the flagship test split with the gated policy and compare with bench/gates/baseline.json (needs make data)
 	$(PY) bench/scripts/gate.py --check --pool flagship --policy rules \

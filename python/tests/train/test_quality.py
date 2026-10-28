@@ -63,6 +63,20 @@ def test_standardizer_zero_std_becomes_one():
     np.testing.assert_allclose(std, [math.sqrt(8 / 3), 1.0, math.sqrt(8 / 3)])
 
 
+def test_standardizer_constant_column_is_exact_even_when_the_mean_rounds():
+    # The message-count feature is log1p(1) for every single-message training prompt. Summing
+    # that many equal values rounds, so a naive mean and std leave a noise-sized std instead of
+    # zero, and a two-message request would later standardize to about 1e13.
+    constant = math.log1p(1)
+    dense = np.column_stack([np.full(7240, constant), np.linspace(0.0, 3.0, 7240)])
+    mean, std = design.standardizer(dense)
+    assert std[0] == 1.0
+    assert mean[0] == constant
+    assert np.all((dense[:, 0] - mean[0]) / std[0] == 0.0)
+    assert abs((math.log1p(2) - mean[0]) / std[0]) < 1.0
+    assert std[1] == pytest.approx(np.linspace(0.0, 3.0, 7240).std())
+
+
 def test_design_matrix_is_hashed_then_standardized_dense():
     texts, _ = synthetic_texts(20)
     hashed, dense = features.extract_texts(texts, DIM)

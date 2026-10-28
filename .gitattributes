@@ -1,0 +1,6 @@
+# A policy artifact is content-addressed: its version hashes the exact bytes of both files.
+# Pin the bytes so no checkout setting (core.autocrlf, eol) can rewrite them and break the hash.
+testdata/policy/**/manifest.json text eol=lf
+testdata/policy/**/weights.bin binary
+policies/**/manifest.json text eol=lf
+policies/**/weights.bin binary
