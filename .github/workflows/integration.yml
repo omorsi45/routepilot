@@ -1,0 +1,73 @@
+name: Integration
+
+# The slow lane: the env-gated suites against real Redis and PostgreSQL service containers,
+# and the container image build. ci.yml stays hermetic (no container runtime); the tests here
+# skip themselves without the two variables below, so they are exercised only in this lane.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Tests never call a provider; an accidental key in the environment would
+  # make a passing run meaningless.
+  OPENAI_API_KEY: ""
+  ANTHROPIC_API_KEY: ""
+  OPENROUTER_API_KEY: ""
+
+jobs:
+  integration:
+    name: redis, postgres, image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      postgres:
+        image: postgres:17-alpine
+        env:
+          # A throwaway password for a service container that lives for this job only.
+          POSTGRES_PASSWORD: test-pass-local
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      ROUTEPILOT_TEST_REDIS_URL: redis://127.0.0.1:6379/0
+      ROUTEPILOT_TEST_POSTGRES_DSN: postgres://postgres:test-pass-local@127.0.0.1:5432/postgres?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # The packages that read the two variables: the quota limiters and budget ledger
+      # (Redis), the usage ledger (PostgreSQL), and the gateway's budget end-to-end test (Redis).
+      - name: env-gated suites
+        run: go test -count=1 ./internal/quota/... ./internal/accounting/... ./internal/gateway/
+
+      - name: build the container image
+        run: docker build -f deploy/Dockerfile -t routepilot:ci .

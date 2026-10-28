@@ -1,0 +1,19 @@
+# Keep the build context to what the image build needs. The Dockerfile copies only go.mod,
+# go.sum, cmd and internal; the rest is excluded so it is never sent to the daemon.
+.git
+.worktrees
+.superpowers
+docs/superpowers
+bin/
+.venv/
+.ruff_cache/
+.pytest_cache/
+**/__pycache__/
+
+# Downloaded and derived datasets, and scratch benchmark output.
+data/
+bench/scratch/
+
+# Trained policy artifacts stay out of the image, except the committed demo policy.
+policies/*
+!policies/demo
