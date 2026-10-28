@@ -18,6 +18,7 @@ import (
 
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/latency"
 	"github.com/omorsi45/routepilot/internal/money"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/router"
@@ -111,6 +112,15 @@ type Options struct {
 	Tenant string
 	// Model is the model the fixed policy always asks for.
 	Model string
+	// Profiles are the simulated latency profiles by model. When set, every item that
+	// routes to a model gets a simulated latency drawn from that model's profile, seeded
+	// by LatencySeed, and a missing profile for a chosen model is an error.
+	Profiles    map[string]latency.Profile
+	LatencySeed uint64
+	// SLOTTFTMs and SLOE2EMs, in milliseconds, set the latency SLO the simulated
+	// latency is judged against (zero means none). At most one may be set, and either
+	// needs Profiles.
+	SLOTTFTMs, SLOE2EMs int
 }
 
 // Summary totals a run. Routing errors count as failures at zero cost.
@@ -157,8 +167,17 @@ func (o Options) Validate() error {
 	default:
 		return usageError("unknown policy %q (want %s)", o.Policy, policyNames)
 	}
+	if o.SLOTTFTMs < 0 || o.SLOE2EMs < 0 {
+		return usageError("an SLO must be positive")
+	}
+	if o.SLOTTFTMs > 0 && o.SLOE2EMs > 0 {
+		return usageError("set only one of the TTFT and the end-to-end SLO")
+	}
 	return nil
 }
+
+// hasSLO reports whether a latency SLO is set.
+func (o Options) hasSLO() bool { return o.SLOTTFTMs > 0 || o.SLOE2EMs > 0 }
 
 func usageError(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrUsage, fmt.Sprintf(format, args...))
@@ -174,6 +193,9 @@ func Run(ctx context.Context, cfg *config.Config, in io.Reader, out io.Writer, o
 	}
 	if err := opts.Validate(); err != nil {
 		return Summary{}, err
+	}
+	if opts.hasSLO() && len(opts.Profiles) == 0 {
+		return Summary{}, usageError("an SLO needs latency profiles")
 	}
 	cat, err := catalog.New(cfg)
 	if err != nil {
@@ -296,6 +318,22 @@ func replayItem(sel selector, tenant *config.TenantConfig, item *Item, opts Opti
 	rec.CostMaxPicoUSD = &costMax
 	rec.Success = outcome.Success
 	rec.CostPicoUSD = outcome.CostPicoUSD
+	if len(opts.Profiles) > 0 {
+		profile, ok := opts.Profiles[model]
+		if !ok {
+			return Record{}, fmt.Errorf("item %s: no latency profile for chosen model %s", item.ItemID, model)
+		}
+		ttft, e2e := simulateLatency(profile, opts.LatencySeed, item.ItemID, model, outcome.CompletionTokens)
+		rec.TTFTMsSim, rec.E2EMsSim = &ttft, &e2e
+		switch {
+		case opts.SLOTTFTMs > 0:
+			slo, violated := float64(opts.SLOTTFTMs), ttft > float64(opts.SLOTTFTMs)
+			rec.SLOMs, rec.SLOViolated = &slo, &violated
+		case opts.SLOE2EMs > 0:
+			slo, violated := float64(opts.SLOE2EMs), e2e > float64(opts.SLOE2EMs)
+			rec.SLOMs, rec.SLOViolated = &slo, &violated
+		}
+	}
 	return rec, nil
 }
 

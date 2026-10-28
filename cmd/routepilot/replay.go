@@ -9,14 +9,18 @@ import (
 	"os"
 
 	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/latency"
 	"github.com/omorsi45/routepilot/internal/money"
 	"github.com/omorsi45/routepilot/internal/replay"
 )
 
 const replayUsage = "usage: routepilot replay --config FILE --input FILE --split SPLIT --policy NAME [--seed N] [--model ID] --out FILE\n" +
+	"                        [--latency-profiles FILE [--latency-seed N] [--slo-ttft-ms MS | --slo-e2e-ms MS]]\n" +
 	"\n" +
 	"policies: cheapest, strongest, rules, random, oracle, fixed (fixed needs --model)\n" +
-	"split: train, calib, test, heldout or all\n"
+	"split: train, calib, test, heldout or all\n" +
+	"latency: with --latency-profiles every routed item gets a simulated latency drawn from the\n" +
+	"model's profile; an SLO marks the items whose simulated latency exceeds it\n"
 
 // runReplay implements `routepilot replay`. It returns 0 on success, 1 for
 // input errors and 2 for usage errors. Routing errors are recorded in the
@@ -32,6 +36,10 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 	seed := fs.Uint64("seed", 0, "seed for the random policy")
 	model := fs.String("model", "", "model the fixed policy always asks for")
 	outPath := fs.String("out", "", "path of the JSONL output (required)")
+	profilesPath := fs.String("latency-profiles", "", "path to the simulated latency profiles YAML")
+	latencySeed := fs.Uint64("latency-seed", 0, "seed of the simulated latency draws")
+	sloTTFT := fs.Int("slo-ttft-ms", 0, "time to first token SLO in milliseconds, judged on the simulated latency")
+	sloE2E := fs.Int("slo-e2e-ms", 0, "end-to-end SLO in milliseconds, judged on the simulated latency")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -39,19 +47,33 @@ func runReplay(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	opts := replay.Options{Split: *split, Policy: *policy, Seed: *seed, Model: *model}
+	opts := replay.Options{
+		Split: *split, Policy: *policy, Seed: *seed, Model: *model,
+		LatencySeed: *latencySeed, SLOTTFTMs: *sloTTFT, SLOE2EMs: *sloE2E,
+	}
 	var usageErr error
 	switch {
 	case fs.NArg() > 0:
 		usageErr = fmt.Errorf("unexpected argument %q", fs.Arg(0))
 	case *configPath == "" || *inputPath == "" || *outPath == "":
 		usageErr = errors.New("--config, --input and --out are required")
+	case (*sloTTFT > 0 || *sloE2E > 0) && *profilesPath == "":
+		usageErr = errors.New("--slo-ttft-ms and --slo-e2e-ms need --latency-profiles")
 	default:
 		usageErr = opts.Validate()
 	}
 	if usageErr != nil {
 		fmt.Fprintf(stderr, "routepilot replay: %v\n%s", usageErr, replayUsage)
 		return 2
+	}
+
+	if *profilesPath != "" {
+		profiles, err := latency.LoadProfiles(*profilesPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "routepilot replay: %v\n", err)
+			return 1
+		}
+		opts.Profiles = profiles
 	}
 
 	sum, err := replayFiles(*configPath, *inputPath, *outPath, opts)

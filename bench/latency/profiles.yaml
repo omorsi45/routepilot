@@ -1,0 +1,120 @@
+# Simulated latency priors for the 12 flagship pool models. Every number derived from
+# this file is a simulated figure, not a measurement of RoutePilot or of the providers.
+#
+# Medians come from the public Artificial Analysis model pages listed in SOURCES.md,
+# read on 2026-10-28 exactly as displayed:
+#   tpot_median_ms = 1000 / displayed output speed (tokens per second)
+#   ttft_median_ms = displayed time to first token (s) * 1000 for non-reasoning variants
+# Reasoning variants use the median displayed TTFT of the non-reasoning models (1005 ms:
+# the median of 0.37, 0.75, 1.26 and 1.38 s), because the page's TTFT includes hidden
+# reasoning time that the recorded completion_tokens x TPOT already counts.
+# A model whose page shows no value gets the median of the displayed ones.
+# The sigmas (spread of the logarithm) are assumed: no page gives one.
+profiles:
+  - model: claude-sonnet-4
+    ttft_median_ms: 1005
+    ttft_sigma: 0.5
+    tpot_median_ms: 9.6618357
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/claude-4-sonnet
+    retrieved: "2026-10-28"
+    note: "assumed, no public figure: the page (Claude 4 Sonnet (Non-reasoning)) shows Speed N/A and no TTFT; tpot is the median of the displayed ones and ttft the median of the displayed non-reasoning TTFTs; sigma assumed"
+
+  - model: deepseek-r1-0528
+    ttft_median_ms: 1005
+    ttft_sigma: 0.5
+    tpot_median_ms: 26.2467192
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/deepseek-r1
+    retrieved: "2026-10-28"
+    note: "output speed 38.1 tokens/s as displayed (median across providers); TTFT 1.18 s as displayed; TTFT replaced by the non-reasoning median: the page's TTFT includes reasoning time, which completion_tokens x TPOT already covers; sigma assumed"
+
+  - model: deepseek-v3-0324
+    ttft_median_ms: 750
+    ttft_sigma: 0.5
+    tpot_median_ms: 7.3746313
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/deepseek-v3-0324
+    retrieved: "2026-10-28"
+    note: "output speed 135.6 tokens/s as displayed (median across providers); TTFT 0.75 s as displayed; sigma assumed"
+
+  - model: gemini-2.5-flash
+    ttft_median_ms: 370
+    ttft_sigma: 0.5
+    tpot_median_ms: 4.7732697
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/gemini-2-5-flash
+    retrieved: "2026-10-28"
+    note: "output speed 209.5 tokens/s as displayed (Google's API); TTFT 0.37 s as displayed; sigma assumed"
+
+  - model: gemini-2.5-pro
+    ttft_median_ms: 1005
+    ttft_sigma: 0.5
+    tpot_median_ms: 8.6281277
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/gemini-2-5-pro
+    retrieved: "2026-10-28"
+    note: "output speed 115.9 tokens/s as displayed (Google's API); TTFT 25.36 s as displayed; TTFT replaced by the non-reasoning median: the page's TTFT includes reasoning time, which completion_tokens x TPOT already covers; sigma assumed"
+
+  - model: glm-4.6
+    ttft_median_ms: 1005
+    ttft_sigma: 0.5
+    tpot_median_ms: 32.0512821
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/glm-4-6-reasoning
+    retrieved: "2026-10-28"
+    note: "output speed 31.2 tokens/s as displayed (median across providers); TTFT 4.06 s as displayed; TTFT replaced by the non-reasoning median: the page's TTFT includes reasoning time, which completion_tokens x TPOT already covers; sigma assumed"
+
+  - model: gpt-5
+    ttft_median_ms: 1005
+    ttft_sigma: 0.5
+    tpot_median_ms: 9.6618357
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/gpt-5-medium
+    retrieved: "2026-10-28"
+    note: "output speed 103.5 tokens/s as displayed (OpenAI's API); TTFT 27.95 s as displayed; TTFT replaced by the non-reasoning median: the page's TTFT includes reasoning time, which completion_tokens x TPOT already covers; sigma assumed"
+
+  - model: gpt-5-chat
+    ttft_median_ms: 1005
+    ttft_sigma: 0.5
+    tpot_median_ms: 9.6618357
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/gpt-5-chatgpt
+    retrieved: "2026-10-28"
+    note: "assumed, no public figure: the page (GPT-5 (ChatGPT)) shows Speed N/A and no TTFT; tpot is the median of the displayed ones and ttft the median of the displayed non-reasoning TTFTs; sigma assumed"
+
+  - model: intern-s1
+    ttft_median_ms: 1005
+    ttft_sigma: 0.5
+    tpot_median_ms: 9.6618357
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/leaderboards/models?status=all
+    retrieved: "2026-10-28"
+    note: "assumed, no public figure: the model listing of 716 pages has no Intern-S1 entry; tpot is the median of the displayed ones; TTFT replaced by the non-reasoning median: a reasoning variant, whose reasoning time completion_tokens x TPOT already covers; sigma assumed"
+
+  - model: kimi-k2-0905
+    ttft_median_ms: 1380
+    ttft_sigma: 0.5
+    tpot_median_ms: 21.3675214
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/kimi-k2-0905
+    retrieved: "2026-10-28"
+    note: "output speed 46.8 tokens/s as displayed (median across providers); TTFT 1.38 s as displayed; sigma assumed"
+
+  - model: qwen3-235b-a22b-2507
+    ttft_median_ms: 1260
+    ttft_sigma: 0.5
+    tpot_median_ms: 20.4918033
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/qwen3-235b-a22b-instruct-2507
+    retrieved: "2026-10-28"
+    note: "output speed 48.8 tokens/s as displayed (median across providers); TTFT 1.26 s as displayed; sigma assumed"
+
+  - model: qwen3-235b-a22b-thinking-2507
+    ttft_median_ms: 1005
+    ttft_sigma: 0.5
+    tpot_median_ms: 8.0321285
+    tpot_sigma: 0.3
+    source: https://artificialanalysis.ai/models/qwen3-235b-a22b-instruct-2507-reasoning
+    retrieved: "2026-10-28"
+    note: "output speed 124.5 tokens/s as displayed (median across providers); TTFT 0.75 s as displayed; TTFT replaced by the non-reasoning median: the page's TTFT includes reasoning time, which completion_tokens x TPOT already covers; sigma assumed"
