@@ -1,0 +1,478 @@
+{
+  "pool": "mixed",
+  "split": "test",
+  "n_items": 361,
+  "best_single": "gpt-5",
+  "cheapest": "Llama-3.1-Nemotron-Nano-8B-v1",
+  "bootstrap": {
+    "n": 1000,
+    "seed": 0,
+    "alpha": 0.05,
+    "method": "percentile"
+  },
+  "policies": {
+    "always_strongest": {
+      "policy": "always_strongest",
+      "replay_policy": "fixed",
+      "fixed_model": "gpt-5",
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.8365650969529086,
+      "mean_cost_usd": 0.04785125623268698,
+      "cost_per_success_usd": 0.05719968046357616,
+      "success_ci": [
+        0.7977839335180056,
+        0.8725761772853186
+      ],
+      "mean_cost_ci": [
+        0.04137648530124653,
+        0.05436594799168975
+      ],
+      "success_delta_vs_strongest": 0.0,
+      "success_delta_ci": [
+        0.0,
+        0.0
+      ],
+      "cost_reduction_vs_strongest": 0.0,
+      "cost_reduction_ci": [
+        0.0,
+        0.0
+      ],
+      "model_counts": {
+        "gpt-5": 361
+      }
+    },
+    "always_cheapest": {
+      "policy": "always_cheapest",
+      "replay_policy": "fixed",
+      "fixed_model": "Llama-3.1-Nemotron-Nano-8B-v1",
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.2853185595567867,
+      "mean_cost_usd": 0.00010530120498614958,
+      "cost_per_success_usd": 0.00036906538834951457,
+      "success_ci": [
+        0.23822714681440443,
+        0.32970914127423817
+      ],
+      "mean_cost_ci": [
+        9.934983310249308e-05,
+        0.00011162419840720222
+      ],
+      "success_delta_vs_strongest": -0.551246537396122,
+      "success_delta_ci": [
+        -0.6038781163434903,
+        -0.4958448753462604
+      ],
+      "cost_reduction_vs_strongest": 0.9977994056316076,
+      "cost_reduction_ci": [
+        0.9974698422210031,
+        0.998066631047298
+      ],
+      "model_counts": {
+        "Llama-3.1-Nemotron-Nano-8B-v1": 361
+      }
+    },
+    "random": {
+      "policy": "random",
+      "replay_policy": "random",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.6509695290858726,
+      "mean_cost_usd": 0.021560478362880886,
+      "cost_per_success_usd": 0.03312056463404255,
+      "success_ci": [
+        0.6038781163434903,
+        0.7008310249307479
+      ],
+      "mean_cost_ci": [
+        0.016324113595948757,
+        0.027088060276696677
+      ],
+      "success_delta_vs_strongest": -0.18559556786703602,
+      "success_delta_ci": [
+        -0.23822714681440438,
+        -0.1357340720221607
+      ],
+      "cost_reduction_vs_strongest": 0.5494271193625839,
+      "cost_reduction_ci": [
+        0.4380708730103035,
+        0.6500905921698238
+      ],
+      "model_counts": {
+        "DeepSeek-R1-0528-Qwen3-8B": 12,
+        "Llama-3.1-Nemotron-Nano-8B-v1": 20,
+        "NVIDIA-Nemotron-Nano-9B-v2": 28,
+        "Qwen3-8B": 18,
+        "claude-sonnet-4": 22,
+        "deepseek-r1-0528": 22,
+        "deepseek-v3-0324": 28,
+        "gemini-2.5-flash": 22,
+        "gemini-2.5-pro": 39,
+        "glm-4.6": 14,
+        "gpt-5": 24,
+        "gpt-5-chat": 24,
+        "intern-s1": 29,
+        "kimi-k2-0905": 16,
+        "qwen3-235b-a22b-2507": 20,
+        "qwen3-235b-a22b-thinking-2507": 23
+      }
+    },
+    "static_rules": {
+      "policy": "static_rules",
+      "replay_policy": "rules",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.8365650969529086,
+      "mean_cost_usd": 0.04785125623268698,
+      "cost_per_success_usd": 0.05719968046357616,
+      "success_ci": [
+        0.7977839335180056,
+        0.8725761772853186
+      ],
+      "mean_cost_ci": [
+        0.04137648530124653,
+        0.05436594799168975
+      ],
+      "success_delta_vs_strongest": 0.0,
+      "success_delta_ci": [
+        0.0,
+        0.0
+      ],
+      "cost_reduction_vs_strongest": 0.0,
+      "cost_reduction_ci": [
+        0.0,
+        0.0
+      ],
+      "model_counts": {
+        "gpt-5": 361
+      }
+    },
+    "oracle": {
+      "policy": "oracle",
+      "replay_policy": "oracle",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.9473684210526315,
+      "mean_cost_usd": 0.007577976005540166,
+      "cost_per_success_usd": 0.00799897467251462,
+      "success_ci": [
+        0.925207756232687,
+        0.9695290858725761
+      ],
+      "mean_cost_ci": [
+        0.004133588439889198,
+        0.01186515032316482
+      ],
+      "success_delta_vs_strongest": 0.11080332409972293,
+      "success_delta_ci": [
+        0.08033240997229918,
+        0.1468144044321329
+      ],
+      "cost_reduction_vs_strongest": 0.8416347531464872,
+      "cost_reduction_ci": [
+        0.7626275153158751,
+        0.9071493437220227
+      ],
+      "model_counts": {
+        "DeepSeek-R1-0528-Qwen3-8B": 48,
+        "Llama-3.1-Nemotron-Nano-8B-v1": 109,
+        "NVIDIA-Nemotron-Nano-9B-v2": 10,
+        "Qwen3-8B": 26,
+        "deepseek-r1-0528": 1,
+        "deepseek-v3-0324": 23,
+        "gemini-2.5-flash": 29,
+        "gemini-2.5-pro": 8,
+        "glm-4.6": 5,
+        "gpt-5": 11,
+        "gpt-5-chat": 3,
+        "intern-s1": 2,
+        "kimi-k2-0905": 8,
+        "qwen3-235b-a22b-2507": 66,
+        "qwen3-235b-a22b-thinking-2507": 12
+      }
+    },
+    "static_strongest_rank": {
+      "policy": "static_strongest_rank",
+      "replay_policy": "strongest",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.8365650969529086,
+      "mean_cost_usd": 0.04785125623268698,
+      "cost_per_success_usd": 0.05719968046357616,
+      "success_ci": [
+        0.7977839335180056,
+        0.8725761772853186
+      ],
+      "mean_cost_ci": [
+        0.04137648530124653,
+        0.05436594799168975
+      ],
+      "success_delta_vs_strongest": 0.0,
+      "success_delta_ci": [
+        0.0,
+        0.0
+      ],
+      "cost_reduction_vs_strongest": 0.0,
+      "cost_reduction_ci": [
+        0.0,
+        0.0
+      ],
+      "model_counts": {
+        "gpt-5": 361
+      }
+    },
+    "static_cheapest_worstcase": {
+      "policy": "static_cheapest_worstcase",
+      "replay_policy": "cheapest",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.2853185595567867,
+      "mean_cost_usd": 0.00010530120498614958,
+      "cost_per_success_usd": 0.00036906538834951457,
+      "success_ci": [
+        0.23822714681440443,
+        0.32970914127423817
+      ],
+      "mean_cost_ci": [
+        9.934983310249308e-05,
+        0.00011162419840720222
+      ],
+      "success_delta_vs_strongest": -0.551246537396122,
+      "success_delta_ci": [
+        -0.6038781163434903,
+        -0.4958448753462604
+      ],
+      "cost_reduction_vs_strongest": 0.9977994056316076,
+      "cost_reduction_ci": [
+        0.9974698422210031,
+        0.998066631047298
+      ],
+      "model_counts": {
+        "Llama-3.1-Nemotron-Nano-8B-v1": 361
+      }
+    }
+  },
+  "random_seeds": {
+    "seeds": {
+      "0": {
+        "success_rate": 0.6509695290858726,
+        "mean_cost_usd": 0.021560478362880886
+      },
+      "1": {
+        "success_rate": 0.6592797783933518,
+        "mean_cost_usd": 0.013566044254847644
+      },
+      "2": {
+        "success_rate": 0.6343490304709142,
+        "mean_cost_usd": 0.014184968783933518
+      },
+      "3": {
+        "success_rate": 0.6398891966759003,
+        "mean_cost_usd": 0.012763152130193904
+      },
+      "4": {
+        "success_rate": 0.6731301939058172,
+        "mean_cost_usd": 0.013399058029085873
+      }
+    },
+    "success_rate": {
+      "mean": 0.6515235457063712,
+      "min": 0.6343490304709142,
+      "max": 0.6731301939058172
+    },
+    "mean_cost_usd": {
+      "mean": 0.015094740312188364,
+      "min": 0.012763152130193904,
+      "max": 0.021560478362880886
+    }
+  },
+  "per_dataset": {
+    "aime": {
+      "n": 14,
+      "always_strongest": {
+        "success_rate": 0.6428571428571429,
+        "mean_cost_usd": 0.120316875
+      },
+      "always_cheapest": {
+        "success_rate": 0.35714285714285715,
+        "mean_cost_usd": 0.00013741392857142856
+      },
+      "random": {
+        "success_rate": 0.6428571428571429,
+        "mean_cost_usd": 0.0398641175
+      },
+      "static_rules": {
+        "success_rate": 0.6428571428571429,
+        "mean_cost_usd": 0.120316875
+      },
+      "oracle": {
+        "success_rate": 0.8571428571428571,
+        "mean_cost_usd": 0.003213352428571429
+      },
+      "static_strongest_rank": {
+        "success_rate": 0.6428571428571429,
+        "mean_cost_usd": 0.120316875
+      },
+      "static_cheapest_worstcase": {
+        "success_rate": 0.35714285714285715,
+        "mean_cost_usd": 0.00013741392857142856
+      }
+    },
+    "arenahard_creative_writing": {
+      "n": 51,
+      "always_strongest": {
+        "success_rate": 0.9411764705882353,
+        "mean_cost_usd": 0.032803063725490196
+      },
+      "always_cheapest": {
+        "success_rate": 0.0,
+        "mean_cost_usd": 5.4588725490196076e-05
+      },
+      "random": {
+        "success_rate": 0.7843137254901961,
+        "mean_cost_usd": 0.008913814843137255
+      },
+      "static_rules": {
+        "success_rate": 0.9411764705882353,
+        "mean_cost_usd": 0.032803063725490196
+      },
+      "oracle": {
+        "success_rate": 1.0,
+        "mean_cost_usd": 0.00028015070588235296
+      },
+      "static_strongest_rank": {
+        "success_rate": 0.9411764705882353,
+        "mean_cost_usd": 0.032803063725490196
+      },
+      "static_cheapest_worstcase": {
+        "success_rate": 0.0,
+        "mean_cost_usd": 5.4588725490196076e-05
+      }
+    },
+    "arenahard_math": {
+      "n": 58,
+      "always_strongest": {
+        "success_rate": 0.6379310344827587,
+        "mean_cost_usd": 0.03915185344827586
+      },
+      "always_cheapest": {
+        "success_rate": 0.05172413793103448,
+        "mean_cost_usd": 0.0001089181896551724
+      },
+      "random": {
+        "success_rate": 0.5344827586206896,
+        "mean_cost_usd": 0.01853833067241379
+      },
+      "static_rules": {
+        "success_rate": 0.6379310344827587,
+        "mean_cost_usd": 0.03915185344827586
+      },
+      "oracle": {
+        "success_rate": 0.9655172413793104,
+        "mean_cost_usd": 0.0009339907068965517
+      },
+      "static_strongest_rank": {
+        "success_rate": 0.6379310344827587,
+        "mean_cost_usd": 0.03915185344827586
+      },
+      "static_cheapest_worstcase": {
+        "success_rate": 0.05172413793103448,
+        "mean_cost_usd": 0.0001089181896551724
+      }
+    },
+    "gpqa": {
+      "n": 33,
+      "always_strongest": {
+        "success_rate": 0.7575757575757576,
+        "mean_cost_usd": 0.04636507575757576
+      },
+      "always_cheapest": {
+        "success_rate": 0.18181818181818182,
+        "mean_cost_usd": 0.00010435545454545455
+      },
+      "random": {
+        "success_rate": 0.6363636363636364,
+        "mean_cost_usd": 0.03460079263636364
+      },
+      "static_rules": {
+        "success_rate": 0.7575757575757576,
+        "mean_cost_usd": 0.04636507575757576
+      },
+      "oracle": {
+        "success_rate": 0.9696969696969697,
+        "mean_cost_usd": 0.001031964
+      },
+      "static_strongest_rank": {
+        "success_rate": 0.7575757575757576,
+        "mean_cost_usd": 0.04636507575757576
+      },
+      "static_cheapest_worstcase": {
+        "success_rate": 0.18181818181818182,
+        "mean_cost_usd": 0.00010435545454545455
+      }
+    },
+    "livecodebench": {
+      "n": 205,
+      "always_strongest": {
+        "success_rate": 0.8926829268292683,
+        "mean_cost_usd": 0.04934661463414634
+      },
+      "always_cheapest": {
+        "success_rate": 0.43414634146341463,
+        "mean_cost_usd": 0.00011485331707317073
+      },
+      "random": {
+        "success_rate": 0.6536585365853659,
+        "mean_cost_usd": 0.022212590980487803
+      },
+      "static_rules": {
+        "success_rate": 0.8926829268292683,
+        "mean_cost_usd": 0.04934661463414634
+      },
+      "oracle": {
+        "success_rate": 0.9317073170731708,
+        "mean_cost_usd": 0.012625114365853658
+      },
+      "static_strongest_rank": {
+        "success_rate": 0.8926829268292683,
+        "mean_cost_usd": 0.04934661463414634
+      },
+      "static_cheapest_worstcase": {
+        "success_rate": 0.43414634146341463,
+        "mean_cost_usd": 0.00011485331707317073
+      }
+    }
+  },
+  "pareto_front": [
+    "always_cheapest",
+    "static_cheapest_worstcase",
+    "oracle"
+  ],
+  "rules_mapping": {
+    "default_model": "gpt-5",
+    "rules": {
+      "code": "gpt-5",
+      "math": "gpt-5",
+      "choices": "gpt-5",
+      "long": "gpt-5"
+    }
+  },
+  "rules_parity": {
+    "split": "all",
+    "items": 3182,
+    "mismatches": 0,
+    "mismatched_item_ids": []
+  },
+  "labels": [
+    "costs of the four small models are fitted from recorded costs and applied to their recorded token counts; flagship costs are recorded",
+    "no latency is measured or simulated in this experiment",
+    "Best Single, the cheapest model and the rules mapping are chosen on train+calib; this table is the test split, read once per policy",
+    "oracle looks at the recorded outcomes: an upper bound, not a policy"
+  ]
+}
