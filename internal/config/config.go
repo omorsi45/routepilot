@@ -109,6 +109,10 @@ type Config struct {
 	// Accounting selects where the per-attempt usage ledger is kept. Absent means none.
 	Accounting AccountingConfig `yaml:"accounting"`
 
+	// DecisionLog enables the append-only JSONL log of routing decisions and feedback. Absent
+	// (no path) disables it, and the feedback endpoint with it.
+	DecisionLog DecisionLogConfig `yaml:"decision_log"`
+
 	// path and baseDir are set by Load: the absolute path of the file the config was
 	// read from and its directory, which relative paths in the config resolve against.
 	// Parse leaves both empty, which means the working directory.
@@ -398,6 +402,27 @@ func (a AccountingConfig) validate(add addFunc) {
 	}
 }
 
+// defaultDecisionLogMaxBytes is the size at which the decision log is rotated when
+// decision_log.max_bytes is not set: 100 MiB.
+const defaultDecisionLogMaxBytes = 104857600
+
+// DecisionLogConfig configures the decision log. Path is relative to the config file's
+// directory. MaxBytes is the size past which the file is rotated; it defaults to 100 MiB
+// once a path is set.
+type DecisionLogConfig struct {
+	Path     string `yaml:"path"`
+	MaxBytes int64  `yaml:"max_bytes"`
+}
+
+func (d DecisionLogConfig) validate(add addFunc) {
+	if d.MaxBytes < 0 {
+		add("decision_log.max_bytes", "must not be negative, got %d", d.MaxBytes)
+	}
+	if d.Path == "" && d.MaxBytes != 0 {
+		add("decision_log.max_bytes", "set without decision_log.path")
+	}
+}
+
 // QuotaConfig selects the rate-limit counter backend.
 type QuotaConfig struct {
 	Backend     string `yaml:"backend"`
@@ -538,6 +563,9 @@ func (c *Config) applyDefaults() {
 	if c.Accounting.Driver == "" {
 		c.Accounting.Driver = AccountingNone
 	}
+	if c.DecisionLog.Path != "" && c.DecisionLog.MaxBytes == 0 {
+		c.DecisionLog.MaxBytes = defaultDecisionLogMaxBytes
+	}
 }
 
 // Validate checks the whole configuration and returns every problem found,
@@ -557,6 +585,7 @@ func (c *Config) Validate() error {
 	c.validateQuota(add)
 	c.validateReliability(add)
 	c.Accounting.validate(add)
+	c.DecisionLog.validate(add)
 
 	return errors.Join(errs...)
 }

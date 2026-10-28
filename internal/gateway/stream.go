@@ -128,6 +128,7 @@ func (c *streamCall) startResponse(modelID, deployment string) {
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
 	c.rs.setRouteHeaders(c.w, modelID, deployment)
+	c.rs.commitAt = c.s.now()
 	c.w.WriteHeader(http.StatusOK)
 	c.started = true
 }

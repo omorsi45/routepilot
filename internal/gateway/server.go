@@ -17,6 +17,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/accounting"
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/decisionlog"
 	"github.com/omorsi45/routepilot/internal/latency"
 	"github.com/omorsi45/routepilot/internal/money"
 	"github.com/omorsi45/routepilot/internal/openai"
@@ -57,6 +58,10 @@ type Options struct {
 	// request is over. Nil keeps no ledger. A failed write never fails the request; it is
 	// counted (Server.AccountingErrors) and logged.
 	Accounting accounting.Store
+	// DecisionLog receives one record per routing decision (shadow decisions included) and
+	// every feedback line. Nil keeps no log, and then POST /v1/feedback is not served. The
+	// caller closes it after the server has drained.
+	DecisionLog *decisionlog.Writer
 }
 
 // Server is the gateway HTTP server.
@@ -87,6 +92,8 @@ type Server struct {
 	// failed to take (see AccountingErrors).
 	usageLedger      accounting.Store
 	accountingErrors atomic.Int64
+	// decisions is Options.DecisionLog, nil for none.
+	decisions *decisionlog.Writer
 	// readBodyTimeout is Options.ReadBodyTimeout; zero means the default.
 	readBodyTimeout time.Duration
 	// sem is the global in-flight limit: one token per request in progress.
@@ -167,6 +174,7 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 	}
 	s.readBodyTimeout = opts.ReadBodyTimeout
 	s.usageLedger = opts.Accounting
+	s.decisions = opts.DecisionLog
 	if n := cfg.Server.MaxInflight; n > 0 {
 		s.sem = make(chan struct{}, n)
 	}
@@ -267,6 +275,21 @@ type reqState struct {
 	// tokens charged, whether they were estimated, and the cost. The budget commit is their
 	// sum (budgetHold.finish) and the usage ledger writes one row per record.
 	attemptUsages []*attemptUsage
+
+	// The fields below are what the decision log writes once the request is over (decisions.go).
+	// They are set only when a decision log is configured.
+
+	// routed is true once the router has answered, success or error, and decision is its
+	// answer. decidedAt is when, and required the capabilities the request needs.
+	routed    bool
+	decision  router.Decision
+	decidedAt time.Time
+	required  []string
+	// promptHash16 is the first 16 hex digits of the SHA-256 of the message texts joined by
+	// newlines, the only trace of the prompt that is kept.
+	promptHash16 string
+	// commitAt is when a stream committed its response, zero for any other request.
+	commitAt time.Time
 }
 
 // statusWriter records the response status. It forwards Flush and exposes the
@@ -341,6 +364,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		s.handleModels(sw, rs, r)
+	case "/v1/feedback":
+		s.handleFeedback(sw, rs, r)
 	default:
 		s.fail(sw, rs, &openai.APIError{
 			Status: http.StatusNotFound, Type: "invalid_request_error", Code: "not_found",
@@ -348,14 +373,21 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	s.logDecisions(sw, rs, start)
 	s.logRequest(sw, rs, start)
 }
 
-func (s *Server) logRequest(sw *statusWriter, rs *reqState, start time.Time) {
-	status := sw.status
-	if status == 0 && rs.canceled {
-		status = clientClosedStatus
+// finalStatus is the status the client got: what was written, or 499 when the client left
+// before anything was.
+func finalStatus(sw *statusWriter, rs *reqState) int {
+	if sw.status == 0 && rs.canceled {
+		return clientClosedStatus
 	}
+	return sw.status
+}
+
+func (s *Server) logRequest(sw *statusWriter, rs *reqState, start time.Time) {
+	status := finalStatus(sw, rs)
 	attrs := []slog.Attr{
 		slog.String("request_id", rs.id),
 		slog.String("tenant", rs.tenant),

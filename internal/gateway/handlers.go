@@ -138,6 +138,7 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	}
 	dec, apiErr := s.decide(rs, tenant, req, reqs)
 	rs.policy = dec.Policy
+	s.noteDecision(rs, req, reqs, dec)
 	// The decision headers go on before anything is written, so every response that
 	// reached the router carries them, an error from here on included.
 	s.setDecisionHeaders(w, rs, dec)
@@ -202,10 +203,15 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 // when Options.ReadBodyTimeout is zero.
 const defaultReadBodyTimeout = 30 * time.Second
 
-// readBody reads the request body under the size limit and a read deadline,
-// so a client that stalls mid-body cannot hold the connection and its slot.
-// A server that cannot set deadlines (such as a test recorder) just reads.
+// readBody reads the request body under the configured size limit and a read deadline, so a
+// client that stalls mid-body cannot hold the connection and its slot. A server that cannot
+// set deadlines (such as a test recorder) just reads.
 func (s *Server) readBody(w http.ResponseWriter, r *http.Request) ([]byte, *openai.APIError) {
+	return s.readBodyLimit(w, r, s.cfg.Server.MaxBodyBytes)
+}
+
+// readBodyLimit is readBody with its own size limit, in bytes.
+func (s *Server) readBodyLimit(w http.ResponseWriter, r *http.Request, limit int64) ([]byte, *openai.APIError) {
 	rc := http.NewResponseController(w)
 	timeout := s.readBodyTimeout
 	if timeout <= 0 {
@@ -214,7 +220,6 @@ func (s *Server) readBody(w http.ResponseWriter, r *http.Request) ([]byte, *open
 	if err := rc.SetReadDeadline(time.Now().Add(timeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
 		return nil, openai.ErrInvalidRequest("cannot read request body", "")
 	}
-	limit := s.cfg.Server.MaxBodyBytes
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		// Leave the expired deadline in place. Before it writes a response

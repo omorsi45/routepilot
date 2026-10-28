@@ -77,14 +77,21 @@ func (s CapSet) Missing(req CapSet) []Capability {
 	return out
 }
 
-// String lists the capability names in the set, comma separated.
-func (s CapSet) String() string {
-	var names []string
+// Names lists the capability names in the set, in constant order. The result is never nil, so
+// it encodes as an empty JSON list.
+func (s CapSet) Names() []string {
+	names := []string{}
 	for c := Capability(0); c < numCaps; c++ {
 		if s.Has(c) {
 			names = append(names, c.String())
 		}
 	}
+	return names
+}
+
+// String lists the capability names in the set, comma separated.
+func (s CapSet) String() string {
+	names := s.Names()
 	if len(names) == 0 {
 		return "none"
 	}

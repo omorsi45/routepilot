@@ -20,6 +20,7 @@ import (
 
 	"github.com/omorsi45/routepilot/internal/accounting"
 	"github.com/omorsi45/routepilot/internal/config"
+	"github.com/omorsi45/routepilot/internal/decisionlog"
 	"github.com/omorsi45/routepilot/internal/gateway"
 	"github.com/omorsi45/routepilot/internal/latency"
 	"github.com/omorsi45/routepilot/internal/policy"
@@ -142,6 +143,16 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 			}
 		}()
 		opts.Accounting = store
+	}
+	if cfg.DecisionLog.Path != "" {
+		dl, err := decisionlog.Open(config.ResolvePath(cfg.BaseDir(), cfg.DecisionLog.Path), cfg.DecisionLog.MaxBytes)
+		if err != nil {
+			return fmt.Errorf("decision log: %w", err)
+		}
+		// Closed when serve returns, after the HTTP server has drained, so the records of the
+		// last requests are written before the process exits.
+		defer closeDecisionLog(dl, logger)
+		opts.DecisionLog = dl
 	}
 	opts.Latency, err = buildEstimator(cfg)
 	if err != nil {
@@ -319,6 +330,16 @@ func otherSectionsDiffer(running, reloaded *config.Config) bool {
 	a, b := *running, *reloaded
 	a.Policies, b.Policies = config.PoliciesConfig{}, config.PoliciesConfig{}
 	return !reflect.DeepEqual(a, b)
+}
+
+// closeDecisionLog drains and closes the decision log, and says so when records were lost.
+func closeDecisionLog(dl *decisionlog.Writer, logger *slog.Logger) {
+	if err := dl.Close(); err != nil {
+		logger.Warn("closing the decision log failed", slog.String("error", err.Error()))
+	}
+	if dropped, lost := dl.Dropped(), dl.Errors(); dropped > 0 || lost > 0 {
+		logger.Warn("decision log records were lost", slog.Int64("dropped", dropped), slog.Int64("errors", lost))
+	}
 }
 
 // openAccounting opens the usage ledger that cfg.Accounting names. It returns a nil Store for

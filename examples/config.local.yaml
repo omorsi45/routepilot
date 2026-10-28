@@ -63,6 +63,12 @@ accounting:
   driver: sqlite
   sqlite_path: usage.db
 
+# An append-only JSONL log of every routing decision and of the feedback clients send to
+# POST /v1/feedback, rotated at max_bytes (default 100 MiB). It holds no prompt text, only a
+# hash prefix. Off by default; without it the feedback route does not exist.
+# decision_log:
+#   path: decisions.jsonl
+
 tenants:
   # Only the SHA-256 of a client key is stored, never the key itself.
   # Compute a hash with:  printf %s your-key | shasum -a 256
