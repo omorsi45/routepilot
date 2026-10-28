@@ -72,6 +72,7 @@ func (a *attemptUsage) finish(at time.Time, status string) {
 		return
 	}
 	a.ended, a.status = at, status
+	a.endSpan(status)
 }
 
 // AccountingErrors is the number of usage ledger rows that could not be written since the

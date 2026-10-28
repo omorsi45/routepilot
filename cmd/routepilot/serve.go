@@ -28,6 +28,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/policy"
 	"github.com/omorsi45/routepilot/internal/provider/factory"
 	"github.com/omorsi45/routepilot/internal/quota"
+	"github.com/omorsi45/routepilot/internal/telemetry"
 )
 
 const (
@@ -37,6 +38,8 @@ const (
 	redisPingTimeout = 5 * time.Second
 	// accountingOpenTimeout bounds connecting to the usage ledger and creating its tables.
 	accountingOpenTimeout = 15 * time.Second
+	// tracingShutdownTimeout bounds the final flush of the trace exporter at shutdown.
+	tracingShutdownTimeout = 5 * time.Second
 )
 
 // notifyContext is signal.NotifyContext; tests replace it to inject signals.
@@ -132,6 +135,20 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		limiters.Budget = quota.NewMemoryBudget()
 	}
 	opts := gateway.Options{Logger: logger, Limiters: limiters, Registry: newMetricsRegistry()}
+	tp, shutdownTracing, err := telemetry.NewTracerProvider(ctx, cfg.Tracing)
+	if err != nil {
+		return fmt.Errorf("tracing: %w", err)
+	}
+	// Flushed when serve returns, which is after the HTTP server has drained, so the spans
+	// of the last requests are sent. A collector that is down costs at most the timeout.
+	defer func() {
+		flush, cancel := context.WithTimeout(context.Background(), tracingShutdownTimeout)
+		defer cancel()
+		if err := shutdownTracing(flush); err != nil {
+			logger.Warn("flushing the traces failed", slog.String("error", err.Error()))
+		}
+	}()
+	opts.TracerProvider = tp
 	store, err := openAccounting(ctx, cfg, os.Getenv)
 	if err != nil {
 		return err

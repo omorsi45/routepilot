@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/openai"
 	"github.com/omorsi45/routepilot/internal/provider"
@@ -284,7 +286,9 @@ func (s *Server) claimNext(ctx context.Context, rs *reqState, plan *attemptPlan,
 		return catalog.Model{}, catalog.Deployment{}, nil, claimNone
 	}
 	rs.attempts++
-	rs.beginAttempt(model, dep, k)
+	att := rs.beginAttempt(model, dep, k)
+	att.span = s.startSpan(rs, spanAttempt,
+		attribute.String("rp.deployment", dep.Name), attribute.Int("rp.attempt", rs.attempts))
 	return model, dep, s.prepareUpstream(rs, req, model.ID, dep, k), claimOK
 }
 

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -113,6 +114,9 @@ type Config struct {
 	// (no path) disables it, and the feedback endpoint with it.
 	DecisionLog DecisionLogConfig `yaml:"decision_log"`
 
+	// Tracing exports OpenTelemetry traces to an OTLP/HTTP endpoint. Absent (no endpoint)
+	// means the noop tracer: no spans are recorded and nothing is sent.
+	Tracing TracingConfig `yaml:"tracing"`
 	// path and baseDir are set by Load: the absolute path of the file the config was
 	// read from and its directory, which relative paths in the config resolve against.
 	// Parse leaves both empty, which means the working directory.
@@ -423,6 +427,57 @@ func (d DecisionLogConfig) validate(add addFunc) {
 	}
 }
 
+// TracingConfig configures OpenTelemetry tracing. OTLPEndpoint is the URL of an OTLP/HTTP
+// collector, such as http://localhost:4318 (the path /v1/traces is added when the URL has
+// none); empty means the noop tracer. SampleRatio is the share of new traces that are
+// recorded, in [0, 1], applied to a request that carries no sampling decision of its own. It
+// defaults to 1 once an endpoint is set. It is a pointer so that an explicit 0 differs from
+// an absent value.
+type TracingConfig struct {
+	OTLPEndpoint string   `yaml:"otlp_endpoint"`
+	SampleRatio  *float64 `yaml:"sample_ratio"`
+}
+
+// Ratio is the sample ratio: SampleRatio, or 1 when it is not set.
+func (t TracingConfig) Ratio() float64 {
+	if t.SampleRatio == nil {
+		return 1
+	}
+	return *t.SampleRatio
+}
+
+func (t TracingConfig) validate(add addFunc) {
+	if t.OTLPEndpoint != "" {
+		if err := CheckOTLPEndpoint(t.OTLPEndpoint); err != nil {
+			add("tracing.otlp_endpoint", "%v", err)
+		}
+	}
+	if t.SampleRatio != nil {
+		if r := *t.SampleRatio; math.IsNaN(r) || r < 0 || r > 1 {
+			add("tracing.sample_ratio", "must be between 0 and 1, got %v", r)
+		}
+		if t.OTLPEndpoint == "" {
+			add("tracing.sample_ratio", "set without tracing.otlp_endpoint")
+		}
+	}
+}
+
+// CheckOTLPEndpoint reports why endpoint is not a usable OTLP/HTTP collector URL: it must be
+// an http or https URL with a host and no credentials, query or fragment. The error never
+// repeats the value, because a collector URL may carry a credential.
+func CheckOTLPEndpoint(endpoint string) error {
+	u, err := url.Parse(endpoint)
+	switch {
+	case err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "":
+		return errors.New("must be an http or https URL with a host, such as http://localhost:4318")
+	case u.User != nil:
+		return errors.New("must not carry credentials")
+	case u.RawQuery != "" || u.Fragment != "":
+		return errors.New("must not carry a query or a fragment")
+	}
+	return nil
+}
+
 // QuotaConfig selects the rate-limit counter backend.
 type QuotaConfig struct {
 	Backend     string `yaml:"backend"`
@@ -566,6 +621,10 @@ func (c *Config) applyDefaults() {
 	if c.DecisionLog.Path != "" && c.DecisionLog.MaxBytes == 0 {
 		c.DecisionLog.MaxBytes = defaultDecisionLogMaxBytes
 	}
+	if c.Tracing.OTLPEndpoint != "" && c.Tracing.SampleRatio == nil {
+		one := 1.0
+		c.Tracing.SampleRatio = &one
+	}
 }
 
 // Validate checks the whole configuration and returns every problem found,
@@ -586,6 +645,7 @@ func (c *Config) Validate() error {
 	c.validateReliability(add)
 	c.Accounting.validate(add)
 	c.DecisionLog.validate(add)
+	c.Tracing.validate(add)
 
 	return errors.Join(errs...)
 }

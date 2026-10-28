@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/omorsi45/routepilot/internal/catalog"
 	"github.com/omorsi45/routepilot/internal/config"
 	"github.com/omorsi45/routepilot/internal/money"
@@ -82,9 +84,20 @@ type budgetHold struct {
 // reserve asks the ledger to hold amount for the request, raising any reservation it has.
 // It reports whether the ledger accepted. The call is bounded by limiterCallTimeout.
 func (h *budgetHold) reserve(ctx context.Context, amount money.PicoUSD) (bool, error) {
+	span := h.s.startSpan(h.rs, spanBudget)
 	cctx, cancel := limiterCtx(ctx)
 	ok, _, err := h.s.limits.Budget.Reserve(cctx, h.tenant, h.rs.id, h.lim, amount, h.ttl, h.s.now())
 	cancel()
+	// The span fails with the code the client would get: the ledger failing is "overloaded"
+	// and a refusal is "insufficient_quota". A client that left is no failure of the ledger.
+	switch {
+	case err != nil && ctx.Err() == nil:
+		endSpan(span, "overloaded")
+	case err == nil && !ok:
+		endSpan(span, "insufficient_quota")
+	default:
+		endSpan(span, "")
+	}
 	if err != nil {
 		h.held = true
 		return false, err
@@ -187,6 +200,9 @@ type attemptUsage struct {
 	// status is how the attempt ended (see attemptStatus), empty while it is in flight.
 	status         string
 	started, ended time.Time
+
+	// span is the attempt's trace span, ended with its outcome (tracing.go); nil once ended.
+	span trace.Span
 }
 
 // newAttemptUsage starts the record of an attempt at model m on dep with output budget k.

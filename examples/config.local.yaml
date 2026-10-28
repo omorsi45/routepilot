@@ -69,6 +69,14 @@ accounting:
 # decision_log:
 #   path: decisions.jsonl
 
+# OpenTelemetry traces (one span per chat request, with admission, decide, budget and
+# upstream.attempt children) sent to an OTLP/HTTP collector; the path /v1/traces is added when
+# the URL has none. Spans carry identifiers, numbers and outcome names, never prompts or keys.
+# Off by default (noop). GET /metrics serves the Prometheus series on the main listener.
+# tracing:
+#   otlp_endpoint: http://localhost:4318
+#   sample_ratio: 1.0
+
 tenants:
   # Only the SHA-256 of a client key is stored, never the key itself.
   # Compute a hash with:  printf %s your-key | shasum -a 256

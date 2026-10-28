@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/omorsi45/routepilot/internal/accounting"
 	"github.com/omorsi45/routepilot/internal/catalog"
@@ -69,6 +70,9 @@ type Options struct {
 	// the server's own; serve passes one that also holds the Go and process collectors. It
 	// must not already hold RoutePilot series: New returns an error then.
 	Registry *prometheus.Registry
+	// TracerProvider records the request spans (tracing.go). Nil, like the noop provider,
+	// records nothing. The caller shuts a provider down after the server has drained.
+	TracerProvider trace.TracerProvider
 }
 
 // Server is the gateway HTTP server.
@@ -104,6 +108,10 @@ type Server struct {
 	// metrics records the Prometheus series and metricsHandler serves them (metrics.go).
 	metrics        *telemetry.Metrics
 	metricsHandler http.Handler
+	// tracer makes the spans (tracing.go); tracing is false for the noop provider, which
+	// lets the request path skip building spans at all.
+	tracer  trace.Tracer
+	tracing bool
 	// readBodyTimeout is Options.ReadBodyTimeout; zero means the default.
 	readBodyTimeout time.Duration
 	// sem is the global in-flight limit: one token per request in progress.
@@ -191,6 +199,7 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 	if err := s.initMetrics(opts.Registry); err != nil {
 		return nil, err
 	}
+	s.setTracerProvider(opts.TracerProvider)
 	return s, nil
 }
 
@@ -312,6 +321,11 @@ type reqState struct {
 	role string
 	// limitKind is the kind of rate limit that turned the request away, empty when none did.
 	limitKind telemetry.RateLimitKind
+
+	// The fields below are the request's trace (tracing.go). root is never nil on a chat
+	// request, and traceCtx carries it for the child spans.
+	root     trace.Span
+	traceCtx context.Context
 }
 
 // statusWriter records the response status. It forwards Flush and exposes the
@@ -380,6 +394,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		rs.chat = true
+		s.startTrace(r, rs)
 		s.handleChat(sw, rs, r)
 	case "/v1/models":
 		if r.Method != http.MethodGet {
@@ -405,6 +420,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	if rs.chat {
+		s.endTrace(sw, rs)
+	}
 	s.logDecisions(sw, rs, start)
 	s.logRequest(sw, rs, start)
 	if rs.chat {

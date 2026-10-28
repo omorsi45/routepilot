@@ -67,6 +67,7 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 		return
 	}
 	rs.tenant = tenant.ID
+	s.tagTenant(rs)
 
 	// Admission order: the global in-flight slot, then the tenant's
 	// concurrency lease, both before the body is read and both held for the
@@ -74,13 +75,16 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	// tenant's slow bodies from occupying every global slot. After the body is
 	// parsed and routed, admit refreshes the lease and applies the request and
 	// token rates.
+	adm := s.startSpan(rs, spanAdmission)
 	if !s.acquireSlot(w, rs, r) {
+		endSpan(adm, rs.errCode)
 		return
 	}
 	defer s.releaseSlot()
 
 	lease, ok := s.acquireLease(w, rs, r, tenant)
 	defer lease.release() // a no-op once admit's finish (or failEarly) released it
+	endSpan(adm, rs.errCode)
 	if !ok {
 		return
 	}
@@ -123,20 +127,26 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	// safe is taken below, once the request is admitted.
 	lim, budgeted := s.budgets[tenant.ID]
 	if budgeted {
+		bsp := s.startSpan(rs, spanBudget)
 		left, err := s.budgetRemaining(r.Context(), tenant.ID, lim)
 		if err != nil {
 			if r.Context().Err() != nil { // the client left; there is nobody to answer
+				endSpan(bsp, "")
 				rs.canceled = true
 				lease.release()
 				return
 			}
 			s.limiterWarn(rs, "budget remaining", err)
-			failEarly(openai.ErrOverloaded())
+			overloaded := openai.ErrOverloaded()
+			endSpanErr(bsp, overloaded)
+			failEarly(overloaded)
 			return
 		}
+		endSpan(bsp, "")
 		rs.budgetLeft = &left
 	}
 	decideStart := s.now()
+	dsp := s.startSpan(rs, spanDecide)
 	dec, apiErr := s.decide(rs, tenant, req, reqs)
 	decided := s.now()
 	rs.policy = dec.Policy
@@ -145,6 +155,7 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	// reached the router carries them, an error from here on included.
 	s.setDecisionHeaders(w, rs, dec)
 	s.observeDecision(rs, dec, decided.Sub(decideStart))
+	s.traceDecision(dsp, rs, dec, apiErr)
 	if apiErr != nil {
 		if apiErr.Code == "model_not_found" {
 			// The router echoes the whole client model; cap what we send back.
@@ -164,7 +175,9 @@ func (s *Server) handleChat(w http.ResponseWriter, rs *reqState, r *http.Request
 	for _, c := range dec.Candidates {
 		reserve = max(reserve, int64(c.Model.InUpper(reqs))+int64(c.K))
 	}
+	asp := s.startSpan(rs, spanAdmission)
 	finish, ok := s.admit(w, rs, r, tenant, lease, reserve, timeout+leaseGrace)
+	endSpan(asp, rs.errCode) // set by admit when it refused the request
 	if !ok {
 		return
 	}
