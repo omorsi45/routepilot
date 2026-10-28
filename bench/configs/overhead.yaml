@@ -1,0 +1,40 @@
+# Gateway config for the overhead experiment (bench/scripts/overhead.py).
+#
+# The script treats this file as a template: it fills in the two loopback ports and the
+# SHA-256 of the benchmark key (computed at run time), and writes the result under
+# bench/scratch/. The learned-policy run replaces `models`, `routing`, `policies` and
+# `server.latency_profiles` with the flagship catalog and artifact.
+#
+# Everything that could add work per request is off: the tenant has no rpm, tpm,
+# concurrency or budget limit, accounting is none, there is no decision log and no tracing.
+# One pinned model has one deployment on the mock provider.
+server:
+  listen: "127.0.0.1:{{GATEWAY_PORT}}"
+  max_inflight: 4096
+
+providers:
+  - name: mock
+    type: openaicompat
+    base_url: "http://127.0.0.1:{{MOCK_PORT}}/v1"
+
+models:
+  - id: bench-model
+    rank: 1
+    capabilities: [streaming]
+    input_price_per_mtok: "0.15"
+    output_price_per_mtok: "0.60"
+    deployments:
+      - name: bench-model-mock
+        provider: mock
+        upstream_model: bench-model
+
+tenants:
+  - id: bench
+    api_key_sha256: "{{KEY_SHA256}}"
+    allowed_models: ["*"]
+
+quota:
+  backend: memory
+
+accounting:
+  driver: none

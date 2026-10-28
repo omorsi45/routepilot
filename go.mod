@@ -3,6 +3,7 @@ module github.com/omorsi45/routepilot
 go 1.27.2
 
 require (
+	github.com/HdrHistogram/hdrhistogram-go v1.4.0
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/prometheus/client_golang v1.25.0

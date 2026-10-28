@@ -11,10 +11,16 @@ request.
 ## Layout
 
 - `cmd/routepilot/`: the CLI entry point and subcommand dispatch.
+- `cmd/rp-mock/` and `cmd/rp-load/`: the deterministic mock provider and the
+  open-loop, coordinated-omission-safe load generator.
 - `internal/`: private packages, one responsibility per package:
-  `catalog`, `config`, `gateway`, `mock`, `money`, `openai`, `provider` (with
-  the `openaicompat`, `anthropic` and `factory` subpackages), `quota` (with the
-  `quotatest` conformance suite), `reliability`, `router`, and `version`.
+  `catalog`, `config`, `gateway`, `loadgen`, `mock`, `money`, `openai`,
+  `provider` (with the `openaicompat`, `anthropic` and `factory` subpackages),
+  `quota` (with the `quotatest` conformance suite), `reliability`, `router`, and
+  `version`.
+- `bench/`: benchmark scripts (`bench/scripts`), the configs they start the
+  gateway with (`bench/configs`) and the published results
+  (`bench/results/<experiment>/<run-id>`).
 - `python/`: the offline training and evaluation pipeline (package
   `routepilot_train`, tests in `python/tests`). `make py-setup` creates the
   repo-root `.venv`; `make py-check` runs ruff and pytest.
