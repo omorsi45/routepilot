@@ -1,0 +1,27 @@
+# ADR 0003: Reserve the worst-case cost before the upstream call
+
+Status: Accepted, 2026-10-26. The stricter re-reservation gate was adopted on 2026-10-28.
+
+## Context
+
+A tenant budget has to hold under concurrency, under failover to a pricier model, and for streams whose cost is known only at the end. Enforcing a budget against spend that has already been recorded lets concurrent requests all pass the check before any of them is charged, and a check-then-deduct design can end above its limit by the cost of the last request. Other gateways document or report exactly this (see [comparison](../comparison.md)). The cost of a request is not known before the call, but an upper bound on it is: the prompt tokens the gateway sends, times the input price, plus the output tokens it allows, times the output price.
+
+## Decision
+
+- Money is an `int64` count of picodollars (1e-12 USD). Prices are picodollars per token. Floats never hold money, and products and sums saturate.
+- The cost bound is `cost_max = in_m * price_in + K * price_out` for the model `m`, where `in_m` is the input-token bound for that model ([the input-token bound](../architecture.md#the-input-token-bound)) and `K` is the output budget: the client's `max_tokens`, else the smaller of the model's maximum and the tenant default, cut to what the remaining budget pays for. The gateway forwards `K` as `max_tokens`, so a provider cannot produce more than was reserved.
+- Before any upstream call, the budget ledger reserves `cost_max` of the first candidate atomically under the request ID. `Reserve` succeeds exactly when committed spend plus the other live reservations plus the new amount is within the limit. A reservation is a lease that expires at the request deadline plus 60 seconds, so a crashed gateway does not block a tenant for good.
+- Before a failover to another candidate, the reservation is raised to the cost already charged by earlier attempts plus the new candidate's `cost_max`. If the ledger refuses, the candidate is skipped (`TestFallbackReReserveFailureSkipsModel`). A gate that compared only the candidate's own `cost_max` would not be a worst case once earlier attempts have been charged, so the gate uses the sum.
+- At the end, the sum of the attempt costs is committed: reported usage priced exactly, a failure before any output free, and any other attempt without usage charged its input bound plus the bytes it streamed (capped at its `K`) and flagged as estimated. The commit is idempotent by request ID. Anything above the reservation is recorded and increments `rp_budget_overshoot_picousd_total`.
+- Two ledger implementations (memory, and Redis with Lua scripts) pass one conformance suite, including `ConcurrentNeverOvershoots`. A usage ledger (SQLite or PostgreSQL) records one row per attempt, and `routepilot reconcile` compares its sums with the budget counter.
+- The router is told the remaining budget, so a model that cannot fit even one output token is not a candidate, and every model may get a different `K`. If nothing fits, the answer is 429 `insufficient_quota` and nothing is relaxed.
+
+## Consequences
+
+- Measured (64 concurrent clients on one tenant, total budget 0.05 USD, once per backend): the overshoot counter stayed at 0, spend was 0.049904 USD (memory) and 0.049894 USD (Redis), and the ledger sum equalled the spend recomputed from the tokens the clients saw. For Redis the ledger and the counter reconciled with a difference of 0 ([quota correctness](../results.md#quota-correctness-under-concurrent-clients)). The mock answers with exactly the requested `max_tokens` and reports exact usage, so this shows the accounting is consistent. It does not show that real providers stay inside the bound.
+- Reserving the worst case lowers throughput under a tight budget. In the same run the clients sent 1,388 requests (memory) and 1,385 (Redis) and 96 and 95 were admitted. Requests that their final cost would have paid for are refused while others hold reservations. The budget was spent to within 0.19% (memory) and 0.21% (Redis) of the limit once the clients stopped ([limitations](../limitations.md#budgets-and-accounting)).
+- The bound is a proof only for text the gateway sends. Hidden prompt tokens added by a provider, a tokenizer that emits more tokens than bytes, and images charged above the flat 2048-token allowance can make a commit exceed its reservation. The overshoot counter makes that visible, and a model can declare `prompt_overhead_tokens` to cover a measured hidden prompt. On the benchmark data the only model that needed one is intern-s1, at 124 tokens ([input-token bound](../results.md#input-token-bound-in_upper)).
+- Redis budgets are exact only below 9,000 USD (Lua numbers are doubles), and larger `budget_usd` values are rejected with that backend. The scripts compute keys inside Lua and are not Redis Cluster safe.
+- A failed commit is logged and not retried. `routepilot reconcile` is the check. Usage-ledger rows are written in batches off the request path and can be lost on a crash.
+- Prometheus counters of picodollars are float64 and exact only up to about 9,007 USD per series.
+- The limits and exceptions above are listed with their runs in [limitations.md](../limitations.md).
