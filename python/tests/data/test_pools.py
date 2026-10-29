@@ -625,6 +625,27 @@ def test_export_replay_contract(tmp_path: Path):
     assert parsed[1]["messages"][0]["content"] == prompt_for("a/2")
 
 
+def test_export_replay_writes_the_messages_column_when_the_frame_has_one(tmp_path: Path):
+    outcomes = outcome_frame([("a/1", "m1", True, 10, 5, 0.1), ("a/1", "m2", False, 10, 5, 0.2)])
+    sent = [
+        {"role": "system", "content": "be brief"},
+        {"role": "user", "content": "caf\u00e9?\nsecond line"},
+    ]
+    prompts = prompts_frame(["a/1"])
+    prompts["messages"] = [json.dumps(sent, ensure_ascii=False)]
+    out = tmp_path / "sent.jsonl"
+    export.export_replay(
+        {"models": ["m1", "m2"], "prices": {}},
+        outcomes,
+        prompts,
+        splits_frame({"a/1": "test"}),
+        out,
+    )
+    line = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
+    assert line["messages"] == sent  # the messages the models were sent, not the bare prompt
+    assert line["prompt_sha256"] == prompts.loc[0, "prompt_sha256"]
+
+
 def test_export_replay_prices_fitted_cost_models_from_their_tokens(tmp_path: Path):
     outcomes = outcome_frame(
         [

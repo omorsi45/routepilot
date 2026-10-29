@@ -25,6 +25,11 @@ design matrix and exported at full length with exact zeros in the dropped block,
 router serves it unchanged; the OOD detector is always fitted on the hashed part at ``--dim``.
 The feature set is recorded in the run (``results.json``, ``run.json``) and not in the manifest,
 whose fields Go checks strictly.
+
+``--prompts-file`` names the prompts table in ``--derived`` (default ``prompts.parquet``). When
+that table has a ``messages`` column (JSON text of the messages a model is sent), the fits
+featurize those messages, roles included, instead of the ``prompt`` column, so that training
+sees exactly what the gateway will see.
 """
 
 import argparse
@@ -39,6 +44,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 
 from routepilot_train import features, runinfo
 from routepilot_train.data import selection, splits
@@ -49,6 +55,8 @@ from routepilot_train.export import artifact
 from routepilot_train.train import calibrate, design, lcb, length, ood, quality
 
 EXPERIMENT = "train"
+PROMPTS_FILE = "prompts.parquet"
+MESSAGES_COLUMN = "messages"
 FIT_SPLITS = ("train", "calib")
 EXPORTABLE_CALIBRATORS = ("switch", "isotonic", "platt")
 CALIBRATION_BINS = 15
@@ -112,12 +120,19 @@ def _split_data(
     )
 
 
-def load_fit_data(derived: Path, pool: Mapping[str, Any]) -> tuple[SplitData, SplitData]:
+def load_fit_data(
+    derived: Path, pool: Mapping[str, Any], prompts_file: str = PROMPTS_FILE
+) -> tuple[SplitData, SplitData]:
     """Train and calibration data of ``pool``: complete items only, nothing else in memory.
 
     The splits table is filtered to train and calibration items before ``outcomes.parquet``
-    and ``prompts.parquet`` are read with that item list (and the pool's models) as a
+    and the prompts file are read with that item list (and the pool's models) as a
     filter, so test and held-out rows are never loaded.
+
+    ``prompts_file`` (default ``prompts.parquet``) names the table of ``item_id``, ``prompt``
+    and ``prompt_bytes`` in ``derived``. When it also has a ``messages`` column (JSON text of
+    a list of ``{"role", "content"}`` objects, the messages a model is sent), that column is
+    kept in ``SplitData.items`` and the fit featurizes it instead of ``prompt``.
     """
     derived = Path(derived)
     models = list(pool["models"])
@@ -129,9 +144,13 @@ def load_fit_data(derived: Path, pool: Mapping[str, Any]) -> tuple[SplitData, Sp
         columns=OUTCOME_COLUMNS,
         filters=[("item_id", "in", ids), ("model", "in", models)],
     )
+    prompts_path = derived / prompts_file
+    prompt_columns = ["item_id", "prompt", "prompt_bytes"]
+    if MESSAGES_COLUMN in pq.read_schema(prompts_path).names:
+        prompt_columns.append(MESSAGES_COLUMN)
     prompts = pd.read_parquet(
-        derived / "prompts.parquet",
-        columns=["item_id", "prompt", "prompt_bytes"],
+        prompts_path,
+        columns=prompt_columns,
         filters=[("item_id", "in", ids)],
     )
     complete = pool_outcomes(outcomes, models)
@@ -144,6 +163,22 @@ def load_fit_data(derived: Path, pool: Mapping[str, Any]) -> tuple[SplitData, Sp
         _split_data(items, complete, models, "train"),
         _split_data(items, complete, models, "calib"),
     )
+
+
+def _featurize(items: pd.DataFrame, dim: int) -> tuple[Any, np.ndarray]:
+    """Hashed and dense features of ``items``: its ``messages`` when it has them, else ``prompt``.
+
+    A ``messages`` cell is JSON text of the messages a model is sent, so the fit sees what
+    the gateway will see (system message and message count included). Without the column
+    each ``prompt`` is one user message.
+    """
+    if MESSAGES_COLUMN in items.columns:
+        rows = [
+            [(str(m["role"]), str(m["content"])) for m in json.loads(cell)]
+            for cell in items[MESSAGES_COLUMN]
+        ]
+        return features.extract_rows(rows, dim)
+    return features.extract_texts(items["prompt"].tolist(), dim)
 
 
 def fit_pool(
@@ -172,8 +207,8 @@ def fit_pool(
     models = list(pool["models"])
     overheads = pool.get("prompt_overhead_tokens", {})
 
-    h_train, d_train = features.extract_texts(train.items["prompt"].tolist(), dim)
-    h_calib, d_calib = features.extract_texts(calib.items["prompt"].tolist(), dim)
+    h_train, d_train = _featurize(train.items, dim)
+    h_calib, d_calib = _featurize(calib.items, dim)
     mean, std = design.standardizer(d_train)
     x_train = design.select_features(h_train, d_train, mean, std, feature_set)
     x_calib = design.select_features(h_calib, d_calib, mean, std, feature_set)
@@ -312,6 +347,7 @@ def run(
     progress: Callable[[str], None] | None = None,
     calibrator: str = "switch",
     feature_set: str = "both",
+    prompts_file: str = PROMPTS_FILE,
 ) -> dict[str, Any]:
     """Train ``pool_name``, export its artifact and write the run under ``results_root``.
 
@@ -320,7 +356,8 @@ def run(
     manifest and is the only input the artifact depends on besides the data; it defaults to
     now. ``calibrator`` is ``switch`` (the spec rule: isotonic from 1000 calibration samples,
     else Platt), ``isotonic`` or ``platt``. ``feature_set`` is ``both``, ``hashed`` or ``dense``
-    (see ``fit_pool``). Returns the version, the artifact and results directories and the wall
+    (see ``fit_pool``). ``prompts_file`` names the prompts table in ``derived`` (see
+    ``load_fit_data``). Returns the version, the artifact and results directories and the wall
     time.
     """
     check_calibrator(calibrator)
@@ -331,7 +368,7 @@ def run(
     pool_path = derived / "pools" / f"{pool_name}.json"
     pool = json.loads(pool_path.read_text(encoding="utf-8"))
 
-    train, calib = load_fit_data(derived, pool)
+    train, calib = load_fit_data(derived, pool, prompts_file)
     fit = fit_pool(train, calib, pool, dim, progress, calibrator, feature_set)
     git_sha, _ = runinfo.git_state()
     bundle, weights = artifact.assemble_bundle(
@@ -370,6 +407,8 @@ def run(
         "--features",
         feature_set,
     ]
+    if prompts_file != PROMPTS_FILE:
+        command += ["--prompts-file", prompts_file]
     version = artifact_dir.name
     report.write_results(
         results_dir,
@@ -415,6 +454,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "(default), hashed or dense; the artifact keeps full-length weights with zeros in the "
         "dropped block",
     )
+    parser.add_argument(
+        "--prompts-file",
+        default=PROMPTS_FILE,
+        help="the prompts table in --derived (default prompts.parquet); a messages column in it "
+        "is featurized instead of the prompt column",
+    )
     args = parser.parse_args(argv)
 
     def progress(line: str) -> None:
@@ -429,6 +474,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         progress=progress,
         calibrator=args.calibrator,
         feature_set=args.features,
+        prompts_file=args.prompts_file,
     )
     print(f"artifact version: {summary['version']}")
     print(f"artifact: {summary['artifact_dir'].as_posix()}")

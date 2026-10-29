@@ -11,14 +11,20 @@ the collection's protocol is recorded in the report) and
    calibration items only, the ASSUMPTION prices of Ruling V1-R42), with its replay config and
    replay input;
 3. trains the policy with the usual pipeline at dimension 16384 and exports the artifact to
-   ``policies/live-ollama/<version>/`` (it must stay under 2 MB);
+   ``policies/live-ollama/<version>/`` (it must stay under 2 MB). Training, the static rules and
+   the replay input all see the messages the collection sent (its protocol, read from
+   ``protocol.json``: system message, appended instruction), not the bare dataset prompt, so
+   training and serving see the same text;
 4. writes the measured latency profiles ``bench/latency/live-ollama.yaml`` (medians and spreads of
    the time to first token and the time per output token of the train and calibration requests,
    as the gateway measured them) and the policy config ``bench/policies/live-ollama.yaml``;
-5. replays the learned policy and the baselines on the live test split, offline and on the
+5. chooses the quality floors of the live demo from the calibration items alone: 0, the median
+   and the 90th percentile (rounded down to 3 decimals) of ``best_L(x)``, the largest lower bound
+   across the models, from the artifact just trained;
+6. replays the learned policy and the baselines on the live test split, offline and on the
    recorded outcomes, with the measured end-to-end time of each chosen model on each item (from
-   the decision log, not simulated). The learned rows use the floors 0, 0.4 and 0.6 that the live
-   demo uses, fixed in advance: nothing is chosen on the test split.
+   the decision log, not simulated). The learned rows use the floors of step 5: nothing is
+   chosen on the test split.
 
 Writes ``bench/results/live_train/<run-id>/{results.json,report.md,run.json}``. The output holds
 counts, rates, latencies and model names only, never prompt text.
@@ -31,6 +37,7 @@ import tempfile
 import time
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from decimal import ROUND_FLOOR, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +56,7 @@ from routepilot_train.data.pools import (
     write_pool_config,
 )
 from routepilot_train.evaluate import report
+from routepilot_train.export import artifact as artifact_io
 from routepilot_train.train import pipeline
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -60,7 +68,8 @@ ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT = "live_train"
 DIM = 16384
 MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
-FLOORS = (0.0, 0.4, 0.6)  # the live demo's min_quality values, fixed before anything is trained
+SENT_FILE = "prompts-sent.parquet"  # the prompts as the models were sent them (gitignored)
+FLOOR_PLACES = 3  # the demo floors are rounded down to this many decimals
 POLICY_PATH = ROOT / "bench" / "policies" / "live-ollama.yaml"
 PROFILES_PATH = ROOT / "bench" / "latency" / "live-ollama.yaml"
 RESULTS_ROOT = ROOT / "bench" / "results" / "live_train"
@@ -88,8 +97,9 @@ LABELS = (
     "million input tokens and 0.06 per million output tokens per billion parameters",
     "latency is measured through RoutePilot on this machine (the decision log), never simulated "
     "or assumed",
-    "the learned rows' floors (0, 0.4, 0.6) are fixed in advance; the test split is replayed "
-    "once per row and nothing is chosen on it",
+    "the learned rows' floors are 0, the median and the 90th percentile of the best lower bound "
+    "over the calibration items (chosen from the trained artifact before the test split is "
+    "replayed); the test split is replayed once per row and nothing is chosen on it",
     "the test split is small, so the intervals are wide",
     "no prompt text and no model output is in this report",
 )
@@ -106,6 +116,90 @@ def live_splits(items: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def sent_view(prompts: pd.DataFrame, protocol: live_collect.Protocol) -> pd.DataFrame:
+    """The prompts table as the models were sent it under ``protocol``.
+
+    ``prompts`` holds the dataset prompts (``prompt``, ``prompt_bytes``, ``prompt_sha256`` and
+    the item columns). The copy returned has the same columns, but ``messages`` is the JSON
+    text of the messages the collector and the demo send for the item (``protocol.messages``),
+    ``prompt`` their texts joined by a newline (what the gateway's rules read) and
+    ``prompt_bytes`` the total bytes of their texts (the gateway's ``PromptBytes``). The
+    pipeline featurizes ``messages``, so training sees what the gateway sees at serving.
+    ``prompt_sha256`` still names the dataset item.
+    """
+    out = prompts.copy()
+    sent = [protocol.messages(str(prompt)) for prompt in prompts["prompt"]]
+    texts = [[m["content"] for m in messages] for messages in sent]
+    out["messages"] = [json.dumps(messages, ensure_ascii=False) for messages in sent]
+    out["prompt"] = ["\n".join(parts) for parts in texts]
+    out["prompt_bytes"] = [sum(len(part.encode("utf-8")) for part in parts) for parts in texts]
+    return out
+
+
+def _round_down(value: float, places: int = FLOOR_PLACES) -> float:
+    """``value`` rounded toward zero to ``places`` decimals, after dropping float noise.
+
+    The value is first rounded to nine decimals, so that a lower bound that is exactly 0.91
+    but computed as 0.9099999999999999 stays 0.91 and is not cut to 0.909.
+    """
+    exact = Decimal(repr(round(float(value), 9)))
+    return float(exact.quantize(Decimal(1).scaleb(-places), rounding=ROUND_FLOOR))
+
+
+def floor_values(best_lower_bounds: Sequence[float]) -> tuple[float, float]:
+    """Median and 90th percentile of ``best_lower_bounds``, each rounded down to 3 decimals.
+
+    ``best_lower_bounds`` holds ``best_L(x)`` of each calibration item. Rounding down keeps the
+    share of items whose bound reaches the floor at least what the quantile says.
+    """
+    values = np.asarray(best_lower_bounds, dtype=float)
+    if not len(values):
+        raise ValueError("no lower bounds to take the floors from")
+    return _round_down(float(np.median(values))), _round_down(float(np.percentile(values, 90)))
+
+
+def calibration_floors(
+    artifact_dir: Path, sent: pd.DataFrame, calib_item_ids: Sequence[str]
+) -> dict[str, Any]:
+    """The quality floors of the live demo, chosen from the calibration items alone.
+
+    For each item, ``best_L(x)`` is the largest lower bound across the artifact's models, as
+    the reference predictor computes it for the messages the item was sent (``sent`` is the
+    ``sent_view``). The floors are 0, the median and the 90th percentile of ``best_L`` over
+    ``calib_item_ids`` (rounded down to 3 decimals), without repeats and in increasing order
+    (a repeat would run the same round twice).
+    """
+    manifest, blob = artifact_io.load_artifact(artifact_dir)
+    messages_of = dict(zip(sent["item_id"], sent["messages"], strict=True))
+    best = []
+    for item_id in calib_item_ids:
+        messages = [(str(m["role"]), str(m["content"])) for m in json.loads(messages_of[item_id])]
+        predicted = artifact_io.predict_bundle(manifest, blob, messages)
+        best.append(max(float(m["l"]) for m in predicted["models"].values()))
+    mid, high = floor_values(best)
+    return {
+        "values": sorted({0.0, mid, high}),
+        "source": "calibration items only",
+        "rule": (
+            "0, the median and the 90th percentile (rounded down to 3 decimals) of best_L(x), "
+            "the largest lower bound across the models"
+        ),
+        "n_calibration_items": len(best),
+        "best_lower_bound": {
+            "min": float(np.min(best)),
+            "median": float(np.median(best)),
+            "p90": float(np.percentile(best, 90)),
+            "max": float(np.max(best)),
+        },
+    }
+
+
+def floors_text(floors: Mapping[str, Any]) -> str:
+    """The floors and where they come from, for a report cell: ``0, 0.1, 0.5 (from 150 ...)``."""
+    values = ", ".join(f"{v:g}" for v in floors["values"])
+    return f"{values} (from {floors['n_calibration_items']} calibration items)"
+
+
 def build_live_pool(
     outcomes: pd.DataFrame,
     prompts: pd.DataFrame,
@@ -114,7 +208,8 @@ def build_live_pool(
 ) -> dict[str, Any]:
     """The pool of the catalog models over the items every one of them answered.
 
-    Best Single, cheapest and the ranks use the train and calibration items only. The prices
+    ``prompts`` is the ``sent_view`` (the prompt bytes are those of the messages sent). Best
+    Single, cheapest and the ranks use the train and calibration items only. The prices
     are the ASSUMPTION prices of the catalog, not a fit: the recorded costs were computed from
     them.
     """
@@ -149,6 +244,9 @@ def write_live_tables(
     splits: pd.DataFrame,
 ) -> dict[str, int]:
     """Write ``splits.parquet``, the pool JSON and replay config, and the replay input.
+
+    ``prompts`` is the ``sent_view``: the static rules read the joined texts of the messages
+    sent and the replay input holds those messages.
 
     The static rules are mapped on the train and calibration items only. Returns the number
     of replay lines.
@@ -339,8 +437,11 @@ def run_live_train(
     measured_all = pd.read_parquet(live_dir / "measured.parquet")
 
     splits = live_splits(outcomes)
-    pool = build_live_pool(outcomes, prompts, splits, catalog)
-    tables = write_live_tables(live_dir, pool, outcomes, prompts, splits)
+    # every step below sees the messages the collection sent, not the bare dataset prompt
+    sent = sent_view(prompts, protocol)
+    sent.to_parquet(live_dir / SENT_FILE, index=False, compression="zstd")
+    pool = build_live_pool(outcomes, sent, splits, catalog)
+    tables = write_live_tables(live_dir, pool, outcomes, sent, splits)
     complete = pool_outcomes(outcomes, pool["models"])["item_id"].unique()
     per_split = splits.loc[splits["item_id"].isin(complete), "split"].value_counts().to_dict()
 
@@ -350,13 +451,24 @@ def run_live_train(
     with tempfile.TemporaryDirectory() as scratch_name:
         scratch = Path(scratch_name)
         summary = pipeline.run(
-            live_collect.POOL, live_dir, Path(policies_out), dim, results_root=scratch / "train"
+            live_collect.POOL,
+            live_dir,
+            Path(policies_out),
+            dim,
+            results_root=scratch / "train",
+            prompts_file=SENT_FILE,
         )
         artifact = Path(summary["artifact_dir"])
         size = artifact_size(artifact)
         if size >= MAX_ARTIFACT_BYTES:
             raise ValueError(f"the artifact is {size} bytes, the limit is {MAX_ARTIFACT_BYTES}")
         fit = json.loads((Path(summary["results_dir"]) / "results.json").read_text("utf-8"))
+
+        # the demo floors, from the calibration items alone and before anything is replayed
+        calib_ids = sorted(
+            set(splits.loc[splits["split"] == "calib", "item_id"]) & set(complete.tolist())
+        )
+        floors = calibration_floors(artifact, sent, calib_ids)
 
         profiles = latency_profiles(measured_all, splits)
         date = started.strftime("%Y-%m-%d")
@@ -372,12 +484,16 @@ def run_live_train(
             jobs: list[tuple[str, str, Sequence[str]]] = [
                 (sweeps.TEST, policy, extra) for _, policy, extra in specs
             ]
-            jobs += [(sweeps.TEST, "learned", learned + sweeps.floor_flags(f)) for f in FLOORS]
+            jobs += [
+                (sweeps.TEST, "learned", learned + sweeps.floor_flags(f)) for f in floors["values"]
+            ]
             frames = rp.many(jobs)
         finally:
             rp.close()
 
-    names = [name for name, _, _ in specs] + [f"learned_min_cost_floor_{f:g}" for f in FLOORS]
+    names = [name for name, _, _ in specs] + [
+        f"learned_min_cost_floor_{f:g}" for f in floors["values"]
+    ]
     named = dict(zip(names, frames, strict=True))
     test_ids = set(next(iter(named.values()))["item_id"])
     measured_test = measured_all.loc[measured_all["item_id"].isin(test_ids)]
@@ -418,7 +534,7 @@ def run_live_train(
         "profiles": profiles,
         "profiles_machine": machine_name(gpu),
         "policy_config": yaml.safe_load(POLICY_YAML),
-        "floors": list(FLOORS),
+        "floors": floors,
         "replay": {
             "split": sweeps.TEST,
             "n_items": len(test_ids),
@@ -454,6 +570,7 @@ def _tables(results: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]) -> di
         ["collection protocol", protocol["name"]],
         ["system message", protocol["system_message"] or "none"],
         ["max_tokens", protocol["max_tokens"]],
+        ["user message suffix", live_collect.protocol_suffix_text(protocol)],
         ["Best Single (train+calib) / cheapest", f"{pool['best_single']} / {pool['cheapest']}"],
         ["items every model answered", pool["n_items"]],
         ["items per split", json.dumps(results["items_per_split"], sort_keys=True)],
@@ -464,6 +581,17 @@ def _tables(results: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]) -> di
         ["calibrator", fit["calibrator"]],
         ["OOD k / threshold", f"{fit['ood']['k']} / {fit['ood']['threshold']:.6g}"],
         ["policy config", json.dumps(results["policy_config"])],
+        [
+            "min_quality floors",
+            floors_text(results["floors"]),
+        ],
+        [
+            "best lower bound over calibration items: min / median / 90th pct / max",
+            " / ".join(
+                f"{results['floors']['best_lower_bound'][k]:.4f}"
+                for k in ("min", "median", "p90", "max")
+            ),
+        ],
         ["latency profiles measured on", results["profiles_machine"]],
         ["wall time (s)", round(results["wall_time_s"], 1)],
     ]

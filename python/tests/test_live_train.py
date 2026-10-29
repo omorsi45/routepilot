@@ -15,6 +15,7 @@ import pytest
 import yaml
 
 from routepilot_train import replaytool
+from routepilot_train.export import artifact as artifact_io
 from routepilot_train.runinfo import repo_root
 
 SCRIPTS = repo_root() / "bench" / "scripts"
@@ -292,7 +293,42 @@ def test_the_policy_config_is_the_one_the_experiment_names() -> None:
         "on_infeasible": "best_effort",
     }
     assert EM_DASH not in lt.POLICY_YAML
-    assert lt.FLOORS == (0.0, 0.4, 0.6)
+    assert not hasattr(lt, "FLOORS")  # the floors come from calibration, not from a constant
+
+
+# --- what the models were sent --------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", lc.PROTOCOLS)
+def test_the_sent_view_holds_the_messages_the_protocol_sends(name: str) -> None:
+    prompts, _, _ = synthetic_live(3, 4)
+    protocol = lc.protocol_for(name)
+    before = prompts.copy()
+    sent = lt.sent_view(prompts, protocol)
+    assert prompts.equals(before)  # the collection's table is not touched
+    assert sent["item_id"].tolist() == prompts["item_id"].tolist()
+    for row, original in zip(sent.itertuples(), prompts.itertuples(), strict=True):
+        messages = json.loads(row.messages)
+        assert messages == protocol.body("m", original.prompt)["messages"]
+        texts = [m["content"] for m in messages]
+        assert row.prompt == "\n".join(texts)  # what the gateway's rules and features read
+        assert row.prompt_bytes == sum(len(t.encode()) for t in texts)  # the gateway's PromptBytes
+        assert row.prompt_sha256 == original.prompt_sha256  # still the dataset item's identity
+    if name == "as-written":
+        assert sent["prompt"].tolist() == prompts["prompt"].tolist()
+    else:
+        assert (sent["prompt_bytes"] > prompts["prompt_bytes"]).all()
+
+
+def test_floor_values_are_the_median_and_the_ninetieth_percentile_rounded_down() -> None:
+    best = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    assert lt.floor_values(best) == (0.55, 0.91)  # the 90th percentile is 0.91 exactly
+    # rounded down, never to the nearest: 0.1239999 -> 0.123 and 0.9999 -> 0.999
+    assert lt.floor_values([0.1239999, 0.1239999]) == (0.123, 0.123)
+    assert lt.floor_values([0.9999, 0.9999, 0.9999]) == (0.999, 0.999)
+    assert lt.floor_values([0.3, 0.3]) == (0.3, 0.3)  # no float noise on a clean value
+    with pytest.raises(ValueError, match="no lower bounds"):
+        lt.floor_values([])
 
 
 def test_artifact_size_adds_up_the_files(tmp_path: Path) -> None:
@@ -356,7 +392,27 @@ def test_a_run_trains_exports_profiles_and_replays_the_test_split(
     # one replay row per baseline and per floor, all on the same test items
     rows = {r["policy"]: r for r in results["replay"]["rows"]}
     assert {"always_strongest", "always_cheapest", "random", "static_rules", "oracle"} <= set(rows)
-    assert {f"learned_min_cost_floor_{f:g}" for f in lt.FLOORS} <= set(rows)
+    # the floors are 0, the median and the 90th percentile of the best lower bound over the
+    # calibration items, recomputed here from the exported artifact and the messages sent
+    floors = results["floors"]
+    assert floors["source"] == "calibration items only"
+    assert floors["values"][0] == 0.0
+    assert floors["values"] == sorted(set(floors["values"]))
+    manifest, blob = artifact_io.load_artifact(artifact)
+    sent = lt.sent_view(prompts, lc.protocol_for("as-written")).set_index("item_id")
+    calib_ids = sorted(
+        pd.read_parquet(live / "splits.parquet").query("split == 'calib'")["item_id"]
+    )
+    best = []
+    for item_id in calib_ids:
+        messages = [(m["role"], m["content"]) for m in json.loads(sent.loc[item_id, "messages"])]
+        predicted = artifact_io.predict_bundle(manifest, blob, messages)
+        best.append(max(m["l"] for m in predicted["models"].values()))
+    assert floors["n_calibration_items"] == len(calib_ids) == results["fit"]["n_calib"]
+    assert floors["values"] == sorted({0.0, *lt.floor_values(best)})
+    assert floors["best_lower_bound"]["median"] == pytest.approx(float(np.median(best)))
+    assert floors["best_lower_bound"]["p90"] == pytest.approx(float(np.percentile(best, 90)))
+    assert {f"learned_min_cost_floor_{f:g}" for f in floors["values"]} <= set(rows)
     n_test = results["replay"]["n_items"]
     assert n_test > 10 and all(r["n"] == n_test for r in rows.values())
     assert rows["always_strongest"]["fixed_model"] == results["pool"]["best_single"]

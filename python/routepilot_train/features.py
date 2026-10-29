@@ -169,21 +169,22 @@ def extract(
     return idx, val, _dense_part(roles, full, prefix)
 
 
-def extract_texts(
-    texts: Sequence[str], dim: int = DEFAULT_DIM
+def extract_rows(
+    rows: Sequence[Sequence[tuple[str, str]]], dim: int = DEFAULT_DIM
 ) -> tuple[scipy.sparse.csr_matrix, np.ndarray]:
-    """Extract features for texts that are each one user message.
+    """Extract features for rows that are each a list of ``(role, text)`` messages.
 
     Row ``i`` of the returned CSR matrix and of the dense matrix equals
-    ``extract([("user", texts[i])], dim)``.
+    ``extract(rows[i], dim)``. This is how a trainer featurizes exactly the messages a
+    gateway receives, system message included.
     """
     _check_dim(dim)
     indptr = [0]
     indices: list[np.ndarray] = []
     data: list[np.ndarray] = []
-    dense = np.zeros((len(texts), NUM_DENSE), dtype=np.float64)
-    for row, text in enumerate(texts):
-        idx, val, dense[row] = extract([("user", text)], dim)
+    dense = np.zeros((len(rows), NUM_DENSE), dtype=np.float64)
+    for row, messages in enumerate(rows):
+        idx, val, dense[row] = extract(messages, dim)
         indices.append(idx)
         data.append(val)
         indptr.append(indptr[-1] + len(idx))
@@ -193,10 +194,21 @@ def extract_texts(
             np.concatenate(indices) if indices else np.empty(0, dtype=np.int32),
             np.array(indptr, dtype=np.int64),
         ),
-        shape=(len(texts), dim),
+        shape=(len(rows), dim),
     )
     matrix.has_sorted_indices = True
     return matrix, dense
+
+
+def extract_texts(
+    texts: Sequence[str], dim: int = DEFAULT_DIM
+) -> tuple[scipy.sparse.csr_matrix, np.ndarray]:
+    """Extract features for texts that are each one user message.
+
+    Row ``i`` of the returned CSR matrix and of the dense matrix equals
+    ``extract([("user", texts[i])], dim)``.
+    """
+    return extract_rows([[("user", text)] for text in texts], dim)
 
 
 @dataclass(frozen=True)

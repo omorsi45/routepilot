@@ -85,14 +85,17 @@ def test_plan_items_per_round_fits_the_budget() -> None:
 
 
 def test_the_nine_rounds_run_floors_outside_and_slos_inside() -> None:
-    settings = ld.round_settings({"tight_ms": 1800, "loose_ms": 6000})
+    settings = ld.round_settings({"tight_ms": 1800, "loose_ms": 6000}, [0.0, 0.123, 0.456])
     assert [s["round"] for s in settings] == [
         "q0-none", "q0-tight", "q0-loose",
-        "q0.4-none", "q0.4-tight", "q0.4-loose",
-        "q0.6-none", "q0.6-tight", "q0.6-loose",
+        "q0.123-none", "q0.123-tight", "q0.123-loose",
+        "q0.456-none", "q0.456-tight", "q0.456-loose",
     ]  # fmt: skip
     assert [s["slo_e2e_ms"] for s in settings[:3]] == [None, 1800, 6000]
-    assert {s["min_quality"] for s in settings} == {0.0, 0.4, 0.6}
+    assert {s["min_quality"] for s in settings} == {0.0, 0.123, 0.456}
+    # the floors are an input: two floors make six rounds
+    assert len(ld.round_settings({"tight_ms": 1, "loose_ms": 2}, [0.0, 0.5])) == 6
+    assert not hasattr(ld, "FLOORS")  # no fixed floors any more
 
 
 def test_request_options_send_the_floor_always_and_the_slo_when_there_is_one() -> None:
@@ -232,13 +235,21 @@ def test_the_report_tables_hold_no_prompt_text() -> None:
         "wall_time_s": 1.0,
         "rounds": [ld.summarize_round(rows, setting)],
         "estimator_bound_ms_by_round": {"q0-none": {"a": 12.5}},
-        "protocol": lc.protocol_for("answer-only").as_dict(),
+        "protocol": lc.protocol_for("answer-only-user").as_dict(),
+        "floors": {
+            "values": [0.0, 0.123, 0.456],
+            "source": "calibration items only",
+            "n_calibration_items": 150,
+            "best_lower_bound": {"median": 0.1234, "p90": 0.4567, "min": 0.0, "max": 0.5},
+        },
     }
     tables = ld._tables(results)
     text = "\n".join(t.to_csv() for t in tables.values()) + "\n".join(ld.LABELS)
     assert SENTINEL not in text and EM_DASH not in text
     assert "Median end-to-end bound the policy used (q_ms), per model and round" in tables
     setup = dict(tables["Setup"].itertuples(index=False, name=None))
-    assert setup["protocol"] == "answer-only"
-    assert setup["system message"] == "Reply with only the letter of the correct option."
+    assert setup["protocol"] == "answer-only-user"
+    assert setup["system message"] == "none"
+    assert setup["user message suffix"] == json.dumps("\n\n" + lc.ANSWER_ONLY_SYSTEM)
     assert setup["max_tokens"] == 16
+    assert setup["min_quality floors"] == "0, 0.123, 0.456 (from 150 calibration items)"

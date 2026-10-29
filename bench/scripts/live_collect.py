@@ -15,7 +15,9 @@ temperature 0, the decision log on, one request at a time, grouped by model, one
 per model that is not counted). How an item is put to a model is the protocol (``--protocol``):
 ``as-written`` sends the dataset prompt alone with ``max_tokens`` 384 (the first collection);
 ``answer-only`` prepends the system message "Reply with only the letter of the correct option."
-and allows 16 tokens. The protocol is recorded in ``<live-dir>/protocol.json``, ``results.json``,
+and allows 16 tokens; ``answer-only-user`` sends no system message and appends that instruction
+to the end of the user message (after a blank line), also with 16 tokens. The protocol is
+recorded in ``<live-dir>/protocol.json``, ``results.json``,
 the report and ``run.json``; training and the demo read it from the live directory. The size of
 the sample is chosen from the measured speeds, at the protocol's ``max_tokens``, so that the
 whole collection fits the time budget (90 minutes by default); the script also stops at the
@@ -81,9 +83,11 @@ MAX_TOKENS = 384
 MEASURE_MAX_TOKENS = 256
 # The two ways to put an item to a model (see Protocol). The system message is part of the
 # protocol and is sent word for word.
-AS_WRITTEN, ANSWER_ONLY = "as-written", "answer-only"
-PROTOCOLS = (AS_WRITTEN, ANSWER_ONLY)
+AS_WRITTEN, ANSWER_ONLY, ANSWER_ONLY_USER = "as-written", "answer-only", "answer-only-user"
+PROTOCOLS = (AS_WRITTEN, ANSWER_ONLY, ANSWER_ONLY_USER)
 ANSWER_ONLY_SYSTEM = "Reply with only the letter of the correct option."
+# answer-only-user (Ruling V1-R44): the same instruction, appended to the end of the user message
+ANSWER_ONLY_USER_SUFFIX = "\n\n" + ANSWER_ONLY_SYSTEM
 ANSWER_ONLY_MAX_TOKENS = 16
 PROTOCOL_FILE = "protocol.json"
 BUDGET_MINUTES = 90.0
@@ -380,23 +384,37 @@ def _error_text(raw: bytes) -> str:
         return "unreadable error body"
 
 
+def request_messages(
+    prompt: str, system: str | None = None, user_suffix: str | None = None
+) -> list[dict[str, str]]:
+    """The messages of a request: an optional system message, then the user prompt.
+
+    ``user_suffix``, when given, is appended to the end of the user message. This is the one
+    place the messages are built, so the collector, the trainer and the demo agree on them.
+    """
+    content = prompt if user_suffix is None else prompt + user_suffix
+    messages = [{"role": "user", "content": content}]
+    if system is not None:
+        messages.insert(0, {"role": "system", "content": system})
+    return messages
+
+
 def chat_body(
     model: str,
     prompt: str,
     max_tokens: int,
     routepilot: Mapping[str, Any] | None = None,
     system: str | None = None,
+    user_suffix: str | None = None,
 ) -> dict[str, Any]:
     """The request body: temperature 0, streaming with usage, ``max_tokens`` capped.
 
-    ``system``, when given, is sent as a system message before the prompt.
+    ``system``, when given, is sent as a system message before the prompt; ``user_suffix``,
+    when given, is appended to the user message (see ``request_messages``).
     """
-    messages = [{"role": "user", "content": prompt}]
-    if system is not None:
-        messages.insert(0, {"role": "system", "content": system})
     body: dict[str, Any] = {
         "model": model,
-        "messages": messages,
+        "messages": request_messages(prompt, system, user_suffix),
         "stream": True,
         "stream_options": {"include_usage": True},
         "temperature": 0,
@@ -412,41 +430,72 @@ def chat_body(
 
 @dataclass(frozen=True)
 class Protocol:
-    """How an item is put to a model: an optional system message and the ``max_tokens`` cap.
+    """How an item is put to a model: the messages and the ``max_tokens`` cap.
 
     ``as-written`` sends the dataset prompt alone with room to reason (the first collection).
     ``answer-only`` prepends a system message asking for the option letter alone and allows
-    16 tokens, so the grade measures the answer and not whether the reasoning fit in the cap.
+    16 tokens, so the grade measures the answer and not whether the reasoning fit in the cap;
+    the small models ignored that system message. ``answer-only-user`` (Ruling V1-R44) sends
+    no system message and appends the same instruction to the end of the user message
+    (``user_suffix``), with the same 16 tokens.
     """
 
     name: str
     system: str | None
     max_tokens: int
+    user_suffix: str | None = None
+
+    def messages(self, prompt: str) -> list[dict[str, str]]:
+        """The messages of ``prompt`` under this protocol: what the models are sent."""
+        return request_messages(prompt, self.system, self.user_suffix)
 
     def body(
         self, model: str, prompt: str, routepilot: Mapping[str, Any] | None = None
     ) -> dict[str, Any]:
         """The request body of ``prompt`` under this protocol."""
-        return chat_body(model, prompt, self.max_tokens, routepilot, self.system)
+        return chat_body(model, prompt, self.max_tokens, routepilot, self.system, self.user_suffix)
 
     def as_dict(self) -> dict[str, Any]:
-        """What is recorded in ``protocol.json``, ``results.json`` and ``run.json``."""
-        return {"name": self.name, "system_message": self.system, "max_tokens": self.max_tokens}
+        """What is recorded in ``protocol.json``, ``results.json`` and ``run.json``.
+
+        ``user_suffix`` is present only for a protocol that has one, so the records of the
+        two earlier protocols keep the form they were written in.
+        """
+        out: dict[str, Any] = {
+            "name": self.name,
+            "system_message": self.system,
+            "max_tokens": self.max_tokens,
+        }
+        if self.user_suffix is not None:
+            out["user_suffix"] = self.user_suffix
+        return out
 
 
 _PROTOCOLS = {
     AS_WRITTEN: Protocol(AS_WRITTEN, None, MAX_TOKENS),
     ANSWER_ONLY: Protocol(ANSWER_ONLY, ANSWER_ONLY_SYSTEM, ANSWER_ONLY_MAX_TOKENS),
+    ANSWER_ONLY_USER: Protocol(
+        ANSWER_ONLY_USER, None, ANSWER_ONLY_MAX_TOKENS, ANSWER_ONLY_USER_SUFFIX
+    ),
 }
 
 
 def protocol_for(name: str) -> Protocol:
-    """The protocol called ``name`` (``as-written`` or ``answer-only``)."""
+    """The protocol called ``name`` (one of ``PROTOCOLS``)."""
     try:
         return _PROTOCOLS[name]
     except KeyError:
         choices = ", ".join(PROTOCOLS)
         raise ValueError(f"unknown protocol {name!r}; choose one of {choices}") from None
+
+
+def protocol_suffix_text(protocol: Mapping[str, Any]) -> str:
+    """The appended user-message instruction of a recorded protocol, for a one-line table cell.
+
+    JSON-quoted so that its line breaks do not break a markdown table; ``none`` without one.
+    """
+    suffix = protocol.get("user_suffix")
+    return "none" if suffix is None else json.dumps(suffix)
 
 
 def write_protocol(live_dir: Path, protocol: Protocol) -> None:
@@ -1159,6 +1208,7 @@ def _collect_tables(results: Mapping[str, Any], catalog: Sequence[CatalogModel])
         ["protocol", protocol["name"]],
         ["system message", protocol["system_message"] or "none"],
         ["max_tokens", protocol["max_tokens"]],
+        ["user message suffix", protocol_suffix_text(protocol)],
         ["time budget (minutes)", plan["budget_minutes"]],
         [
             "mmlupro items planned / used (cap)",
@@ -1229,7 +1279,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=AS_WRITTEN,
         help=(
             "as-written: the dataset prompt alone, max_tokens 384; answer-only: a system "
-            f"message {ANSWER_ONLY_SYSTEM!r} and max_tokens {ANSWER_ONLY_MAX_TOKENS}"
+            f"message {ANSWER_ONLY_SYSTEM!r} and max_tokens {ANSWER_ONLY_MAX_TOKENS}; "
+            "answer-only-user: no system message, the same instruction appended to the user "
+            f"message ({ANSWER_ONLY_USER_SUFFIX!r}) and max_tokens {ANSWER_ONLY_MAX_TOKENS}"
         ),
     )
     col.add_argument("--resume", action="store_true")

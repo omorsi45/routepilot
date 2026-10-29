@@ -120,7 +120,7 @@ def test_plan_sample_size_rejects_a_missing_or_zero_time() -> None:
 
 
 def test_the_protocols_are_as_written_and_answer_only() -> None:
-    assert lc.PROTOCOLS == ("as-written", "answer-only")
+    assert lc.PROTOCOLS == ("as-written", "answer-only", "answer-only-user")
     written = lc.protocol_for("as-written")
     assert (written.name, written.system, written.max_tokens) == ("as-written", None, 384)
     only = lc.protocol_for("answer-only")
@@ -135,6 +135,56 @@ def test_the_protocols_are_as_written_and_answer_only() -> None:
     with pytest.raises(ValueError, match="protocol"):
         lc.protocol_for("verbose")
     assert lc.LIVE_DIR.parts[-3:] == ("data", "derived", "live")
+
+
+INSTRUCTION = "Reply with only the letter of the correct option."
+
+
+def test_the_answer_only_user_protocol_appends_the_instruction_to_the_user_turn() -> None:
+    user = lc.protocol_for("answer-only-user")
+    assert user.name == "answer-only-user" and user.max_tokens == 16
+    assert user.system is None  # no system message: the small models ignored it
+    assert user.user_suffix == "\n\n" + INSTRUCTION
+    assert user.as_dict() == {
+        "name": "answer-only-user",
+        "system_message": None,
+        "max_tokens": 16,
+        "user_suffix": "\n\n" + INSTRUCTION,
+    }
+    body = user.body("m", SENTINEL_PROMPT, {"min_quality": 0.4})
+    assert body["messages"] == [{"role": "user", "content": SENTINEL_PROMPT + "\n\n" + INSTRUCTION}]
+    assert body["max_tokens"] == 16 and body["temperature"] == 0 and body["stream"] is True
+    assert body["routepilot"] == {"min_quality": 0.4}
+    assert user.messages(SENTINEL_PROMPT) == body["messages"]
+    # the two earlier protocols have no suffix and keep the form they were recorded in
+    for name in ("as-written", "answer-only"):
+        old = lc.protocol_for(name)
+        assert old.user_suffix is None and "user_suffix" not in old.as_dict()
+        assert old.messages(SENTINEL_PROMPT) == old.body("m", SENTINEL_PROMPT)["messages"]
+    assert lc.protocol_for("answer-only").messages("p") == [
+        {"role": "system", "content": INSTRUCTION},
+        {"role": "user", "content": "p"},
+    ]
+    assert lc.protocol_for("as-written").messages("p") == [{"role": "user", "content": "p"}]
+
+
+def test_the_instruction_in_the_user_turn_reaches_the_server(stub: int) -> None:
+    body = lc.protocol_for("answer-only-user").body("m", SENTINEL_PROMPT)
+    assert lc.stream_chat(stub, body, key="k", timeout_s=10).ok
+    sent = Stub.seen[0]["body"]
+    assert sent["messages"] == [{"role": "user", "content": SENTINEL_PROMPT + "\n\n" + INSTRUCTION}]
+    assert sent["max_tokens"] == 16
+
+
+def test_the_cli_offers_every_protocol(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        lc.main(["collect", "--help"])
+    assert exit_info.value.code == 0
+    help_text = capsys.readouterr().out
+    assert all(name in help_text for name in lc.PROTOCOLS)
+    with pytest.raises(SystemExit) as bad:
+        lc.main(["collect", "--protocol", "verbose"])
+    assert bad.value.code == 2
 
 
 def test_a_protocol_builds_the_request_body() -> None:
@@ -176,9 +226,14 @@ def test_the_planned_request_time_uses_the_protocols_max_tokens() -> None:
 
 def test_a_protocol_file_round_trips_and_a_missing_one_means_as_written(tmp_path: Path) -> None:
     assert lc.load_protocol(tmp_path) == lc.protocol_for("as-written")  # the first collection
-    lc.write_protocol(tmp_path, lc.protocol_for("answer-only"))
-    text = (tmp_path / "protocol.json").read_text(encoding="utf-8")
-    assert "\r" not in text and EM_DASH not in text
+    for name in ("answer-only", "answer-only-user"):
+        lc.write_protocol(tmp_path, lc.protocol_for(name))
+        text = (tmp_path / "protocol.json").read_text(encoding="utf-8")
+        assert "\r" not in text and EM_DASH not in text
+        assert lc.load_protocol(tmp_path) == lc.protocol_for(name)
+    # a file written before the user suffix existed (no such key) still loads
+    old = {"name": "answer-only", "system_message": INSTRUCTION, "max_tokens": 16}
+    (tmp_path / "protocol.json").write_text(json.dumps(old), encoding="utf-8")
     assert lc.load_protocol(tmp_path) == lc.protocol_for("answer-only")
 
 
@@ -189,6 +244,10 @@ def test_a_protocol_file_that_disagrees_with_its_name_is_refused(tmp_path: Path)
         lc.load_protocol(tmp_path)
     (tmp_path / "protocol.json").write_text(json.dumps({"name": "other"}), encoding="utf-8")
     with pytest.raises(ValueError, match="protocol"):
+        lc.load_protocol(tmp_path)
+    changed = lc.protocol_for("answer-only-user").as_dict() | {"user_suffix": "\n\nAnswer."}
+    (tmp_path / "protocol.json").write_text(json.dumps(changed), encoding="utf-8")
+    with pytest.raises(ValueError, match="answer-only-user"):
         lc.load_protocol(tmp_path)
 
 
@@ -627,6 +686,16 @@ def test_the_report_tables_hold_no_prompt_or_answer_text() -> None:
     assert setup["protocol"] == "answer-only"
     assert setup["system message"] == "Reply with only the letter of the correct option."
     assert setup["max_tokens"] == 16
+    assert setup["user message suffix"] == "none"
+    # the appended instruction is shown on one line, with its line breaks escaped
+    results["protocol"] = lc.protocol_for("answer-only-user").as_dict()
+    user_setup = dict(
+        lc._collect_tables(results, catalog())["Setup"].itertuples(index=False, name=None)
+    )
+    assert user_setup["protocol"] == "answer-only-user"
+    assert user_setup["system message"] == "none"
+    assert user_setup["user message suffix"] == json.dumps("\n\n" + INSTRUCTION)
+    assert "\n" not in user_setup["user message suffix"]
 
 
 def test_wait_for_decisions_returns_the_ids_still_missing(tmp_path: Path) -> None:

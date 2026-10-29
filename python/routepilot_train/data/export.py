@@ -31,7 +31,9 @@ def export_replay(
     ``split: "heldout"``. ``cost_picousd`` is ``round(cost_usd * 1e12)``, except
     for ``fitted_cost_models``, whose cost is recomputed from the pool's fitted
     prices and the recorded token counts (their recorded cost is zero on some
-    datasets).
+    datasets). An item's ``messages`` are the single user message ``prompt``, or,
+    when ``prompts`` has a ``messages`` column (JSON text of the messages a model
+    was sent), those messages.
     """
     models = list(pool["models"])
     fitted = set(fitted_cost_models)
@@ -40,6 +42,11 @@ def export_replay(
     rows = pool_outcomes(outcomes, models)
 
     prompt_of = dict(zip(prompts["item_id"], prompts["prompt"], strict=True))
+    messages_of = (
+        dict(zip(prompts["item_id"], prompts["messages"], strict=True))
+        if "messages" in prompts.columns
+        else {}
+    )
     prompt_sha_of = dict(zip(prompts["item_id"], prompts["prompt_sha256"], strict=True))
     split_of = dict(zip(splits["item_id"], splits["split"], strict=True))
     items = rows["item_id"].unique()
@@ -77,7 +84,11 @@ def export_replay(
                 "dataset": str(first["dataset"]),
                 "split": str(split_of[item_id]),
                 "prompt_sha256": str(prompt_sha_of[item_id]),
-                "messages": [{"role": "user", "content": prompt_of[item_id]}],
+                "messages": (
+                    json.loads(messages_of[item_id])
+                    if item_id in messages_of
+                    else [{"role": "user", "content": prompt_of[item_id]}]
+                ),
                 "outcomes": per_model,
             }
             handle.write(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n")

@@ -150,6 +150,40 @@ def run_toy(derived: Path, tmp_path: Path, **overrides):
     return pipeline.run(**args)
 
 
+def test_a_prompts_file_with_messages_is_featurized_as_messages(tmp_path, monkeypatch):
+    derived = write_derived(tmp_path)
+    prompts = pd.read_parquet(derived / "prompts.parquet")
+    system = "SYSTEM-MARKER"
+    prompts["messages"] = [
+        json.dumps([{"role": "system", "content": system}, {"role": "user", "content": p}])
+        for p in prompts["prompt"]
+    ]
+    prompts["prompt_bytes"] = prompts["prompt_bytes"] + len(system.encode())
+    prompts.to_parquet(derived / "sent.parquet", index=False)
+
+    # the default prompts file has no messages column and is unchanged
+    assert "messages" not in pipeline.load_fit_data(derived, POOL)[0].items.columns
+    train, calib = pipeline.load_fit_data(derived, POOL, prompts_file="sent.parquet")
+    assert "messages" in train.items.columns and "messages" in calib.items.columns
+    assert train.items["prompt_bytes"].min() >= len(system.encode())
+
+    rows: list[list[tuple[str, str]]] = []
+    real = features.extract_rows
+
+    def spy(batch, dim=features.DEFAULT_DIM):
+        rows.extend(batch)
+        return real(batch, dim)
+
+    monkeypatch.setattr(features, "extract_rows", spy)
+    monkeypatch.setattr(features, "extract_texts", pytest.fail)  # the bare prompts are not used
+    summary = run_toy(derived, tmp_path, prompts_file="sent.parquet")
+    assert summary["artifact_dir"].is_dir()
+    assert len(rows) == (COUNTS["train"] - 1) + COUNTS["calib"]
+    assert all([role for role, _ in row] == ["system", "user"] for row in rows)
+    assert all(row[0][1] == system for row in rows)
+    assert not any(SENTINEL in text for row in rows for _, text in row)  # train and calib only
+
+
 def test_run_exports_an_artifact_and_records_the_run(derived, tmp_path, monkeypatch):
     seen: list[str] = []
     real = features.extract_texts

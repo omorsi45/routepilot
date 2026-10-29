@@ -7,9 +7,13 @@ Starts ``routepilot serve`` with the learned policy of ``policies/live-ollama`` 
 ``bench/latency/live-ollama.yaml`` as the latency priors, and the gateway's own online latency
 estimator, which learns from the traffic it serves. It sends live test items (a seeded subset of
 at most 120, one request at a time, the same items in the same order every round) in nine rounds:
-``min_quality`` in {0, 0.4, 0.6} times ``slo_e2e_ms`` in {none, tight, loose}. Every request is
-sent under the protocol the training data was collected with (its system message and its
-``max_tokens``, read from ``protocol.json`` in the live directory). The tight SLO is
+``min_quality`` in {0, q_mid, q_high} times ``slo_e2e_ms`` in {none, tight, loose}. The floors
+come from the calibration items alone (Ruling V1-R44): over those items ``best_L(x)`` is the
+largest lower bound across the models from the live artifact, ``q_mid`` its median and ``q_high``
+its 90th percentile, each rounded down to 3 decimals (``live_train.calibration_floors``; they are
+the floors the live replay used). Every request is sent under the protocol the training data was
+collected with (its messages and its ``max_tokens``, read from ``protocol.json`` in the live
+directory), so the gateway extracts the same features the policy was trained on. The tight SLO is
 the fastest model's measured p50 end-to-end time and the loose SLO the slowest model's measured
 p95, both over the train and calibration requests of ``live_collect.py``.
 
@@ -51,7 +55,6 @@ from lcb_vs_point import wilson_interval  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT = "live_demo"
 RESULTS_ROOT = ROOT / "bench" / "results" / "live_demo"
-FLOORS = live_train.FLOORS
 SLO_KINDS = ("none", "tight", "loose")
 MAX_ITEMS = 120
 BUDGET_MINUTES = 25.0
@@ -63,6 +66,8 @@ LABELS = (
     "prices are an ASSUMPTION (Ruling V1-R42); the policy chooses on its own predictions",
     "the tight SLO is the fastest model's measured p50 end-to-end time and the loose SLO the "
     "slowest model's measured p95, both over the train and calibration requests",
+    "the quality floors are 0, the median and the 90th percentile of the best lower bound over "
+    "the calibration items (rounded down to 3 decimals), the same floors the live replay used",
     "the gateway's online latency estimator starts from the measured profiles and learns from "
     "the demo's own traffic, so later rounds are not independent of earlier ones",
     "realized success is graded against the release's ground truth; a round has a few dozen "
@@ -137,8 +142,11 @@ def plan_items_per_round(
     return min(available, cap, max(MIN_ITEMS, fit))
 
 
-def round_settings(slos: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """The nine rounds in the order they run: floors outside, SLO kinds inside."""
+def round_settings(slos: Mapping[str, Any], floors: Sequence[float]) -> list[dict[str, Any]]:
+    """The rounds in the order they run: ``floors`` outside, SLO kinds inside.
+
+    ``floors`` are the ``min_quality`` values (from ``live_train.calibration_floors``).
+    """
     ms = {"none": None, "tight": slos["tight_ms"], "loose": slos["loose_ms"]}
     return [
         {
@@ -147,7 +155,7 @@ def round_settings(slos: Mapping[str, Any]) -> list[dict[str, Any]]:
             "slo_kind": kind,
             "slo_e2e_ms": ms[kind],
         }
-        for floor in FLOORS
+        for floor in floors
         for kind in SLO_KINDS
     ]
 
@@ -321,9 +329,13 @@ def run_demo(
     seen = outcomes.groupby("item_id")["model"].nunique()
     complete = list(seen.index[seen == len(models)])
     slos = slo_values(measured, splits, models)
+    # the floors come from the calibration items alone, on the messages the models were sent
+    sent = live_train.sent_view(prompts, protocol)
+    calib_ids = sorted(set(splits.loc[splits["split"] == "calib", "item_id"]) & set(complete))
+    floors = live_train.calibration_floors(artifact, sent, calib_ids)
     pool_items = demo_items(splits, complete, max_items=max_items)
     mean_s = float(np.mean([v[0] for v in slos["p50_p95_ms"].values()])) / 1000.0
-    settings = round_settings(slos)
+    settings = round_settings(slos, floors["values"])
     per_round = items_per_round or plan_items_per_round(
         mean_s,
         available=len(pool_items),
@@ -421,6 +433,7 @@ def run_demo(
         "artifact_version": artifact.name,
         "policy_config": yaml.safe_load(Path(policy_path).read_text(encoding="utf-8")),
         "slo": {k: slos[k] for k in ("tight_ms", "loose_ms", "tight_from", "loose_from")},
+        "floors": floors,
         "e2e_ms_p50_p95_train_calib": slos["p50_p95_ms"],
         "items_per_round": len(items),
         "test_items_available": len(pool_items),
@@ -464,6 +477,8 @@ def _tables(results: Mapping[str, Any]) -> dict[str, Any]:
         ["protocol", protocol["name"]],
         ["system message", protocol["system_message"] or "none"],
         ["max_tokens", protocol["max_tokens"]],
+        ["user message suffix", live_collect.protocol_suffix_text(protocol)],
+        ["min_quality floors", live_train.floors_text(results["floors"])],
         ["policy config", json.dumps(results["policy_config"])],
         ["tight SLO (ms)", f"{slo['tight_ms']} ({slo['tight_from']})"],
         ["loose SLO (ms)", f"{slo['loose_ms']} ({slo['loose_from']})"],

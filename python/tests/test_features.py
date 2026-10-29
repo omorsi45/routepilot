@@ -255,12 +255,41 @@ def test_extract_texts_empty_list_and_custom_dim() -> None:
     assert matrix.getrow(0).indices.tolist() == want_idx.tolist()
 
 
+def test_extract_rows_matches_extract_for_any_roles() -> None:
+    rows = [
+        [("user", "pick the letter\nA) one\nB) two")],
+        [("system", "Reply with only the letter."), ("user", "pick the letter\nA) one\nB) two")],
+        [("system", "s"), ("user", "u"), ("assistant", "a")],
+        [("user", "")],
+    ]
+    matrix, dense = features.extract_rows(rows, dim=1024)
+    assert scipy.sparse.isspmatrix_csr(matrix) and matrix.has_sorted_indices
+    assert matrix.shape == (len(rows), 1024) and dense.shape == (len(rows), features.NUM_DENSE)
+    for i, messages in enumerate(rows):
+        idx, val, want_dense = features.extract(messages, 1024)
+        assert matrix.getrow(i).indices.tolist() == idx.tolist()
+        assert matrix.getrow(i).data.tolist() == val.tolist()
+        assert dense[i].tolist() == want_dense.tolist()
+    # the roles matter: a system message changes the dense block and the joined text
+    assert dense[0].tolist() != dense[1].tolist()
+    assert dense[1][10] == 1.0 and dense[0][10] == 0.0
+    # extract_texts is extract_rows over one user message each
+    texts_matrix, texts_dense = features.extract_texts(["x y", "z"], dim=1024)
+    rows_matrix, rows_dense = features.extract_rows([[("user", "x y")], [("user", "z")]], dim=1024)
+    assert (texts_matrix != rows_matrix).nnz == 0
+    assert texts_dense.tolist() == rows_dense.tolist()
+    empty_matrix, empty_dense = features.extract_rows([], dim=1024)
+    assert empty_matrix.shape == (0, 1024) and empty_dense.shape == (0, features.NUM_DENSE)
+
+
 @pytest.mark.parametrize("dim", [0, -1, 2**31])
 def test_invalid_dim_is_rejected(dim: int) -> None:
     with pytest.raises(ValueError, match="dim"):
         features.extract([("user", "x")], dim)
     with pytest.raises(ValueError, match="dim"):
         features.extract_texts(["x"], dim)
+    with pytest.raises(ValueError, match="dim"):
+        features.extract_rows([[("user", "x")]], dim)
 
 
 def test_write_golden_cli_reproduces_the_committed_file(tmp_path: Path) -> None:
