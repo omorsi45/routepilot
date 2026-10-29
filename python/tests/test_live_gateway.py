@@ -72,9 +72,8 @@ def binary() -> Path:
         pytest.skip(str(err))
 
 
-@pytest.fixture(scope="module")
-def mock_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
-    """An rp-mock on a free loopback port, stopped when the module is done."""
+def start_mock(tmp_path_factory: pytest.TempPathFactory, ttft_ms: int) -> Iterator[str]:
+    """An rp-mock on a free loopback port answering after ``ttft_ms``, stopped afterwards."""
     exe = tmp_path_factory.mktemp("mock") / (
         "rp-mock.exe" if sys.platform == "win32" else "rp-mock"
     )
@@ -91,7 +90,7 @@ def mock_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         "--tokens",
         "40",  # longer than the answer-only cap, so the cap shows in the completion tokens
         "--ttft-median-ms",
-        "20",
+        str(ttft_ms),
     ]
     proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -99,6 +98,20 @@ def mock_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         yield f"http://127.0.0.1:{port}/v1"
     finally:
         overhead.stop(proc)
+
+
+@pytest.fixture(scope="module")
+def mock_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+    """A quick rp-mock (20 ms to the first token)."""
+    yield from start_mock(tmp_path_factory, 20)
+
+
+@pytest.fixture(scope="module")
+def slow_mock_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+    """An rp-mock that takes 200 ms per answer, for tests that need requests of a known
+    minimum length (with 20 ms a fast Linux host answers a whole small collection inside a
+    one-second budget)."""
+    yield from start_mock(tmp_path_factory, 200)
 
 
 @pytest.fixture
@@ -232,7 +245,7 @@ def test_collect_runs_through_the_gateway_and_writes_the_tables(
 
 
 def test_collect_stops_at_the_budget_and_reports_the_realized_sample(
-    binary: Path, mock_url: str, no_ollama: None, tmp_path: Path
+    binary: Path, slow_mock_url: str, no_ollama: None, tmp_path: Path
 ) -> None:
     derived, tar_path = build_inputs(tmp_path)
     live = tmp_path / "live"
@@ -242,7 +255,8 @@ def test_collect_stops_at_the_budget_and_reports_the_realized_sample(
         write_measure_run(tmp_path),
         budget_minutes=0.02,  # 1.2 s: the three warm-ups and a few requests
         n_mmlupro=8,
-        config=mock_config(tmp_path, mock_url),
+        # 200 ms per answer, so the 3 x 14 requests take well over the budget on any machine
+        config=mock_config(tmp_path, slow_mock_url),
         tarball=tar_path,
         derived=derived,
         binary=binary,

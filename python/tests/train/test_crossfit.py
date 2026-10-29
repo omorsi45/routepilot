@@ -1,6 +1,7 @@
 """Tests for the cross-fitting halves and the artifact refit on half of the calibration split."""
 
 import hashlib
+import json
 import subprocess
 from pathlib import Path
 
@@ -163,6 +164,22 @@ def test_bundle_round_trip_reproduces_the_artifact(calib, tmp_path: Path):
 
     out = artifact.export_artifact(tmp_path, "tiny", bundle, weights)
 
-    assert out.name == manifest["version"]
     assert (out / "weights.bin").read_bytes() == blob
-    assert (out / "manifest.json").read_bytes() == (TINY / "manifest.json").read_bytes()
+    fresh = json.loads((out / "manifest.json").read_bytes())
+    kept = json.loads((TINY / "manifest.json").read_bytes())
+    # Export recomputes the golden predictions. On another platform's libm their last bits
+    # can differ, which changes the manifest bytes and so the content version (Ruling
+    # V1-R27); everything else must come back exactly.
+    if (out / "manifest.json").read_bytes() == (TINY / "manifest.json").read_bytes():
+        assert out.name == manifest["version"]
+    fresh_golden, kept_golden = fresh.pop("golden"), kept.pop("golden")
+    fresh.pop("version")
+    kept.pop("version")
+    assert fresh == kept
+    assert len(fresh_golden) == len(kept_golden)
+    for got, want in zip(fresh_golden, kept_golden, strict=True):
+        assert got["messages"] == want["messages"]
+        assert got["ood_score"] == pytest.approx(want["ood_score"], abs=1e-12)
+        for model_id, expected in want["models"].items():
+            for key, value in expected.items():
+                assert got["models"][model_id][key] == pytest.approx(value, rel=1e-12, abs=1e-12)
