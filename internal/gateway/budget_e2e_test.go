@@ -1038,10 +1038,18 @@ func TestBudgetNeverOvershootsUnderConcurrency(t *testing.T) {
 			})
 
 			var ok, refused int
+			var served money.PicoUSD // what the served answers cost by their reported usage
 			for i, rec := range recs {
 				switch rec.Code {
 				case http.StatusOK:
 					ok++
+					var resp openai.ChatCompletion
+					if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil || resp.Usage == nil {
+						t.Fatalf("request %d: answer without usage (%v): %s", i, err, rec.Body.String())
+					}
+					// The budget can shrink an answer's max_tokens below the mock's 4 tokens,
+					// and the mock honors it, so each answer is priced from its own usage.
+					served += stdIn*money.PicoUSD(resp.Usage.PromptTokens) + stdOut*money.PicoUSD(resp.Usage.CompletionTokens)
 				case http.StatusTooManyRequests:
 					refused++
 					if code := decodeErr(t, rec).Error.Code; code != "insufficient_quota" {
@@ -1055,8 +1063,8 @@ func TestBudgetNeverOvershootsUnderConcurrency(t *testing.T) {
 			if ok == 0 || refused == 0 {
 				t.Errorf("served %d refused %d: the budget must serve some and refuse some", ok, refused)
 			}
-			if got, want := e.spent(), money.PicoUSD(ok)*stdActual; got != want {
-				t.Errorf("Spent = %d, want %d = %d served answers", got, want, ok)
+			if got := e.spent(); got != served {
+				t.Errorf("Spent = %d, want %d, the reported usage of the %d served answers", got, served, ok)
 			}
 			if got := e.spent(); got > budget {
 				t.Errorf("Spent %d is above the budget %d", got, budget)
