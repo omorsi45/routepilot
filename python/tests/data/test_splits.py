@@ -38,6 +38,15 @@ def test_assign_splits_deterministic_and_proportions():
         assert abs(shares[name] - want) < 0.015, (name, shares[name])
 
 
+def test_place_is_the_rule_assign_splits_applies_outside_the_heldout_datasets():
+    items, domains = synthetic_items(20, 2_000)
+    assigned = splits.assign_splits(items, domains=domains)
+    kept = assigned.loc[assigned["split"] != "heldout"]
+    assert [splits.place(i) for i in kept["item_id"]] == kept["split"].tolist()
+    assert splits.place("gpqa/7") == splits.place("gpqa/7")
+    assert {splits.place(f"x/{i}") for i in range(500)} == {"train", "calib", "test"}
+
+
 def test_split_follows_the_documented_hash():
     items, domains = synthetic_items(6, 600)
     out = splits.assign_splits(items, domains=domains)

@@ -70,6 +70,15 @@ def _place(item_id: str) -> str:
     return "test"
 
 
+def place(item_id: str) -> str:
+    """The split (``train``, ``calib`` or ``test``) one item id gets from the salt rule.
+
+    This is the rule ``assign_splits`` applies to the items of a dataset that is not held out;
+    an experiment with no held-out dataset (the live one) uses it directly.
+    """
+    return _place(item_id)
+
+
 def require_splits(df: pd.DataFrame, allowed: Collection[str]) -> None:
     """Raise ValueError unless every row of ``df`` is in one of the ``allowed`` splits.
 
