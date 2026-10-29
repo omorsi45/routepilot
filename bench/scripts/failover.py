@@ -20,13 +20,16 @@ Two arms, each against its own fresh mocks and gateway:
   its breaker was open (Ruling M2-R21: the breaker stops sending to a failing deployment, so these
   requests are not part of the recovery rate), and every request that failed overall with its
   reason.
-* mid-stream: 2,000 streaming requests at 50 requests per second. A's upstream model carries the
-  mock directive ``fail=midstream;fail_after=2``: the mock sends the empty role chunk and the first
-  content chunk, which is where the gateway commits the response (it commits at the first chunk
-  with content), and then drops the connection. The rule under test: once a response is committed
-  the gateway never makes a second upstream call. The script checks, from the decision log and the
-  mocks' counters, that every request made exactly one attempt, that no request touched both
-  deployments, and that the mocks together received exactly one request per client request.
+* mid-stream: 2,000 streaming requests at 50 requests per second. Deployment A's mock is started
+  with ``--fail-rate-disconnect 0.2``: for one stream in five it sends the empty role chunk and the
+  first content chunk, which is where the gateway commits the response (it commits at the first
+  chunk with content), and then drops the connection; the other four are answered in full, so A's
+  circuit breaker (it opens after five failures in a row) stays closed and A keeps receiving most
+  of the requests. The rule under test: once a response is committed the gateway never makes a
+  second upstream call. The script checks, from the decision log and the mocks' counters, that
+  every request made exactly one attempt, that no request touched both deployments, that the
+  streams A's mock says it cut are the streams the log shows broken after the commit, and that the
+  mocks together received exactly one request per client request.
 
 The schedule length is chosen so the seeded Poisson schedule holds exactly 10,000 and 2,000
 arrivals: the duration of each arm lies between the offsets of its last wanted arrival and the
@@ -89,11 +92,14 @@ FAIL_MIX = (
     ("--fail-rate-http429", 0.05),  # the mock answers with Retry-After 1 by default
     ("--fail-rate-reset", 0.05),
 )
-# A's upstream model name per arm. The second arm's directive cuts the stream after the role chunk
-# and the first content chunk (fail_after counts events written), i.e. just after the commit.
+# The second arm's failure on A: the share of streams the mock cuts after the second chunk event
+# (the role chunk and the first content chunk), i.e. just after the commit. A rate, not a
+# directive on A's model, so A's breaker stays closed and most streams are served by A.
+DISCONNECT_RATE = 0.2
+# A's upstream model name per arm: neither arm uses a directive.
 A_UPSTREAM = {
     "prestream": "bench-model",
-    "midstream": "bench-model;fail=midstream;fail_after=2",
+    "midstream": "bench-model",
 }
 # The gateway's own retry list for upstream HTTP statuses (internal/gateway/attempts.go).
 RETRYABLE_STATUSES = frozenset({408, 409, 429, 500, 502, 503, 504, 529, 401, 403})
@@ -448,19 +454,40 @@ def midstream_checks(
             f"sum {a_count + b_count} vs {decision_log['records']} records",
         )
     )
+    cut = classification["committed_then_failed"]
+    # A cut stream is neither completed (no end marker) nor canceled (the client did not leave):
+    # the mock's own count of what it did is independent of the gateway's decision log.
+    mock_cut = a_count - mocks["a"]["completed"] - mocks["a"]["canceled"]
     checks.append(
         _check(
-            "committed: every request that started on A committed and then lost its stream",
-            classification["committed_then_failed"] == classification["started_on_a"],
-            f"{classification['committed_then_failed']} broken streams, "
-            f"{classification['started_on_a']} requests started on A",
+            "cut count: the streams A's mock says it cut are the streams the log shows broken "
+            "after the commit",
+            mock_cut == cut,
+            f"mock A: {a_count} received - {mocks['a']['completed']} completed - "
+            f"{mocks['a']['canceled']} canceled = {mock_cut}; decision log: {cut}",
+        )
+    )
+    on_a = classification["attempts_by_deployment"].get(DEPLOYMENT_A, {})
+    failed_on_a = sum(n for outcome, n in on_a.items() if outcome != "ok")
+    checks.append(
+        _check(
+            "committed: every failed attempt on A was a stream that broke after the commit",
+            failed_on_a == cut,
+            f"{failed_on_a} failed attempts on A, {cut} streams broken after the commit",
+        )
+    )
+    checks.append(
+        _check(
+            "cuts: at least one stream was cut after the commit, so the rule was exercised",
+            cut > 0,
+            f"{cut} streams cut after the commit",
         )
     )
     checks.append(
         _check(
             "client errors: the generator's error count equals the streams that broke after commit",
-            load["errors"] == classification["committed_then_failed"],
-            f"generator {load['errors']}, decision log {classification['committed_then_failed']}",
+            load["errors"] == cut,
+            f"generator {load['errors']}, decision log {cut}",
         )
     )
     checks.append(
@@ -509,13 +536,15 @@ def key_sha256(key: str) -> str:
 def mock_args(arm: str, side: str) -> list[str]:
     """The ``rp-mock`` flags (after ``--listen``) for deployment ``side`` ('a' or 'b') of an arm.
 
-    Only deployment A of the pre-stream arm injects failures through rates; the mid-stream arm
-    injects through A's upstream model directive instead, and B is always clean.
+    Only deployment A injects failures, through rates: the pre-stream mix in the first arm and
+    the disconnect rate in the second. B is always clean.
     """
     args = ["--seed", str(MOCK_SEEDS[side]), *MOCK_DELAYS]
     if arm == "prestream" and side == "a":
         for flag, rate in FAIL_MIX:
             args += [flag, str(rate)]
+    if arm == "midstream" and side == "a":
+        args += ["--fail-rate-disconnect", str(DISCONNECT_RATE)]
     return args
 
 
@@ -829,18 +858,22 @@ def _midstream_section(arm: Mapping[str, Any], settings: Mapping[str, Any]) -> l
     c = arm["classification"]
     load = arm["load"]
     breaker = arm["breaker"]
+    mock_a = arm["mocks"]["a"]
+    cut = c["committed_then_failed"]
+    share = f"{cut / c['started_on_a'] * 100:.1f}%" if c["started_on_a"] else "-"
+    rate = settings["fail_rate_disconnect"]
     return [
-        "## Mid-stream arm: deployment A drops the connection after the first content chunk",
+        "## Mid-stream arm: deployment A cuts a share of its streams after the commit",
         "",
         f"{c['requests']} streaming requests at {settings['rps']} requests per second. Deployment "
-        "A's upstream model carries the mock directive fail=midstream;fail_after=2: the mock sends "
-        "the role chunk and the first content chunk, then drops the connection. The gateway "
-        "commits a response at the first chunk with content, so every stream that A served was "
-        "already committed when it broke. Deployment B is clean.",
+        f"A's mock runs with --fail-rate-disconnect {rate}: for that share of the streams it "
+        "sends the role chunk and the first content chunk, then drops the connection; the rest "
+        "it answers in full. The gateway commits a response at the first chunk with content, "
+        "so every cut stream was already committed when it broke. Deployment B is clean.",
         "",
         "Rule under test: after the first byte the gateway makes no second upstream call. "
-        "While A's breaker is closed every request starts on A; once A's breaker opens, later "
-        "requests start on B, which is allowed (they never touched A).",
+        "While A's breaker is closed every request starts on A; if A's breaker opens (five "
+        "failures in a row), later requests start on B, which is allowed (they never touched A).",
         "",
         _table(
             ["quantity", "value"],
@@ -848,9 +881,14 @@ def _midstream_section(arm: Mapping[str, Any], settings: Mapping[str, Any]) -> l
                 ["requests", str(c["requests"])],
                 ["attempts in the decision log", str(c["attempts"])],
                 ["attempts per request", _counts(c["attempts_per_request"])],
+                ["requests started on A", str(c["started_on_a"])],
                 [
-                    "requests started on A (committed, then the stream broke)",
-                    str(c["started_on_a"]),
+                    "streams cut after the commit (decision log)",
+                    f"{cut} ({share} of the requests started on A)",
+                ],
+                [
+                    "streams A's mock cut (received - completed - canceled)",
+                    str(mock_a["requests"] - mock_a["completed"] - mock_a["canceled"]),
                 ],
                 ["requests started on B (A's breaker refused them)", str(c["started_on_b"])],
                 [
@@ -1030,6 +1068,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "midstream": {
                 "rps": ARMS["midstream"].rps,
                 "requests": ARMS["midstream"].requests,
+                "fail_rate_disconnect": DISCONNECT_RATE,
                 "a_upstream_model": A_UPSTREAM["midstream"],
             },
         },

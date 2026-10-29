@@ -8,10 +8,10 @@ One tenant has a total budget of 0.05 USD (bench/configs/quota.yaml). 64 client 
 a seeded random ``max_tokens`` in [8, 512] per request, send chat requests through the gateway
 until the gateway has answered that thread 20 times in a row with 429 ``insufficient_quota``. The
 gateway reserves each request's worst case before it calls the provider, so 64 clients race for
-the same budget and most requests near the end are refused. The mock answers every request with 8
-completion tokens (the ``tokens=8`` directive on the deployment's upstream model: the mock does not
-honor ``max_tokens``, and 8 is the smallest cap a client sends, so no answer exceeds the cap it was
-reserved for).
+the same budget and most requests near the end are refused. The mock caps its answer at each
+request's ``max_tokens`` (it is started with a default length of 600 tokens, above every
+``max_tokens`` a client sends, and the model carries no ``tokens=`` directive), so a request
+spends what was reserved for its output and the budget is really contended.
 
 The experiment runs against the memory backend and against Redis: a real Redis 7.4 started with
 Docker on a loopback port (``docker run --rm -d --name rp-quota-redis``, stopped in a ``finally``),
@@ -81,7 +81,8 @@ PRICE_IN_PER_MTOK = "1"
 PRICE_OUT_PER_MTOK = "2"
 PRICE_IN_PICO = 1_000_000  # picodollars per input token at 1 USD per million tokens
 PRICE_OUT_PICO = 2_000_000
-UPSTREAM_MODEL = "bench-model;tokens=8"
+UPSTREAM_MODEL = "bench-model"  # no mock directive: the answer is capped by the request
+MOCK_TOKENS = 600  # the mock's default answer length, above every max_tokens a client sends
 PROMPT = (
     "Summarize in one sentence why regular backups protect a small online shop "
     "from losing its order data."
@@ -97,8 +98,10 @@ MOCK_ARGS = (
     *("--seed", "1"),
     *("--ttft-median-ms", "5", "--ttft-sigma", "0"),
     *("--tpot-median-ms", "0", "--tpot-sigma", "0"),
+    *("--tokens", str(MOCK_TOKENS)),
 )
 MINIREDIS_TEST = "TestBudgetNeverOvershootsUnderConcurrency/miniredis"
+LEDGER_WAIT_S = 10.0  # how long to wait for the gateway's background writer to catch up
 
 
 # --- money -------------------------------------------------------------------------------------
@@ -300,28 +303,57 @@ def ledger_summary(db_path: Path, tenant: str) -> dict[str, Any]:
     }
 
 
+def wait_for_ledger_rows(
+    db_path: Path,
+    tenant: str,
+    expected: int,
+    timeout_s: float = LEDGER_WAIT_S,
+    poll_s: float = 0.05,
+) -> int:
+    """The tenant's row count in the ledger once it reaches ``expected``, else after ``timeout_s``.
+
+    The gateway queues a request's rows and a background writer puts them in the ledger in
+    batches, so the last rows arrive a moment after the last response. Waiting for them does not
+    hide a loss: when rows are really missing the count stays below ``expected``, the wait ends at
+    the timeout, and the caller reads that lower count.
+    """
+    deadline = time.monotonic() + timeout_s
+    while True:
+        rows = ledger_summary(db_path, tenant)["rows"]
+        if rows >= expected or time.monotonic() >= deadline:
+            return rows
+        time.sleep(poll_s)
+
+
 def parse_ledger_failures(log_text: str) -> dict[str, Any]:
     """What the gateway's log says about usage ledger rows it could not write.
 
-    The gateway logs one JSON warning per request whose rows could not be written
-    (``usage ledger write failed``, with ``rows_lost`` and the ``error`` text). The result counts
-    those lines, sums the rows, and groups them by the last part of the error text (the cause,
-    such as ``context deadline exceeded``). Lines that are not JSON are skipped.
+    The gateway logs one JSON warning per batch it could not write (``usage ledger write
+    failed``, with ``rows_lost`` and the ``error`` text) and, at most once a second, one when its
+    queue was full (``usage ledger queue full, rows dropped``, with ``rows_dropped``). The result
+    counts those lines, sums the rows, and groups them by the last part of the error text (the
+    cause, such as ``context deadline exceeded``; ``queue full`` for the second kind). Lines that
+    are not JSON are skipped.
     """
     lines = rows = 0
     errors: Counter[str] = Counter()
     for raw in log_text.splitlines():
-        if "usage ledger write failed" not in raw:
+        if "usage ledger " not in raw:
             continue
         try:
             entry = json.loads(raw)
         except json.JSONDecodeError:
             continue
-        if not isinstance(entry, dict) or entry.get("msg") != "usage ledger write failed":
+        if not isinstance(entry, dict):
             continue
-        lines += 1
-        rows += int(entry.get("rows_lost", 0))
-        errors[str(entry.get("error", "")).rsplit(": ", 1)[-1]] += 1
+        if entry.get("msg") == "usage ledger write failed":
+            lines += 1
+            rows += int(entry.get("rows_lost", 0))
+            errors[str(entry.get("error", "")).rsplit(": ", 1)[-1]] += 1
+        elif entry.get("msg") == "usage ledger queue full, rows dropped":
+            lines += 1
+            rows += int(entry.get("rows_dropped", 0))
+            errors["queue full"] += 1
     return {"log_lines": lines, "rows_lost": rows, "errors": dict(errors)}
 
 
@@ -682,6 +714,10 @@ def run_backend(
         total = merge_tallies(tallies)
         stopped = Counter(t.stopped for t in tallies)
 
+        # The gateway writes the ledger rows in the background: give its writer the time to put
+        # the last ones in before the ledger is read. A real loss is not hidden by this; the
+        # count then stays short and the checks report it.
+        wait_for_ledger_rows(db_path, tenant, total.admitted)
         scrape = overhead.scrape(gateway_port)
         ledger = ledger_summary(db_path, tenant)
         mock_requests = mock_request_count(mock_port)
@@ -853,11 +889,11 @@ def _ledger_loss_section(name: str, b: Mapping[str, Any]) -> list[str]:
         "(rp_accounting_write_errors_total) and logged "
         f"{(failures or {}).get('log_lines', 0)} warnings covering "
         f"{(failures or {}).get('rows_lost', 0)} rows; the causes in the log are: {causes}. "
-        "The gateway writes a request's rows synchronously after the request, with a 250 ms bound "
-        "per request, through the one connection of the SQLite store, so concurrent writes queue "
-        "behind each other; a write that does not finish within the bound is dropped and counted "
-        "instead of failing the request. The budget counter is not affected by a lost row: it is "
-        "charged before the ledger write.",
+        "The gateway queues a request's rows and a background writer puts them in the ledger in "
+        "batches (up to 512 rows, or 50 ms after the oldest), through the one connection of the "
+        "SQLite store. A row is lost when the queue is full, or when a batch write fails or "
+        "exceeds its 5 s bound; the loss is counted instead of failing the request. The budget "
+        "counter is not affected by a lost row: it is charged before the ledger write.",
         "",
     ]
 
@@ -887,10 +923,11 @@ def render_report(
         f"seeded random max_tokens in [{low}, {high}] until the gateway has answered it "
         f"{s['stop_after']} times in a row with 429 insufficient_quota. The model costs "
         f"{s['price_in_per_mtok']} USD per million input tokens and {s['price_out_per_mtok']} USD "
-        "per million output tokens. The mock answers every request with 8 completion tokens "
-        f"(upstream model {s['upstream_model']}, because the mock does not honor max_tokens and 8 "
-        "is the smallest cap a client sends), so the worst case reserved for a request is always "
-        "at least what it then costs. Money is integer picodollars (1e-12 USD).",
+        "per million output tokens. The mock caps its answer at each request's max_tokens (the "
+        f"model has no mock directive, and the mock's default length is {s['mock_tokens']} "
+        f"tokens, started with --tokens {s['mock_tokens']}, above every max_tokens a client "
+        "sends), so the completion tokens of a request equal its max_tokens and what it costs "
+        "is what was reserved for its output. Money is integer picodollars (1e-12 USD).",
         "",
         *_result_section(backends),
     ]
@@ -943,9 +980,10 @@ def render_report(
         "",
         "- One run per backend and one seed: the clients race, so the interleaving (and with it "
         "which requests are admitted) differs between runs. The checks do not depend on it.",
-        "- Every answer costs the same 8 completion tokens, so what varies between requests is "
-        "the reservation (the worst case at the client's max_tokens), not the actual cost. A "
-        "provider that honors max_tokens would make the actual cost vary too.",
+        "- The mock's answer has exactly max_tokens completion tokens, the most a request allows, "
+        "so the output cost is always the full reservation; the prompt part of the reservation is "
+        "an upper bound that the actual prompt count stays below. A real provider often stops "
+        "short of max_tokens, which would leave more of the budget unused.",
         "- The 20-in-a-row stop rule ends a client while budget may remain that only a smaller "
         "max_tokens could use; the unused budget above is what was left when the last client "
         "stopped.",
@@ -1093,6 +1131,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "budget_usd": BUDGET_USD,
             "limit_pico": usd_to_pico(BUDGET_USD),
             "upstream_model": UPSTREAM_MODEL,
+            "mock_tokens": MOCK_TOKENS,
             "price_in_per_mtok": PRICE_IN_PER_MTOK,
             "price_out_per_mtok": PRICE_OUT_PER_MTOK,
             "max_tokens_range": list(MAX_TOKENS_RANGE),

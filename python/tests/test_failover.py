@@ -265,16 +265,20 @@ def test_mock_a_injects_the_briefed_mix(fo: ModuleType) -> None:
     assert args[args.index("--seed") + 1] == "1"
 
 
-def test_mock_b_and_the_midstream_arm_inject_no_rates(fo: ModuleType) -> None:
-    for arm, side in (("prestream", "b"), ("midstream", "a"), ("midstream", "b")):
+def test_mock_b_and_the_prestream_arm_inject_no_extra_rates(fo: ModuleType) -> None:
+    for arm, side in (("prestream", "b"), ("midstream", "b")):
         assert not any(a.startswith("--fail-rate") for a in fo.mock_args(arm, side)), (arm, side)
 
 
-def test_midstream_directive_commits_before_it_cuts(fo: ModuleType) -> None:
-    # The gateway commits at the first chunk with content. The mock's first event is the empty
-    # role chunk, so fail_after=1 would cut before any content and the gateway would fail over;
-    # fail_after=2 lets the role chunk and the first content chunk through, then cuts.
-    assert fo.A_UPSTREAM["midstream"] == "bench-model;fail=midstream;fail_after=2"
+def test_midstream_mock_a_cuts_streams_at_the_disconnect_rate_and_nothing_else(
+    fo: ModuleType,
+) -> None:
+    # A rate, not a directive on A's model: a directive would cut every stream A serves, A's
+    # breaker would open after five, and almost every request would then start on B.
+    args = fo.mock_args("midstream", "a")
+    assert [a for a in args if a.startswith("--fail-rate")] == ["--fail-rate-disconnect"]
+    assert args[args.index("--fail-rate-disconnect") + 1] == "0.2"
+    assert fo.A_UPSTREAM["midstream"] == "bench-model"
     assert fo.A_UPSTREAM["prestream"] == "bench-model"
 
 
@@ -329,23 +333,29 @@ def test_prestream_checks_catch_each_inconsistency(
 
 
 def good_midstream() -> dict[str, object]:
+    # 100 requests; the breaker opened late, so 10 started on B. Of the 90 that started on A, 18
+    # were cut after the commit (one attempt each) and 72 were answered in full.
     classification = {
         "requests": 100,
         "attempts": 100,
-        "started_on_a": 20,
-        "started_on_b": 80,
-        "committed_then_failed": 20,
+        "started_on_a": 90,
+        "started_on_b": 10,
+        "committed_then_failed": 18,
         "requests_with_attempts_on_both": 0,
         "attempts_per_request": {"1": 100},
+        "attempts_by_deployment": {A: {"ok": 72, "protocol": 18}, B: {"ok": 10}},
         "failed_requests": 0,
     }
     return {
         "scheduled": 100,
-        "load": {"scheduled": 100, "completed": 80, "errors": 20, "dropped": 0},
-        "mocks": {"a": {"requests": 20}, "b": {"requests": 80}},
+        "load": {"scheduled": 100, "completed": 82, "errors": 18, "dropped": 0},
+        "mocks": {
+            "a": {"requests": 90, "completed": 72, "canceled": 0},
+            "b": {"requests": 10, "completed": 10, "canceled": 0},
+        },
         "decision_log": {"records": 100, "dropped": 0},
         "classification": classification,
-        "breaker": {"opens": 2},
+        "breaker": {"opens": 1},
     }
 
 
@@ -362,9 +372,17 @@ def test_midstream_checks_pass_for_a_consistent_run(fo: ModuleType) -> None:
             "one attempt",
         ),
         (lambda d: d["classification"].update(requests_with_attempts_on_both=1), "both"),
-        (lambda d: d["mocks"]["b"].update(requests=81), "mock counts"),
-        (lambda d: d["classification"].update(committed_then_failed=19), "committed"),
-        (lambda d: d["load"].update(errors=19), "client errors"),
+        (lambda d: d["mocks"]["b"].update(requests=11), "mock counts"),
+        (lambda d: d["mocks"]["a"].update(completed=73), "cut count"),
+        (lambda d: d["mocks"]["a"].update(canceled=1), "cut count"),
+        (lambda d: d["classification"].update(committed_then_failed=17), "cut count"),
+        (
+            lambda d: d["classification"].update(
+                attempts_by_deployment={A: {"ok": 72, "protocol": 18, "http_500": 1}, B: {"ok": 10}}
+            ),
+            "committed",
+        ),
+        (lambda d: d["load"].update(errors=17), "client errors"),
         (lambda d: d.update(breaker={"opens": 0}), "breaker"),
     ],
 )
@@ -377,11 +395,31 @@ def test_midstream_checks_catch_each_violation(
     assert any(expected in n for n in names), names
 
 
+def test_midstream_checks_fail_when_no_stream_was_cut(fo: ModuleType) -> None:
+    # An arm that cut nothing tested nothing, however consistent its counts are.
+    data = good_midstream()
+    data["classification"].update(  # type: ignore[attr-defined]
+        committed_then_failed=0, attempts_by_deployment={A: {"ok": 90}, B: {"ok": 10}}
+    )
+    data["mocks"]["a"].update(completed=90)  # type: ignore[index]
+    data["load"].update(completed=100, errors=0)  # type: ignore[attr-defined]
+    names = failed_names(fo.midstream_checks(**data))
+    assert names and all("cuts" in n for n in names), names
+
+
 def test_midstream_b_count_zero_needs_no_breaker_trip(fo: ModuleType) -> None:
     data = good_midstream()
-    data["classification"].update(started_on_a=100, started_on_b=0, committed_then_failed=100)  # type: ignore[attr-defined]
-    data["mocks"] = {"a": {"requests": 100}, "b": {"requests": 0}}
-    data["load"].update(completed=0, errors=100)  # type: ignore[attr-defined]
+    data["classification"].update(  # type: ignore[attr-defined]
+        started_on_a=100,
+        started_on_b=0,
+        committed_then_failed=20,
+        attempts_by_deployment={A: {"ok": 80, "protocol": 20}},
+    )
+    data["mocks"] = {
+        "a": {"requests": 100, "completed": 80, "canceled": 0},
+        "b": {"requests": 0, "completed": 0, "canceled": 0},
+    }
+    data["load"].update(completed=80, errors=20)  # type: ignore[attr-defined]
     data["breaker"] = {"opens": 0}
     assert failed_names(fo.midstream_checks(**data)) == []
 
@@ -413,7 +451,7 @@ def results_for_report() -> dict[str, object]:
                 "requests": 100,
                 "mix": {"http500": 0.1, "http429": 0.05, "reset": 0.05},
             },
-            "midstream": {"rps": 50, "requests": 100},
+            "midstream": {"rps": 50, "requests": 100, "fail_rate_disconnect": 0.2},
             "max_attempts": 3,
         },
         "arms": {
@@ -450,5 +488,7 @@ def test_render_report(fo: ModuleType) -> None:
     assert "recovered" in text
     assert "per-request recovery" in text
     assert "routed straight to" in text
+    assert "--fail-rate-disconnect 0.2" in text
+    assert "cut after the commit" in text
     assert "20261029T000000Z-abc1234" in text
     assert "TestOS" in text

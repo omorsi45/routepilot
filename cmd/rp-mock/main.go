@@ -44,6 +44,7 @@ func parseFlags(args []string, stderr io.Writer) (options, int) {
 		rate500   = fs.Float64("fail-rate-http500", 0, "probability of an injected HTTP 500")
 		rate429   = fs.Float64("fail-rate-http429", 0, "probability of an injected HTTP 429 with Retry-After 1 second")
 		rateReset = fs.Float64("fail-rate-reset", 0, "probability of an injected connection reset")
+		rateCut   = fs.Float64("fail-rate-disconnect", 0, "probability that a stream is cut after its second chunk (a non-streaming request is reset)")
 	)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -52,7 +53,7 @@ func parseFlags(args []string, stderr io.Writer) (options, int) {
 		return options{}, 2
 	}
 
-	if *rate500 < 0 || *rate429 < 0 || *rateReset < 0 || *rate500+*rate429+*rateReset > 1 {
+	if *rate500 < 0 || *rate429 < 0 || *rateReset < 0 || *rateCut < 0 || *rate500+*rate429+*rateReset+*rateCut > 1 {
 		fmt.Fprintln(stderr, "rp-mock: fail rates must be non-negative and sum to at most 1")
 		return options{}, 2
 	}
@@ -65,6 +66,9 @@ func parseFlags(args []string, stderr io.Writer) (options, int) {
 	}
 	if *rateReset > 0 {
 		failRates["reset"] = *rateReset
+	}
+	if *rateCut > 0 {
+		failRates["disconnect"] = *rateCut
 	}
 
 	return options{

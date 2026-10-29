@@ -8,10 +8,11 @@
 # above anything 64 clients can reach, so the budget is the only limit that can bind. The one
 # model is priced at 1 USD per million input tokens and 2 USD per million output tokens, so the
 # worst case of a request with max_tokens 8 is about 0.00007 USD and with max_tokens 512 about
-# 0.001 USD. Its one deployment is the mock with the directive tokens=8: the mock does not honor
-# max_tokens, so every answer carries exactly 8 completion tokens, which no request in the
-# max_tokens range [8, 512] can exceed (a provider that answers above its cap would overshoot
-# any budget). The usage ledger is a SQLite file, so `routepilot reconcile` can read it.
+# 0.001 USD. Its one deployment is the mock with no directive: the mock caps its answer at each
+# request's max_tokens, and the script starts it with a default length (600 tokens) above every
+# max_tokens a client sends, so each answer has exactly max_tokens completion tokens and a request
+# spends what was reserved for its output. The usage ledger is a SQLite file, so
+# `routepilot reconcile` can read it.
 server:
   listen: "127.0.0.1:{{GATEWAY_PORT}}"
   max_inflight: 1024
@@ -30,7 +31,7 @@ models:
     deployments:
       - name: quota-model-mock
         provider: mock
-        upstream_model: "bench-model;tokens=8"
+        upstream_model: "bench-model"
 
 tenants:
   - id: "{{TENANT}}"

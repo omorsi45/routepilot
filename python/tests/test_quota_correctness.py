@@ -2,6 +2,8 @@ import importlib.util
 import random
 import sqlite3
 import sys
+import threading
+import time
 from pathlib import Path
 from types import ModuleType
 
@@ -154,6 +156,12 @@ def make_ledger(path: Path, rows: list[tuple[str, int, str, int, int, int, int, 
             "cost_actual INTEGER NOT NULL, policy_version TEXT NOT NULL, status TEXT NOT NULL, "
             "started_at TEXT NOT NULL, ended_at TEXT NOT NULL, PRIMARY KEY (request_id, attempt))"
         )
+    make_ledger_rows(path, rows)
+
+
+def make_ledger_rows(path: Path, rows: list[tuple[str, int, str, int, int, int, int, str]]) -> None:
+    """Add rows to an existing usage table."""
+    with sqlite3.connect(path) as db:
         for request_id, attempt, tenant, prompt, completion, estimate, actual, status in rows:
             db.execute(
                 "INSERT INTO usage VALUES (?, ?, ?, 'm', 'd', ?, ?, 0, ?, ?, 'pinned', ?, "
@@ -216,6 +224,64 @@ def test_parse_ledger_failures(qc: ModuleType) -> None:
     assert qc.parse_ledger_failures("") == {"log_lines": 0, "rows_lost": 0, "errors": {}}
 
 
+def test_parse_ledger_failures_counts_a_batch_and_a_full_queue(qc: ModuleType) -> None:
+    # The gateway's batcher warns once per failed batch (no request id) and, at most once a
+    # second, when its queue was full and rows were dropped.
+    log = "\n".join(
+        [
+            '{"level":"WARN","msg":"usage ledger write failed","rows_lost":512,'
+            '"error":"accounting: record attempt r/1: database is locked"}',
+            '{"level":"WARN","msg":"usage ledger queue full, rows dropped","rows_dropped":40,'
+            '"queue_rows":65536}',
+            '{"level":"WARN","msg":"usage ledger queue full, rows dropped","rows_dropped":2,'
+            '"queue_rows":65536}',
+        ]
+    )
+    assert qc.parse_ledger_failures(log) == {
+        "log_lines": 3,
+        "rows_lost": 554,
+        "errors": {"database is locked": 1, "queue full": 2},
+    }
+
+
+def test_wait_for_ledger_rows(qc: ModuleType, tmp_path: Path) -> None:
+    # The gateway writes a request's rows in the background, so the last rows reach the ledger a
+    # moment after the last response. The wait returns the count as soon as it is complete, and
+    # when it never is, the count it reached: a missing row stays visible.
+    db = tmp_path / "usage.db"
+    make_ledger(
+        db, [("r1", 1, "t", 20, 8, 900, 40, "ok"), ("r2", 1, "other", 20, 8, 900, 40, "ok")]
+    )
+    assert qc.wait_for_ledger_rows(db, "t", 1, timeout_s=5.0, poll_s=0.01) == 1
+
+    start = time.monotonic()
+    assert qc.wait_for_ledger_rows(db, "t", 2, timeout_s=0.3, poll_s=0.01) == 1
+    assert 0.25 <= time.monotonic() - start < 3.0
+
+    late = threading.Timer(
+        0.2,
+        lambda: make_ledger_rows(db, [("r3", 1, "t", 20, 8, 900, 40, "ok")]),
+    )
+    late.start()
+    try:
+        assert qc.wait_for_ledger_rows(db, "t", 2, timeout_s=5.0, poll_s=0.01) == 2
+    finally:
+        late.join()
+
+
+def test_the_mock_answers_with_the_length_each_request_allows(qc: ModuleType) -> None:
+    # Ruling V1-R39: the mock caps its answer at max_tokens, so with a default length above every
+    # max_tokens and no tokens= directive each answer has exactly max_tokens completion tokens
+    # and what a request costs is what was reserved for it.
+    assert qc.MOCK_TOKENS > qc.MAX_TOKENS_RANGE[1]
+    assert qc.MOCK_ARGS[qc.MOCK_ARGS.index("--tokens") + 1] == str(qc.MOCK_TOKENS)
+    assert qc.UPSTREAM_MODEL == "bench-model"
+    template = yaml.safe_load(
+        qc.TEMPLATE.read_text(encoding="utf-8").replace("{{", "").replace("}}", "")
+    )
+    assert template["models"][0]["deployments"][0]["upstream_model"] == qc.UPSTREAM_MODEL
+
+
 def test_parse_reconcile_output(qc: ModuleType) -> None:
     assert qc.parse_reconcile_output("quota-redis 0.049962 0.049962 0\n") == [
         {
@@ -253,7 +319,7 @@ def test_quota_config_memory(qc: ModuleType, tmp_path: Path) -> None:
         "driver": "sqlite",
         "sqlite_path": (tmp_path / "usage.db").as_posix(),
     }
-    assert cfg["models"][0]["deployments"][0]["upstream_model"] == "bench-model;tokens=8"
+    assert cfg["models"][0]["deployments"][0]["upstream_model"] == "bench-model"
     assert cfg["providers"][0]["base_url"] == "http://127.0.0.1:18081/v1"
     assert cfg["server"]["listen"] == "127.0.0.1:18080"
 
@@ -453,7 +519,8 @@ def results_for_report(qc: ModuleType) -> dict[str, object]:
             "seed": 1,
             "budget_usd": "0.05",
             "limit_pico": 50_000_000_000,
-            "upstream_model": "bench-model;tokens=8",
+            "upstream_model": "bench-model",
+            "mock_tokens": 600,
             "price_in_per_mtok": "1",
             "price_out_per_mtok": "2",
             "max_tokens_range": [8, 512],
@@ -473,7 +540,10 @@ def test_render_report(qc: ModuleType) -> None:
     assert "memory" in text and "redis" in text
     assert "unused budget" in text.lower()
     assert "reconcile" in text
-    assert "tokens=8" in text
+    # The mock caps its answer at each request's max_tokens (Ruling V1-R39): no directive, and a
+    # default length above every max_tokens, so what is spent is what was reserved.
+    assert "tokens=8" not in text
+    assert "equal" in text and "max_tokens" in text and "--tokens 600" in text
     assert "20261029T000000Z-abc1234" in text
 
 

@@ -35,6 +35,32 @@ func TestParseFailRates(t *testing.T) {
 	}
 }
 
+// TestParseFailRateDisconnect (Ruling V1-R40): --fail-rate-disconnect is the probability that a
+// stream is cut after its second chunk (a non-streaming request is reset), and it counts
+// toward the sum of the rates.
+func TestParseFailRateDisconnect(t *testing.T) {
+	var stderr bytes.Buffer
+	opts, code := parseFlags([]string{"--fail-rate-disconnect", "0.2"}, &stderr)
+	if code != -1 {
+		t.Fatalf("exit code = %d (stderr %q), want -1 (keep going)", code, stderr.String())
+	}
+	if got := opts.config.FailRates; len(got) != 1 || got["disconnect"] != 0.2 {
+		t.Fatalf("FailRates = %v, want only disconnect at 0.2", got)
+	}
+
+	for name, args := range map[string][]string{
+		"negative":      {"--fail-rate-disconnect", "-0.1"},
+		"above one":     {"--fail-rate-disconnect", "1.5"},
+		"sum above one": {"--fail-rate-disconnect", "0.6", "--fail-rate-http500", "0.5"},
+		"sum of all":    {"--fail-rate-http500", "0.3", "--fail-rate-http429", "0.3", "--fail-rate-reset", "0.3", "--fail-rate-disconnect", "0.2"},
+	} {
+		var errBuf bytes.Buffer
+		if _, code := parseFlags(args, &errBuf); code != 2 || !strings.Contains(errBuf.String(), "fail rates") {
+			t.Errorf("%s: exit code %d, stderr %q, want 2 and a message about the fail rates", name, code, errBuf.String())
+		}
+	}
+}
+
 func TestParseNoFailRatesInjectsNothing(t *testing.T) {
 	var stderr bytes.Buffer
 	opts, code := parseFlags(nil, &stderr)

@@ -249,9 +249,14 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 
 	p := h.plan(d)
 	prompt := promptTokens(req)
+	// The completion is as long as configured or directed, but never longer than the request
+	// allows, as with a real provider (max_completion_tokens wins over max_tokens).
 	tokens := h.cfg.OutputTokens
 	if d.tokens != nil {
 		tokens = *d.tokens
+	}
+	if limit, ok := req.EffectiveMaxTokens(); ok && limit < tokens {
+		tokens = limit
 	}
 
 	switch p.fail {
@@ -273,6 +278,11 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 	case failReset:
 		h.reset(w)
 		return
+	case failDisconnect:
+		if !req.Stream { // there is no second chunk to cut after
+			h.reset(w)
+			return
+		}
 	}
 
 	rs := &respState{
@@ -445,11 +455,14 @@ func (s *respState) stream(includeUsage bool) {
 
 	sse := openai.NewSSEWriter(s.w, s.rc.Flush)
 	written := 0
-	midstream := s.p.fail == failMidstream
+	// midstream streams are cut after cutAfter chunk events, a disconnect stream by default after
+	// the second.
+	midstream := s.p.fail == failMidstream || s.p.fail == failDisconnect
+	cutAfter := s.d.cutAfter(s.p.fail)
 	// emit writes one chunk event, or breaks the connection first when the
 	// midstream budget is spent. It reports whether the stream may continue.
 	emit := func(c openai.ChatCompletionChunk) bool {
-		if midstream && written >= s.d.failAfter {
+		if midstream && written >= cutAfter {
 			s.disconnect()
 			return false
 		}
