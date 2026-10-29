@@ -1,0 +1,243 @@
+{
+  "experiment": "quota_correctness",
+  "settings": {
+    "clients": 64,
+    "seed": 1,
+    "budget_usd": "0.05",
+    "limit_pico": 50000000000,
+    "upstream_model": "bench-model",
+    "mock_tokens": 600,
+    "price_in_per_mtok": "1",
+    "price_out_per_mtok": "2",
+    "max_tokens_range": [
+      8,
+      512
+    ],
+    "stop_after": 20,
+    "prompt_bound_tokens": 125
+  },
+  "backends": {
+    "memory": {
+      "backend": "memory",
+      "redis_mode": null,
+      "tenant": "quota-memory",
+      "limit_pico": 50000000000,
+      "clients": {
+        "threads": 64,
+        "requests": 1388,
+        "admitted": 96,
+        "rejected": 1292,
+        "other": {},
+        "prompt_tokens": 2880,
+        "completion_tokens": 23512,
+        "stopped": {
+          "rejected_in_a_row": 64
+        }
+      },
+      "ledger": {
+        "rows": 96,
+        "ok_rows": 96,
+        "sum_pico": 49904000000,
+        "estimate_min": 141000000,
+        "estimate_max": 1143000000,
+        "prompt_tokens": 2880,
+        "completion_tokens": 23512
+      },
+      "ledger_write_failures": {
+        "log_lines": 0,
+        "rows_lost": 0,
+        "errors": {}
+      },
+      "metrics": {
+        "overshoot_pico": 0,
+        "ratelimit": {
+          "concurrency": 0,
+          "rpm": 0,
+          "tpm": 0,
+          "upstream": 0
+        },
+        "budget_rejections": 1292,
+        "accounting_write_errors": 0,
+        "requests_by_status": {
+          "200": 96,
+          "429": 1292
+        }
+      },
+      "mock_requests": 96,
+      "reconcile": {
+        "exit_code": 2,
+        "lines": [],
+        "stdout": "",
+        "stderr": "routepilot reconcile: quota.backend is memory, and the memory budget counter lives in the gateway process, so it cannot be read from here; use quota.backend redis"
+      },
+      "expected_cost_pico": 49904000000,
+      "unused_pico": 96000000,
+      "checks": [
+        {
+          "name": "ledger: the committed spend (sum of cost_actual) is within the limit",
+          "passed": true,
+          "detail": "0.049904 USD against a limit of 0.05 USD"
+        },
+        {
+          "name": "spend: the spend recomputed from the tokens the clients saw is within the limit",
+          "passed": true,
+          "detail": "0.049904 USD against a limit of 0.05 USD"
+        },
+        {
+          "name": "overshoot: rp_budget_overshoot_picousd_total is 0",
+          "passed": true,
+          "detail": "0 picodollars"
+        },
+        {
+          "name": "reconcile: refuses the memory backend by design (exit 2)",
+          "passed": true,
+          "detail": "exit 2"
+        },
+        {
+          "name": "unexpected responses: every answer was a 200 or a 429 insufficient_quota",
+          "passed": true,
+          "detail": "other responses: none"
+        },
+        {
+          "name": "rows: the ledger has one row per admitted request",
+          "passed": true,
+          "detail": "96 rows (96 ok) for 96 admitted requests"
+        },
+        {
+          "name": "mock: the provider received exactly the admitted requests",
+          "passed": true,
+          "detail": "mock received 96, admitted 96"
+        },
+        {
+          "name": "rate limit: no RPM, TPM or concurrency limit fired",
+          "passed": true,
+          "detail": "rejections by kind: {'concurrency': 0, 'rpm': 0, 'tpm': 0, 'upstream': 0}"
+        },
+        {
+          "name": "cost: the ledger sum equals the cost recomputed from the tokens the clients saw",
+          "passed": true,
+          "detail": "ledger 49904000000, recomputed 49904000000 picodollars"
+        }
+      ],
+      "wall_time_s": 4.6
+    },
+    "redis": {
+      "backend": "redis",
+      "redis_mode": "docker",
+      "tenant": "quota-redis-20261029t010202z",
+      "limit_pico": 50000000000,
+      "clients": {
+        "threads": 64,
+        "requests": 1385,
+        "admitted": 95,
+        "rejected": 1290,
+        "other": {},
+        "prompt_tokens": 2850,
+        "completion_tokens": 23522,
+        "stopped": {
+          "rejected_in_a_row": 64
+        }
+      },
+      "ledger": {
+        "rows": 95,
+        "ok_rows": 95,
+        "sum_pico": 49894000000,
+        "estimate_min": 145000000,
+        "estimate_max": 1143000000,
+        "prompt_tokens": 2850,
+        "completion_tokens": 23522
+      },
+      "ledger_write_failures": {
+        "log_lines": 0,
+        "rows_lost": 0,
+        "errors": {}
+      },
+      "metrics": {
+        "overshoot_pico": 0,
+        "ratelimit": {
+          "concurrency": 0,
+          "rpm": 0,
+          "tpm": 0,
+          "upstream": 0
+        },
+        "budget_rejections": 1290,
+        "accounting_write_errors": 0,
+        "requests_by_status": {
+          "200": 95,
+          "429": 1290
+        }
+      },
+      "mock_requests": 95,
+      "reconcile": {
+        "exit_code": 0,
+        "lines": [
+          {
+            "tenant": "quota-redis-20261029t010202z",
+            "ledger_usd": "0.049894",
+            "counter_usd": "0.049894",
+            "diff_usd": "0"
+          }
+        ],
+        "stdout": "quota-redis-20261029t010202z 0.049894 0.049894 0\n",
+        "stderr": ""
+      },
+      "expected_cost_pico": 49894000000,
+      "unused_pico": 106000000,
+      "checks": [
+        {
+          "name": "ledger: the committed spend (sum of cost_actual) is within the limit",
+          "passed": true,
+          "detail": "0.049894 USD against a limit of 0.05 USD"
+        },
+        {
+          "name": "spend: the spend recomputed from the tokens the clients saw is within the limit",
+          "passed": true,
+          "detail": "0.049894 USD against a limit of 0.05 USD"
+        },
+        {
+          "name": "overshoot: rp_budget_overshoot_picousd_total is 0",
+          "passed": true,
+          "detail": "0 picodollars"
+        },
+        {
+          "name": "counter: the Redis budget counter equals the spend recomputed from the tokens the clients saw",
+          "passed": true,
+          "detail": "counter ['0.049894'] USD, recomputed 0.049894 USD"
+        },
+        {
+          "name": "reconcile: the usage ledger and the Redis budget counter agree (exit 0)",
+          "passed": true,
+          "detail": "exit 0: quota-redis-20261029t010202z ledger 0.049894 counter 0.049894 diff 0"
+        },
+        {
+          "name": "unexpected responses: every answer was a 200 or a 429 insufficient_quota",
+          "passed": true,
+          "detail": "other responses: none"
+        },
+        {
+          "name": "rows: the ledger has one row per admitted request",
+          "passed": true,
+          "detail": "95 rows (95 ok) for 95 admitted requests"
+        },
+        {
+          "name": "mock: the provider received exactly the admitted requests",
+          "passed": true,
+          "detail": "mock received 95, admitted 95"
+        },
+        {
+          "name": "rate limit: no RPM, TPM or concurrency limit fired",
+          "passed": true,
+          "detail": "rejections by kind: {'concurrency': 0, 'rpm': 0, 'tpm': 0, 'upstream': 0}"
+        },
+        {
+          "name": "cost: the ledger sum equals the cost recomputed from the tokens the clients saw",
+          "passed": true,
+          "detail": "ledger 49894000000, recomputed 49894000000 picodollars"
+        }
+      ],
+      "wall_time_s": 1.5
+    }
+  },
+  "all_checks_passed": true,
+  "wall_time_s": 18.5
+}

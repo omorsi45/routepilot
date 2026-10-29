@@ -1,0 +1,348 @@
+{
+  "experiment": "failover",
+  "smoke": false,
+  "target_recovery": 0.99,
+  "settings": {
+    "max_attempts": 3,
+    "mock_delays": [
+      "--ttft-median-ms",
+      "20",
+      "--ttft-sigma",
+      "0",
+      "--tpot-median-ms",
+      "1",
+      "--tpot-sigma",
+      "0",
+      "--tokens",
+      "16"
+    ],
+    "prestream": {
+      "rps": 100,
+      "requests": 10000,
+      "mix": {
+        "http500": 0.1,
+        "http429": 0.05,
+        "reset": 0.05
+      },
+      "a_upstream_model": "bench-model"
+    },
+    "midstream": {
+      "rps": 50,
+      "requests": 2000,
+      "fail_rate_disconnect": 0.2,
+      "a_upstream_model": "bench-model"
+    }
+  },
+  "arms": {
+    "prestream": {
+      "arm": "prestream",
+      "rps": 100,
+      "duration": "101.46s",
+      "stream": false,
+      "scheduled": 10000,
+      "load": {
+        "url": "http://127.0.0.1:55914/v1/chat/completions",
+        "model": "failover-model",
+        "stream": false,
+        "rps_target": 100,
+        "warmup_s": 0,
+        "duration_s": 101.46,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 10000,
+        "completed": 10000,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 101.4886236,
+        "offered_rps": 98.56100926473488,
+        "throughput_rps": 98.56100926473488,
+        "latency_ms": {
+          "count": 10000,
+          "min": 36.064,
+          "mean": 80.57864639999995,
+          "p50": 36.895,
+          "p90": 65.727,
+          "p95": 84.031,
+          "p99": 1037.823,
+          "p99.9": 1038.335,
+          "max": 1038.847
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 10000,
+          "min": 0.001,
+          "mean": 0.3567859000000003,
+          "p50": 0.353,
+          "p90": 0.595,
+          "p95": 0.721,
+          "p99": 0.863,
+          "p99.9": 1.067,
+          "max": 1.366
+        }
+      },
+      "mocks": {
+        "a": {
+          "requests": 8679,
+          "completed": 6930,
+          "canceled": 0,
+          "events_written": 0
+        },
+        "b": {
+          "requests": 3070,
+          "completed": 3070,
+          "canceled": 0,
+          "events_written": 0
+        }
+      },
+      "decision_log": {
+        "records": 10000,
+        "dropped": 0
+      },
+      "classification": {
+        "requests": 10000,
+        "responses_by_status": {
+          "200": 10000
+        },
+        "attempts": 11749,
+        "attempts_per_request": {
+          "1": 8251,
+          "2": 1749
+        },
+        "attempts_by_deployment": {
+          "deployment-a": {
+            "ok": 6930,
+            "http_500": 875,
+            "connect": 472,
+            "http_429": 402
+          },
+          "deployment-b": {
+            "ok": 3070
+          }
+        },
+        "started_on_a": 8679,
+        "started_on_b": 1321,
+        "eligible_failures_on_a": 1749,
+        "first_attempt_failed_eligibly": 1749,
+        "recovered": 1749,
+        "recovered_on_b": 1749,
+        "recovery_rate": 1.0,
+        "not_recovered": {},
+        "failed_requests": 0,
+        "failed_by_reason": {},
+        "requests_with_attempts_on_both": 1749,
+        "committed_then_failed": 0
+      },
+      "breaker": {
+        "polls": 935,
+        "opens": 1,
+        "half_open_seen": false,
+        "polls_not_closed": 119,
+        "poll_interval_s": 0.1
+      },
+      "checks": [
+        {
+          "name": "schedule: the generator scheduled exactly 10000 requests",
+          "passed": true,
+          "detail": "scheduled 10000"
+        },
+        {
+          "name": "decision log: one record per scheduled request and none dropped",
+          "passed": true,
+          "detail": "10000 records for 10000 requests, 0 dropped by the writer"
+        },
+        {
+          "name": "drops: the generator dropped no arrival",
+          "passed": true,
+          "detail": "dropped 0"
+        },
+        {
+          "name": "mock counts: each mock received the attempts the log shows for its deployment",
+          "passed": true,
+          "detail": "mock A 8679 vs log 8679; mock B 3070 vs log 3070"
+        },
+        {
+          "name": "client errors: the generator's error count equals the requests that failed overall",
+          "passed": true,
+          "detail": "generator 0, decision log 0"
+        }
+      ],
+      "wall_time_s": 107.1
+    },
+    "midstream": {
+      "arm": "midstream",
+      "rps": 50,
+      "duration": "39.2s",
+      "stream": true,
+      "scheduled": 2000,
+      "load": {
+        "url": "http://127.0.0.1:55081/v1/chat/completions",
+        "model": "failover-model",
+        "stream": true,
+        "rps_target": 50,
+        "warmup_s": 0,
+        "duration_s": 39.2,
+        "seed": 2,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 2000,
+        "completed": 1589,
+        "errors": 411,
+        "dropped": 0,
+        "errors_by_kind": {
+          "read": 411
+        },
+        "elapsed_s": 39.2043067,
+        "offered_rps": 51.0204081632653,
+        "throughput_rps": 40.535714285714285,
+        "latency_ms": {
+          "count": 1589,
+          "min": 37.568,
+          "mean": 42.578456891126486,
+          "p50": 42.687,
+          "p90": 44.031,
+          "p95": 44.319,
+          "p99": 44.927,
+          "p99.9": 45.791,
+          "max": 47.775
+        },
+        "ttft_ms": {
+          "count": 1589,
+          "min": 20.032,
+          "mean": 21.00617243549402,
+          "p50": 20.959,
+          "p90": 21.631,
+          "p95": 21.791,
+          "p99": 22.111,
+          "p99.9": 23.023,
+          "max": 25.055
+        },
+        "launch_lag_ms": {
+          "count": 2000,
+          "min": 0.001,
+          "mean": 0.37254549999999986,
+          "p50": 0.365,
+          "p90": 0.629,
+          "p95": 0.684,
+          "p99": 0.813,
+          "p99.9": 0.985,
+          "max": 1.971
+        }
+      },
+      "mocks": {
+        "a": {
+          "requests": 2000,
+          "completed": 1589,
+          "canceled": 0,
+          "events_written": 31013
+        },
+        "b": {
+          "requests": 0,
+          "completed": 0,
+          "canceled": 0,
+          "events_written": 0
+        }
+      },
+      "decision_log": {
+        "records": 2000,
+        "dropped": 0
+      },
+      "classification": {
+        "requests": 2000,
+        "responses_by_status": {
+          "200": 2000
+        },
+        "attempts": 2000,
+        "attempts_per_request": {
+          "1": 2000
+        },
+        "attempts_by_deployment": {
+          "deployment-a": {
+            "connect": 411,
+            "ok": 1589
+          }
+        },
+        "started_on_a": 2000,
+        "started_on_b": 0,
+        "eligible_failures_on_a": 0,
+        "first_attempt_failed_eligibly": 0,
+        "recovered": 0,
+        "recovered_on_b": 0,
+        "recovery_rate": null,
+        "not_recovered": {},
+        "failed_requests": 0,
+        "failed_by_reason": {},
+        "requests_with_attempts_on_both": 0,
+        "committed_then_failed": 411
+      },
+      "breaker": {
+        "polls": 360,
+        "opens": 0,
+        "half_open_seen": false,
+        "polls_not_closed": 0,
+        "poll_interval_s": 0.1
+      },
+      "checks": [
+        {
+          "name": "schedule: the generator scheduled exactly 2000 requests",
+          "passed": true,
+          "detail": "scheduled 2000"
+        },
+        {
+          "name": "decision log: one record per scheduled request and none dropped",
+          "passed": true,
+          "detail": "2000 records for 2000 requests, 0 dropped by the writer"
+        },
+        {
+          "name": "drops: the generator dropped no arrival",
+          "passed": true,
+          "detail": "dropped 0"
+        },
+        {
+          "name": "one attempt: every request made exactly one attempt",
+          "passed": true,
+          "detail": "attempts per request {'1': 2000}"
+        },
+        {
+          "name": "both: no request attempted both deployments",
+          "passed": true,
+          "detail": "0 requests"
+        },
+        {
+          "name": "mock counts: the mocks together received one request per client request, each the ones the log shows",
+          "passed": true,
+          "detail": "mock A 2000 vs log 2000; mock B 0 vs log 0; sum 2000 vs 2000 records"
+        },
+        {
+          "name": "cut count: the streams A's mock says it cut are the streams the log shows broken after the commit",
+          "passed": true,
+          "detail": "mock A: 2000 received - 1589 completed - 0 canceled = 411; decision log: 411"
+        },
+        {
+          "name": "committed: every failed attempt on A was a stream that broke after the commit",
+          "passed": true,
+          "detail": "411 failed attempts on A, 411 streams broken after the commit"
+        },
+        {
+          "name": "cuts: at least one stream was cut after the commit, so the rule was exercised",
+          "passed": true,
+          "detail": "411 streams cut after the commit"
+        },
+        {
+          "name": "client errors: the generator's error count equals the streams that broke after commit",
+          "passed": true,
+          "detail": "generator 411, decision log 411"
+        },
+        {
+          "name": "breaker: B received requests only if A's breaker opened",
+          "passed": true,
+          "detail": "B received 0 requests, A's breaker opened 0 times"
+        }
+      ],
+      "wall_time_s": 40.8
+    }
+  },
+  "all_checks_passed": true,
+  "wall_time_s": 159.2
+}
