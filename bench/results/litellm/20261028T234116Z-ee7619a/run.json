@@ -1,0 +1,31 @@
+{
+  "run_id": "20261028T234116Z-ee7619a",
+  "experiment": "litellm",
+  "git_sha": "ee7619a3aeb0c4585a8abf09be65f965156a46d6",
+  "git_dirty": false,
+  "policy_version": null,
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {
+    "loadgen": 1,
+    "mock": 1
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 15.2,
+    "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.9",
+  "started_at": "2026-10-28T23:41:16Z",
+  "ended_at": "2026-10-29T00:12:57Z",
+  "command": [
+    "python",
+    "bench/scripts/litellm_compare.py",
+    "--scratch-root",
+    "/home/omar_morsi/rp-scratch"
+  ],
+  "measurement": {
+    "clock_step_ns": 30,
+    "zero_fraction": 0.0
+  }
+}
