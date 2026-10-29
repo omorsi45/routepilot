@@ -5,6 +5,7 @@ The result trees here are invented and tiny. They contain the files a real run h
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -236,6 +237,88 @@ def test_a_run_without_a_labels_line_uses_the_results_labels_or_says_nothing(
     text = build(results_dir)
 
     assert "**Labels:** first label; second label." in text.splitlines()
+
+
+# --- internal references in copied text ------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            "held-out datasets were fixed before training (Task 3) and appear only in shift",
+            "held-out datasets were fixed before training and appear only in shift",
+        ),
+        (
+            "the share of decisions whose floor was not relaxed (Ruling V1-R5).",
+            "the share of decisions whose floor was not relaxed.",
+        ),
+        (
+            "prices are an ASSUMPTION (Ruling V1-R42): proportional to the parameter count",
+            "prices are an ASSUMPTION: proportional to the parameter count",
+        ),
+        (
+            "against the true value; Ruling V1-R36: the learned target is min_cost",
+            "against the true value; the learned target is min_cost",
+        ),
+        (
+            "the logging policy's own predictions (Ruling V1-R32), so its bias includes this",
+            "the logging policy's own predictions, so its bias includes this",
+        ),
+        (
+            "prices are fitted (Rulings V1-R2 and V1-R3) from the recorded costs",
+            "prices are fitted from the recorded costs",
+        ),
+        (
+            "the bound counts every byte (Ruling M2-R11) and is an allowance",
+            "the bound counts every byte and is an allowance",
+        ),
+        (
+            "the bound is decided per Ruling M2-R11 and kept",
+            "the bound is decided and kept",
+        ),
+        ("The bound holds, see Ruling M2-R11.", "The bound holds."),
+        ("It is fixed per Task 12 and kept", "It is fixed and kept"),
+        ("Splits come from Tasks 3 and 4 and are kept", "Splits come and are kept"),
+        ("Ruling V1-R5: the floor was relaxed.", "The floor was relaxed."),
+        ("Ruling V1-R5, V1-R6 and V1-R7: three rules", "Three rules"),
+        (
+            "a plain sentence about a task force and 3 tasks",
+            "a plain sentence about a task force and 3 tasks",
+        ),
+    ],
+)
+def test_internal_references_are_dropped_from_copied_text(text: str, expected: str) -> None:
+    assert rd.scrub_internal_references(text) == expected
+
+
+def test_labels_and_limitations_lose_their_internal_references(results_dir: Path) -> None:
+    make_run(
+        results_dir,
+        "alpha",
+        NEW,
+        "NEW-VALUE",
+        labels="fixed before training (Task 3); prices are an ASSUMPTION (Ruling V1-R42): fitted",
+        limitation="the floor was not relaxed (Ruling V1-R5)",
+    )
+
+    text = build(results_dir)
+
+    assert (
+        "**Labels:** fixed before training; prices are an ASSUMPTION: fitted." in text.splitlines()
+    )
+    assert "- the floor was not relaxed" in text.splitlines()
+    assert "Ruling" not in text
+    assert "Task 3" not in text
+
+
+def test_an_internal_reference_in_any_other_text_fails_instead_of_shipping(
+    results_dir: Path,
+) -> None:
+    make_run(results_dir, "alpha", NEW, "see Ruling V1-R9 for why")
+
+    with pytest.raises(rd.RenderError, match="internal reference"):
+        build(results_dir)
 
 
 # --- renderers, on small invented results ---------------------------------------------------
@@ -505,6 +588,70 @@ def test_live_train_prints_the_split_sizes_without_python_syntax() -> None:
     assert "train: 2, calib: 1, test: 0" in text
 
 
+def test_train_does_not_print_a_calibrator_rule_the_run_did_not_record() -> None:
+    results = {
+        "pool": "flagship",
+        "artifact_version": "abc",
+        "dim": 65536,
+        "n_train": 10,
+        "n_calib": 4,
+        "ood": {"k": 32, "threshold": 0.9},
+        "wall_time_s": 1.5,
+        "models": {},
+    }
+
+    text = "\n".join(rd.render_train(run_of("train", results)))
+
+    assert "None" not in text
+    assert "calibrator rule" not in text
+    with_rule = "\n".join(rd.render_train(run_of("train", {**results, "calibrator": "platt"})))
+    assert "calibrator rule `platt`" in with_rule
+
+
+def clock_results(os_name: str, steps: list[int], zeros: list[float]) -> dict:
+    probes = [{"clock_step_ns": s, "zero_fraction": z} for s, z in zip(steps, zeros, strict=True)]
+    return {
+        "os": os_name,
+        "system": os_name.split("-")[0],
+        "go_version": "go1.27.2",
+        "probe_ms": 200,
+        "probes": probes,
+        "summary": {
+            "probes": len(steps),
+            "min_step_ns": min(steps),
+            "median_step_ns": sorted(steps)[len(steps) // 2],
+            "max_step_ns": max(steps),
+            "max_zero_fraction": max(zeros),
+            "threshold_ns": 1000,
+            "coarse": max(steps) > 1000,
+        },
+    }
+
+
+def test_clock_lists_every_probe_and_says_whether_the_step_is_fine_enough() -> None:
+    fine = "\n".join(
+        rd.render_clock(run_of("clock", clock_results("Linux-6.1-test", [30] * 5, [0.0] * 5)))
+    )
+    coarse = "\n".join(
+        rd.render_clock(
+            run_of(
+                "clock",
+                clock_results(
+                    "Windows-11-test", [500_000, 380_000, 501_000, 502_000, 500_500], [0.99999] * 5
+                ),
+            )
+        )
+    )
+
+    assert "Linux-6.1-test" in fine
+    assert fine.count("| 30 | 0.0000% |") == 5
+    assert "fine enough" in fine
+    assert "Windows-11-test" in coarse
+    assert "| 2 | 380000 | 99.9990% |" in coarse
+    assert "too coarse" in coarse
+    assert "380000, 500500 and 502000 ns" in coarse
+
+
 # --- the committed tree ----------------------------------------------------------------------
 
 REPO = repo_root()
@@ -532,3 +679,25 @@ def test_committed_docs_are_the_generator_output_byte_for_byte() -> None:
         assert committed == text.encode("utf-8"), (
             f"docs/{name} is stale: run bench/scripts/render_docs.py"
         )
+
+
+def test_committed_docs_carry_no_internal_references() -> None:
+    for name in ("results.md", "performance.md", "limitations.md"):
+        text = (REPO / "docs" / name).read_text(encoding="utf-8")
+        assert not re.search(r"Rulings?\b|\bTasks? \d|\b[VM]\d-R\d+", text), name
+
+
+def test_the_training_runs_of_both_pools_are_shown() -> None:
+    selection = rd.load_selection(REPO / "bench" / "results")
+
+    for experiment in ("train", "mf_train"):
+        assert [e.status for e in selection[experiment]] == ["current", "also"], experiment
+
+
+def test_performance_doc_shows_the_clock_runs_of_both_hosts() -> None:
+    text = (REPO / "docs" / "performance.md").read_text(encoding="utf-8")
+
+    assert "## Clock resolution" in text
+    assert "Windows-" in text and "Linux-" in text
+    selection = rd.load_selection(REPO / "bench" / "results")
+    assert [e.status for e in selection["clock"]] == ["current", "also"]

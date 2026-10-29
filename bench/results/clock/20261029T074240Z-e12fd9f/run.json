@@ -1,0 +1,31 @@
+{
+  "run_id": "20261029T074240Z-e12fd9f",
+  "experiment": "clock",
+  "git_sha": "e12fd9fb1a9155d4740214cae5197e9698552c0e",
+  "git_dirty": true,
+  "policy_version": null,
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {},
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 15.2,
+    "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.9",
+  "started_at": "2026-10-29T07:42:40Z",
+  "ended_at": "2026-10-29T07:42:46Z",
+  "command": [
+    "python",
+    "bench/scripts/clock_probe.py"
+  ],
+  "measurement": {
+    "probes": 5,
+    "min_step_ns": 30,
+    "median_step_ns": 30,
+    "max_step_ns": 30,
+    "max_zero_fraction": 0.0,
+    "threshold_ns": 1000,
+    "coarse": false
+  }
+}

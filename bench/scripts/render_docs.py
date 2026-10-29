@@ -21,6 +21,7 @@ Usage: python bench/scripts/render_docs.py [--results bench/results] [--out docs
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -43,6 +44,25 @@ STATUSES = ("current", "also", "older")
 SHOWN = ("current", "also")
 EM_DASH = "\u2014"
 EN_DASH = "\u2013"
+
+# References to the project's decision log and plan ("Ruling V1-R42", "Rulings V1-R2 and V1-R3",
+# "Task 3"). They mean nothing to a reader of the repository, so copied text loses them.
+_ID = r"[VM]\d+-R\d+"
+_ID_LIST = rf"{_ID}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+){_ID})*"
+_REF = (
+    rf"(?:Rulings?\s+{_ID_LIST}"
+    r"|Tasks?\s+\d+(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s+to\s+)\d+)*"
+    rf"|{_ID_LIST})"
+)
+_LEAD = r"(?:per|see|in|from|under|by)"
+_PAREN_REF = re.compile(
+    rf"(?P<pre>[ \t]*)\(\s*(?:(?:see|per)\s+)?{_REF}\s*\)(?P<post>[ \t]*)"
+)
+_COLON_REF = re.compile(rf"{_REF}[ \t]*:[ \t]*(?P<next>\S)")
+_LEAD_REF = re.compile(rf"(?P<pre>[ \t]*,?[ \t]*)\b{_LEAD}[ \t]+{_REF}(?P<post>[ \t]*)")
+_BARE_REF = re.compile(rf"(?P<pre>[ \t]*){_REF}(?P<post>[ \t]*)")
+# What the output must not contain once the copied text is scrubbed (the guard in `_finish`).
+INTERNAL_REFERENCE = re.compile(r"Rulings?\b|\bTasks? \d|\b[VM]\d+-R\d+")
 
 
 class RenderError(Exception):
@@ -422,10 +442,11 @@ def render_baselines(run: Run) -> list[str]:
 
 def render_train(run: Run) -> list[str]:
     r = run.results
+    rule = f"calibrator rule `{r['calibrator']}`, " if r.get("calibrator") else ""
     out = [
         f"Pool {r.get('pool')}, artifact version `{r.get('artifact_version')}`, hashed feature "
         f"dimension {r.get('dim')}, {r.get('n_train')} train items, {r.get('n_calib')} calibration "
-        f"items, calibrator rule `{r.get('calibrator')}`, OOD k {r.get('ood', {}).get('k')} and "
+        f"items, {rule}OOD k {r.get('ood', {}).get('k')} and "
         f"threshold {num(r.get('ood', {}).get('threshold'))}, training wall time "
         f"{num(r.get('wall_time_s'))} s.",
         "",
@@ -2016,6 +2037,31 @@ def render_litellm(run: Run) -> list[str]:
     return out
 
 
+def render_clock(run: Run) -> list[str]:
+    r = run.results
+    summary = r.get("summary") or {}
+    out = [f"Host: {r.get('os')}, {r.get('go_version')}.", ""]
+    out += table(
+        ["probe", "clock step (ns)", "equal consecutive reads"],
+        [
+            [i, p.get("clock_step_ns"), pct(p.get("zero_fraction"), 4)]
+            for i, p in enumerate(r.get("probes") or [], start=1)
+        ],
+    )
+    verdict_text = (
+        "too coarse for sub-millisecond timing"
+        if summary.get("coarse")
+        else "fine enough for sub-millisecond timing"
+    )
+    out.append(
+        f"Smallest, median and largest clock step: {summary.get('min_step_ns')}, "
+        f"{summary.get('median_step_ns')} and {summary.get('max_step_ns')} ns. The overhead "
+        f"experiment refuses a step above {summary.get('threshold_ns')} ns, so this clock is "
+        f"{verdict_text}."
+    )
+    return [*out, ""]
+
+
 # --- documents -----------------------------------------------------------------------------
 
 LAYOUT: list[Section] = [
@@ -2080,6 +2126,12 @@ LAYOUT: list[Section] = [
     ),
     Section(
         "results.md", "live_demo", "Live demo through the gateway", render_live_demo
+    ),
+    Section(
+        "performance.md",
+        "clock",
+        "Clock resolution",
+        render_clock,
     ),
     Section(
         "performance.md",
@@ -2280,7 +2332,38 @@ def resolve(results_dir: Path) -> dict[str, list[Run]]:
 # --- assembling a document -----------------------------------------------------------------
 
 
-def labels_line(run: Run) -> str | None:
+def _gap(match: re.Match[str]) -> str:
+    """What replaces a removed reference: one space when text remains on both sides, else none."""
+    pre, post = match.group("pre"), match.group("post")
+    following = match.string[match.end() : match.end() + 1]
+    if pre and post and following and following not in ",.;:)":
+        return " "
+    return ""
+
+
+def _sentence_start(text: str, at: int) -> bool:
+    before = text[:at].rstrip(" \t")
+    return not before or before[-1] in ".!?\n"
+
+
+def scrub_internal_references(text: str) -> str:
+    """Remove ruling and plan-task references from copied text, keeping the rest of the sentence.
+
+    Handles ``(Ruling V1-R5)``, ``Rulings V1-R2 and V1-R3``, ``Ruling V1-R36: the rest``,
+    ``per``/``see``/``in`` before a reference, ``(Task 3)`` and a bare ``Task 3``.
+    """
+    text = _PAREN_REF.sub(_gap, text)
+
+    def colon(match: re.Match[str]) -> str:
+        nxt = match.group("next")
+        return nxt.upper() if _sentence_start(match.string, match.start()) else nxt
+
+    text = _COLON_REF.sub(colon, text)
+    text = _LEAD_REF.sub(_gap, text)
+    return _BARE_REF.sub(_gap, text)
+
+
+def _own_labels_line(run: Run) -> str | None:
     """The run's own Labels line, character for character.
 
     Falls back to ``results["labels"]`` joined the way the report writer does, and then to the
@@ -2301,6 +2384,12 @@ def labels_line(run: Run) -> str | None:
     return None
 
 
+def labels_line(run: Run) -> str | None:
+    """The run's Labels line with internal references dropped (see ``_own_labels_line``)."""
+    line = _own_labels_line(run)
+    return None if line is None else scrub_internal_references(line)
+
+
 def limitations_of(run: Run) -> list[str]:
     """The lines of the report's ``## Limitations`` section, or an empty list."""
     lines = run.report.splitlines()
@@ -2315,7 +2404,7 @@ def limitations_of(run: Run) -> list[str]:
         body.pop(0)
     while body and not body[-1].strip():
         body.pop()
-    return body
+    return [scrub_internal_references(line) for line in body]
 
 
 def run_facts(run: Run) -> str:
@@ -2425,7 +2514,7 @@ def build_docs(
 
 
 def _finish(lines: Sequence[str], doc: str) -> str:
-    """Join, trim trailing blanks and spaces, and refuse a dash character."""
+    """Join, trim trailing blanks and spaces, refuse a dash character or an internal reference."""
     cleaned: list[str] = []
     for line in lines:
         line = line.rstrip()
@@ -2440,6 +2529,12 @@ def _finish(lines: Sequence[str], doc: str) -> str:
             raise RenderError(
                 f"{doc} would contain an {name} (a dash character) near: {context!r}"
             )
+    found = INTERNAL_REFERENCE.search(text)
+    if found:
+        context = text[max(0, found.start() - 40) : found.end() + 40].replace("\n", " ")
+        raise RenderError(
+            f"{doc} would contain an internal reference (a ruling or plan task) near: {context!r}"
+        )
     return text
 
 

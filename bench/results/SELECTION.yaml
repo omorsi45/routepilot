@@ -35,18 +35,18 @@ headline:
 train:
   - run: "20261028T202236Z-e49df83"
     status: current
-    reason: Newest run, the mixed pool.
+    reason: Mixed pool, sensitivity only. 16 models (the 12 flagship models plus four small ones, whose prices are fitted from their recorded costs), trained on 1067 items because every model must have a record on an item.
   - run: "20261028T021252Z-7802bb3"
-    status: older
-    reason: Not superseded. It is the flagship pool training run that produced the artifact used by the flagship runs above.
+    status: also
+    reason: Flagship pool, the pool of the headline results. 12 models trained on 5185 items. It produced the artifact behind the flagship runs above.
 
 mf_train:
   - run: "20261028T202400Z-e49df83"
     status: current
-    reason: Newest run, the mixed pool.
+    reason: Mixed pool, sensitivity only. 16 models, 814 items.
   - run: "20261028T033419Z-5e4dbcc"
-    status: older
-    reason: Not superseded. It is the flagship pool run behind the RouteLLM matrix-factorization baseline in the flagship runs above.
+    status: also
+    reason: Flagship pool, the pool of the headline results. 12 models, 3616 items. It is the matrix-factorization baseline behind the flagship runs above.
 
 inupper:
   - run: "20261028T012056Z-1212012"
@@ -115,3 +115,11 @@ overhead:
   - run: "20261028T185609Z-44f7f4d"
     status: also
     reason: First Linux run, shown for its tail. Its scratch files were on the slow /mnt/c mount, and the gateway's request log on that mount made the 2000 rps non-streaming cell slow. The primary run repeated the experiment with the scratch files on ext4.
+
+clock:
+  - run: "20261029T074240Z-e12fd9f"
+    status: current
+    reason: WSL2 Linux on the machine that ran the performance experiments. The step is far below the 1000 ns the experiments need.
+  - run: "20261029T074230Z-e12fd9f"
+    status: also
+    reason: Windows 11 on the same machine. The step is far above 1000 ns, which is why the timing experiments run on Linux.
