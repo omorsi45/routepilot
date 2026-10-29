@@ -11,11 +11,16 @@ named in ``bench/configs/live-ollama.yaml``.
 
 ``collect`` sends the ``gpqa`` items (all 198) and a seeded sample of ``mmlupro`` to every model
 of that config through ``routepilot serve`` (the model pinned per request, streaming with usage,
-temperature 0, ``max_tokens`` 384, the decision log on, one request at a time, grouped by model,
-one warm-up request per model that is not counted). The size of the sample is chosen from the
-measured speeds so that the whole collection fits the time budget (90 minutes by default); the
-script also stops at the budget and reports the sample it realized (the items every model
-answered). Answers are graded by ``routepilot_train.grading`` against the ``ground_truth`` of the
+temperature 0, the decision log on, one request at a time, grouped by model, one warm-up request
+per model that is not counted). How an item is put to a model is the protocol (``--protocol``):
+``as-written`` sends the dataset prompt alone with ``max_tokens`` 384 (the first collection);
+``answer-only`` prepends the system message "Reply with only the letter of the correct option."
+and allows 16 tokens. The protocol is recorded in ``<live-dir>/protocol.json``, ``results.json``,
+the report and ``run.json``; training and the demo read it from the live directory. The size of
+the sample is chosen from the measured speeds, at the protocol's ``max_tokens``, so that the
+whole collection fits the time budget (90 minutes by default); the script also stops at the
+budget and reports the sample it realized (the items every model answered). Answers are graded
+by ``routepilot_train.grading`` against the ``ground_truth`` of the
 release tarball, which ingest drops. Time to first token and end-to-end time come from the
 gateway's decision log, tokens from the usage the model reports.
 
@@ -74,6 +79,13 @@ GPQA, MMLUPRO = "gpqa", "mmlupro"
 DEFAULT_LETTERS = {GPQA: "ABCD", MMLUPRO: "ABCDEFGHIJ"}
 MAX_TOKENS = 384
 MEASURE_MAX_TOKENS = 256
+# The two ways to put an item to a model (see Protocol). The system message is part of the
+# protocol and is sent word for word.
+AS_WRITTEN, ANSWER_ONLY = "as-written", "answer-only"
+PROTOCOLS = (AS_WRITTEN, ANSWER_ONLY)
+ANSWER_ONLY_SYSTEM = "Reply with only the letter of the correct option."
+ANSWER_ONLY_MAX_TOKENS = 16
+PROTOCOL_FILE = "protocol.json"
 BUDGET_MINUTES = 90.0
 MMLUPRO_CAP = 600
 SEED = 0
@@ -369,12 +381,22 @@ def _error_text(raw: bytes) -> str:
 
 
 def chat_body(
-    model: str, prompt: str, max_tokens: int, routepilot: Mapping[str, Any] | None = None
+    model: str,
+    prompt: str,
+    max_tokens: int,
+    routepilot: Mapping[str, Any] | None = None,
+    system: str | None = None,
 ) -> dict[str, Any]:
-    """The request body: temperature 0, streaming with usage, ``max_tokens`` capped."""
+    """The request body: temperature 0, streaming with usage, ``max_tokens`` capped.
+
+    ``system``, when given, is sent as a system message before the prompt.
+    """
+    messages = [{"role": "user", "content": prompt}]
+    if system is not None:
+        messages.insert(0, {"role": "system", "content": system})
     body: dict[str, Any] = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
         "stream": True,
         "stream_options": {"include_usage": True},
         "temperature": 0,
@@ -383,6 +405,73 @@ def chat_body(
     if routepilot:
         body["routepilot"] = dict(routepilot)
     return body
+
+
+# --- the protocol ------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Protocol:
+    """How an item is put to a model: an optional system message and the ``max_tokens`` cap.
+
+    ``as-written`` sends the dataset prompt alone with room to reason (the first collection).
+    ``answer-only`` prepends a system message asking for the option letter alone and allows
+    16 tokens, so the grade measures the answer and not whether the reasoning fit in the cap.
+    """
+
+    name: str
+    system: str | None
+    max_tokens: int
+
+    def body(
+        self, model: str, prompt: str, routepilot: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """The request body of ``prompt`` under this protocol."""
+        return chat_body(model, prompt, self.max_tokens, routepilot, self.system)
+
+    def as_dict(self) -> dict[str, Any]:
+        """What is recorded in ``protocol.json``, ``results.json`` and ``run.json``."""
+        return {"name": self.name, "system_message": self.system, "max_tokens": self.max_tokens}
+
+
+_PROTOCOLS = {
+    AS_WRITTEN: Protocol(AS_WRITTEN, None, MAX_TOKENS),
+    ANSWER_ONLY: Protocol(ANSWER_ONLY, ANSWER_ONLY_SYSTEM, ANSWER_ONLY_MAX_TOKENS),
+}
+
+
+def protocol_for(name: str) -> Protocol:
+    """The protocol called ``name`` (``as-written`` or ``answer-only``)."""
+    try:
+        return _PROTOCOLS[name]
+    except KeyError:
+        choices = ", ".join(PROTOCOLS)
+        raise ValueError(f"unknown protocol {name!r}; choose one of {choices}") from None
+
+
+def write_protocol(live_dir: Path, protocol: Protocol) -> None:
+    """Record the collection's protocol in ``<live_dir>/protocol.json``."""
+    (Path(live_dir) / PROTOCOL_FILE).write_text(
+        json.dumps(protocol.as_dict(), indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
+
+
+def load_protocol(live_dir: Path) -> Protocol:
+    """The protocol a collection in ``live_dir`` ran with.
+
+    A directory without ``protocol.json`` holds the first collection, which ran ``as-written``
+    before the file existed. A file whose content differs from its named protocol is refused.
+    """
+    path = Path(live_dir) / PROTOCOL_FILE
+    if not path.exists():
+        return _PROTOCOLS[AS_WRITTEN]
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    protocol = protocol_for(str(doc.get("name")))
+    if doc != protocol.as_dict():
+        raise ValueError(
+            f"{path.as_posix()} does not match the protocol {protocol.name!r}: {json.dumps(doc)}"
+        )
+    return protocol
 
 
 # --- the measurement ----------------------------------------------------------------------------
@@ -401,6 +490,19 @@ def worst_case_request_s(
 ) -> float:
     """Seconds for a request that runs to ``max_tokens``: the first token plus the rest."""
     return ttft_ms / 1000.0 + max_tokens / tokens_per_s
+
+
+def planned_worst_case_s(measured_model: Mapping[str, Any], protocol: Protocol) -> float:
+    """The worst-case request time of one measured model under ``protocol``.
+
+    Uses the model's measured mean time to first token and output speed with the protocol's
+    ``max_tokens``; the 384-token time stored in the measure run is not read.
+    """
+    return worst_case_request_s(
+        float(measured_model["ttft_ms_mean"]),
+        float(measured_model["tokens_per_s_mean"]),
+        protocol.max_tokens,
+    )
 
 
 def plan_sample_size(
@@ -855,17 +957,29 @@ def collect(
     derived: Path = ROOT / "data" / "derived",
     binary: Path | None = None,
     resume: bool = False,
+    protocol: str = AS_WRITTEN,
+    command: Sequence[str] | None = None,
 ) -> Path:
     """Run the collection and write the tables under ``live_dir`` and the report under ``out_root``.
 
-    ``n_mmlupro`` overrides the size planned from the measurement (for a short trial).
-    ``resume`` continues an interrupted run: the requests in ``raw.jsonl`` are kept and not
-    sent again, and their time counts against the budget.
+    ``protocol`` names how the items are put to the models (``as-written`` or ``answer-only``);
+    it is recorded in ``<live_dir>/protocol.json``, ``results.json``, the report and ``run.json``
+    so that training and the demo use the same one. ``n_mmlupro`` overrides the size planned
+    from the measurement (for a short trial). ``resume`` continues an interrupted run: the
+    requests in ``raw.jsonl`` are kept and not sent again, and their time counts against the
+    budget; the protocol must be the one the interrupted run used. ``command`` is what
+    ``run.json`` records (default: the bare ``collect`` command).
     """
     started = datetime.now(UTC)
     clock = time.perf_counter()
+    proto = protocol_for(protocol)
     live_dir = Path(live_dir).resolve()
     live_dir.mkdir(parents=True, exist_ok=True)
+    if resume and (earlier := load_protocol(live_dir)) != proto:
+        raise ValueError(
+            f"cannot resume with the protocol {proto.name!r}: {live_dir.as_posix()} was "
+            f"collected with {earlier.name!r}"
+        )
     base = yaml.safe_load(Path(config).read_text(encoding="utf-8"))
     catalog = load_catalog(config)
     measured_run = json.loads((Path(measure_run) / "results.json").read_text(encoding="utf-8"))
@@ -876,7 +990,7 @@ def collect(
     for c in catalog:
         if c.tag not in measured_run["models"]:
             raise ValueError(f"{c.tag} was not measured in {measure_run}")
-        worst[c.id] = measured_run["models"][c.tag]["worst_case_request_s"]
+        worst[c.id] = planned_worst_case_s(measured_run["models"][c.tag], proto)
         # a model load and a warm-up request that runs to the limit, per model
         fixed_s += measured_run["models"][c.tag]["load_s"] + worst[c.id]
 
@@ -907,6 +1021,7 @@ def collect(
     done_records = read_raw(raw_path) if resume else []
     if not resume and raw_path.exists():
         raise FileExistsError(f"{raw_path} exists; pass --resume to continue it or remove it")
+    write_protocol(live_dir, proto)
     done = {(r["item_id"], r["model"]) for r in done_records}
     spent_s = sum(float(r["client_wall_ms"]) for r in done_records) / 1000.0
     prompt_of = dict(zip(prompts["item_id"], prompts["prompt"], strict=True))
@@ -922,7 +1037,7 @@ def collect(
                 ollama_load(c.tag)
                 loaded_info[c.id] = [m for m in ollama_loaded() if m["name"] == c.tag]
                 warm = stream_chat(
-                    port, chat_body(c.id, WARMUP_PROMPT, MAX_TOKENS), key=KEY, timeout_s=300
+                    port, chat_body(c.id, WARMUP_PROMPT, proto.max_tokens), key=KEY, timeout_s=300
                 )
                 warmups.append({"model": c.id, "ok": warm.ok, "wall_ms": warm.wall_ms})
                 spent_s += warm.wall_ms / 1000.0
@@ -936,7 +1051,7 @@ def collect(
                         break
                     chat = stream_chat(
                         port,
-                        chat_body(c.id, prompt_of[item_id], MAX_TOKENS),
+                        proto.body(c.id, prompt_of[item_id]),
                         key=KEY,
                         timeout_s=300,
                     )
@@ -988,6 +1103,7 @@ def collect(
     results = {
         "phase": "collect",
         "measure_run": Path(measure_run).name,
+        "protocol": proto.as_dict(),
         "models": [{"id": c.id, "tag": c.tag, "params_b": c.params_b} for c in catalog],
         "assumed_prices_usd_per_mtok": {
             c.id: {"in": float(c.in_usd_per_mtok), "out": float(c.out_usd_per_mtok)}
@@ -1000,7 +1116,7 @@ def collect(
             "planned_mmlupro": planned,
             "used_mmlupro": n_mmlu,
             "gpqa_items": n_gpqa,
-            "max_tokens": MAX_TOKENS,
+            "max_tokens": proto.max_tokens,
             "seed": SEED,
         },
         "stopped_by_budget": stopped,
@@ -1020,25 +1136,35 @@ def collect(
     }
     tables = _collect_tables(results, catalog)
     out_dir = Path(out_root) / runinfo.new_run_id(started)
-    command = ["python", "bench/scripts/live_collect.py", "collect"]
     report.write_results(
-        out_dir, EXPERIMENT, results, tables, {}, {"sample": SEED}, command, None, started
+        out_dir,
+        EXPERIMENT,
+        results,
+        tables,
+        {},
+        {"sample": SEED},
+        list(command or ["python", "bench/scripts/live_collect.py", "collect"]),
+        None,
+        started,
+        measurement={"protocol": proto.as_dict()},
     )
     return out_dir
 
 
 def _collect_tables(results: Mapping[str, Any], catalog: Sequence[CatalogModel]) -> dict[str, Any]:
-    plan = results["plan"]
+    plan, protocol = results["plan"], results["protocol"]
     setup = [
         ["models", ", ".join(f"{c.id} ({c.tag})" for c in catalog)],
         ["measure run", results["measure_run"]],
+        ["protocol", protocol["name"]],
+        ["system message", protocol["system_message"] or "none"],
+        ["max_tokens", protocol["max_tokens"]],
         ["time budget (minutes)", plan["budget_minutes"]],
         [
             "mmlupro items planned / used (cap)",
             f"{plan['planned_mmlupro']} / {plan['used_mmlupro']} ({plan['cap']})",
         ],
         ["gpqa items", plan["gpqa_items"]],
-        ["max_tokens", plan["max_tokens"]],
         ["stopped by the time budget", results["stopped_by_budget"]],
         [
             "request time (s) / wall time (s)",
@@ -1097,6 +1223,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     col.add_argument("--measure-run", type=Path, default=None, help="default: the newest")
     col.add_argument("--live-dir", type=Path, default=LIVE_DIR)
+    col.add_argument(
+        "--protocol",
+        choices=PROTOCOLS,
+        default=AS_WRITTEN,
+        help=(
+            "as-written: the dataset prompt alone, max_tokens 384; answer-only: a system "
+            f"message {ANSWER_ONLY_SYSTEM!r} and max_tokens {ANSWER_ONLY_MAX_TOKENS}"
+        ),
+    )
     col.add_argument("--resume", action="store_true")
     for p in (sub.choices["measure"], col):
         p.add_argument("--out-root", type=Path, default=RESULTS_ROOT)
@@ -1113,6 +1248,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             n_mmlupro=args.n_mmlupro,
             limit=args.limit,
             resume=args.resume,
+            protocol=args.protocol,
+            command=["python", "bench/scripts/live_collect.py", *(argv or sys.argv[1:])],
         )
     print(out.relative_to(ROOT).as_posix() if out.is_relative_to(ROOT) else out)
     return 0

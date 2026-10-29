@@ -119,6 +119,16 @@ def test_pipes_in_cells_are_escaped(tmp_path):
     assert "| a\\|b |" in (out / "report.md").read_text(encoding="utf-8")
 
 
+def test_a_measurement_block_goes_into_run_json(tmp_path):
+    block = {"protocol": {"name": "answer-only", "max_tokens": 16}}
+    out = write(tmp_path, measurement=block)
+    run = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    assert run["measurement"] == block
+    assert "measurement" not in json.loads(
+        (write(tmp_path / "plain")).joinpath("run.json").read_text(encoding="utf-8")
+    )
+
+
 def test_write_results_rejects_an_unsafe_figure_name(tmp_path):
     with pytest.raises(ValueError, match="figure name"):
         write(tmp_path, figures={"../escape": figure()})

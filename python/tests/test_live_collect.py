@@ -116,6 +116,82 @@ def test_plan_sample_size_rejects_a_missing_or_zero_time() -> None:
         lc.plan_sample_size({"a": 0.0}, n_gpqa=1, budget_s=10)
 
 
+# --- the protocols -------------------------------------------------------------------------------
+
+
+def test_the_protocols_are_as_written_and_answer_only() -> None:
+    assert lc.PROTOCOLS == ("as-written", "answer-only")
+    written = lc.protocol_for("as-written")
+    assert (written.name, written.system, written.max_tokens) == ("as-written", None, 384)
+    only = lc.protocol_for("answer-only")
+    assert only.name == "answer-only" and only.max_tokens == 16
+    assert only.system == "Reply with only the letter of the correct option."
+    assert only.as_dict() == {
+        "name": "answer-only",
+        "system_message": "Reply with only the letter of the correct option.",
+        "max_tokens": 16,
+    }
+    assert written.as_dict() == {"name": "as-written", "system_message": None, "max_tokens": 384}
+    with pytest.raises(ValueError, match="protocol"):
+        lc.protocol_for("verbose")
+    assert lc.LIVE_DIR.parts[-3:] == ("data", "derived", "live")
+
+
+def test_a_protocol_builds_the_request_body() -> None:
+    only = lc.protocol_for("answer-only").body("m", SENTINEL_PROMPT, {"min_quality": 0.4})
+    assert only["messages"] == [
+        {"role": "system", "content": "Reply with only the letter of the correct option."},
+        {"role": "user", "content": SENTINEL_PROMPT},
+    ]
+    assert only["max_tokens"] == 16 and only["temperature"] == 0 and only["stream"] is True
+    assert only["stream_options"] == {"include_usage": True}
+    assert only["routepilot"] == {"min_quality": 0.4}
+    written = lc.protocol_for("as-written").body("m", SENTINEL_PROMPT)
+    assert written["messages"] == [{"role": "user", "content": SENTINEL_PROMPT}]
+    assert written["max_tokens"] == 384 and "routepilot" not in written
+    assert written == lc.chat_body("m", SENTINEL_PROMPT, 384)  # unchanged from the first collection
+
+
+def test_the_system_message_reaches_the_server(stub: int) -> None:
+    body = lc.protocol_for("answer-only").body("m", SENTINEL_PROMPT)
+    assert lc.stream_chat(stub, body, key="k", timeout_s=10).ok
+    sent = Stub.seen[0]["body"]
+    assert [m["role"] for m in sent["messages"]] == ["system", "user"]
+    assert sent["messages"][0]["content"] == lc.ANSWER_ONLY_SYSTEM
+    assert sent["max_tokens"] == 16
+
+
+def test_the_planned_request_time_uses_the_protocols_max_tokens() -> None:
+    measured = {"ttft_ms_mean": 50.0, "tokens_per_s_mean": 100.0, "worst_case_request_s": 3.89}
+    written = lc.planned_worst_case_s(measured, lc.protocol_for("as-written"))
+    only = lc.planned_worst_case_s(measured, lc.protocol_for("answer-only"))
+    assert written == pytest.approx(0.05 + 3.84)
+    assert only == pytest.approx(0.05 + 0.16)
+    # with the short cap, far more items fit the same budget: 1800 / 3.89 = 462 items, 198 of
+    # them gpqa, against the 600 cap
+    fits_written = lc.plan_sample_size({"a": written}, n_gpqa=198, budget_s=1800, cap=600)
+    fits_only = lc.plan_sample_size({"a": only}, n_gpqa=198, budget_s=1800, cap=600)
+    assert (fits_written, fits_only) == (264, 600)
+
+
+def test_a_protocol_file_round_trips_and_a_missing_one_means_as_written(tmp_path: Path) -> None:
+    assert lc.load_protocol(tmp_path) == lc.protocol_for("as-written")  # the first collection
+    lc.write_protocol(tmp_path, lc.protocol_for("answer-only"))
+    text = (tmp_path / "protocol.json").read_text(encoding="utf-8")
+    assert "\r" not in text and EM_DASH not in text
+    assert lc.load_protocol(tmp_path) == lc.protocol_for("answer-only")
+
+
+def test_a_protocol_file_that_disagrees_with_its_name_is_refused(tmp_path: Path) -> None:
+    doc = lc.protocol_for("answer-only").as_dict() | {"max_tokens": 99}
+    (tmp_path / "protocol.json").write_text(json.dumps(doc), encoding="utf-8")
+    with pytest.raises(ValueError, match="answer-only"):
+        lc.load_protocol(tmp_path)
+    (tmp_path / "protocol.json").write_text(json.dumps({"name": "other"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="protocol"):
+        lc.load_protocol(tmp_path)
+
+
 def prompts_frame(n_gpqa: int = 6, n_mmlu: int = 40) -> pd.DataFrame:
     rows = []
     for dataset, n in (("gpqa", n_gpqa), ("mmlupro", n_mmlu)):
@@ -533,8 +609,9 @@ def test_the_report_tables_hold_no_prompt_or_answer_text() -> None:
     results = {
         "plan": {
             "budget_minutes": 90, "planned_mmlupro": 5, "used_mmlupro": 5,
-            "cap": 600, "gpqa_items": 2, "max_tokens": 384,
+            "cap": 600, "gpqa_items": 2, "max_tokens": 16,
         },
+        "protocol": lc.protocol_for("answer-only").as_dict(),
         "measure_run": "run-1",
         "stopped_by_budget": False,
         "request_time_s": 1.0,
@@ -546,6 +623,10 @@ def test_the_report_tables_hold_no_prompt_or_answer_text() -> None:
     text = json.dumps(results, default=str) + "\n".join(t.to_csv() for t in tables.values())
     assert SENTINEL_PROMPT not in text and SENTINEL_ANSWER not in text
     assert EM_DASH not in text
+    setup = dict(tables["Setup"].itertuples(index=False, name=None))
+    assert setup["protocol"] == "answer-only"
+    assert setup["system message"] == "Reply with only the letter of the correct option."
+    assert setup["max_tokens"] == 16
 
 
 def test_wait_for_decisions_returns_the_ids_still_missing(tmp_path: Path) -> None:

@@ -2,7 +2,8 @@
 
     python bench/scripts/live_train.py
 
-Reads what ``live_collect.py collect`` wrote under ``data/derived/live`` and
+Reads what ``live_collect.py collect`` wrote under ``--live-dir`` (default ``data/derived/live``;
+the collection's protocol is recorded in the report) and
 
 1. splits the live items with the same salt rule as the main experiment (60/20/20 over the item
    IDs, no held-out dataset);
@@ -332,6 +333,7 @@ def run_live_train(
     clock = time.perf_counter()
     live_dir = Path(live_dir).resolve()
     catalog = live_collect.load_catalog(config)
+    protocol = live_collect.load_protocol(live_dir)
     outcomes = pd.read_parquet(live_dir / "outcomes.parquet")
     prompts = pd.read_parquet(live_dir / "prompts.parquet")
     measured_all = pd.read_parquet(live_dir / "measured.parquet")
@@ -387,6 +389,7 @@ def run_live_train(
     }
 
     results: dict[str, Any] = {
+        "protocol": protocol.as_dict(),
         "pool": {
             k: pool[k]
             for k in ("pool", "models", "datasets", "n_items", "best_single", "cheapest", "rank")
@@ -438,14 +441,19 @@ def run_live_train(
         command,
         summary["version"],
         started,
+        measurement={"protocol": protocol.as_dict()},
     )
     return out_dir
 
 
 def _tables(results: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     pool, artifact, fit = results["pool"], results["artifact"], results["fit"]
+    protocol = results["protocol"]
     setup = [
         ["models", ", ".join(pool["models"])],
+        ["collection protocol", protocol["name"]],
+        ["system message", protocol["system_message"] or "none"],
+        ["max_tokens", protocol["max_tokens"]],
         ["Best Single (train+calib) / cheapest", f"{pool['best_single']} / {pool['cheapest']}"],
         ["items every model answered", pool["n_items"]],
         ["items per split", json.dumps(results["items_per_split"], sort_keys=True)],

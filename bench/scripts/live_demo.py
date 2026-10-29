@@ -7,7 +7,9 @@ Starts ``routepilot serve`` with the learned policy of ``policies/live-ollama`` 
 ``bench/latency/live-ollama.yaml`` as the latency priors, and the gateway's own online latency
 estimator, which learns from the traffic it serves. It sends live test items (a seeded subset of
 at most 120, one request at a time, the same items in the same order every round) in nine rounds:
-``min_quality`` in {0, 0.4, 0.6} times ``slo_e2e_ms`` in {none, tight, loose}. The tight SLO is
+``min_quality`` in {0, 0.4, 0.6} times ``slo_e2e_ms`` in {none, tight, loose}. Every request is
+sent under the protocol the training data was collected with (its system message and its
+``max_tokens``, read from ``protocol.json`` in the live directory). The tight SLO is
 the fastest model's measured p50 end-to-end time and the loose SLO the slowest model's measured
 p95, both over the train and calibration requests of ``live_collect.py``.
 
@@ -306,6 +308,7 @@ def run_demo(
     live_dir = Path(live_dir).resolve()
     base = yaml.safe_load(Path(config).read_text(encoding="utf-8"))
     catalog = live_collect.load_catalog(config)
+    protocol = live_collect.load_protocol(live_dir)  # the one the training data was collected with
     models = [c.id for c in catalog]
     prompts = pd.read_parquet(live_dir / "prompts.parquet")
     outcomes = pd.read_parquet(live_dir / "outcomes.parquet")
@@ -350,9 +353,7 @@ def run_demo(
                 live_collect.ollama_load(c.tag)
                 warm = live_collect.stream_chat(
                     port,
-                    live_collect.chat_body(
-                        c.id, live_collect.WARMUP_PROMPT, live_collect.MAX_TOKENS
-                    ),
+                    live_collect.chat_body(c.id, live_collect.WARMUP_PROMPT, protocol.max_tokens),
                     key=live_collect.KEY,
                     timeout_s=300,
                 )
@@ -364,9 +365,7 @@ def run_demo(
                 for item_id in items:
                     chat = live_collect.stream_chat(
                         port,
-                        live_collect.chat_body(
-                            "auto", prompt_of[item_id], live_collect.MAX_TOKENS, options
-                        ),
+                        protocol.body("auto", prompt_of[item_id], options),
                         key=live_collect.KEY,
                         timeout_s=300,
                     )
@@ -417,6 +416,7 @@ def run_demo(
     diverged = int((joined["ok"] & (joined["served"] != joined["chosen"])).sum())
 
     results: dict[str, Any] = {
+        "protocol": protocol.as_dict(),
         "models": models,
         "artifact_version": artifact.name,
         "policy_config": yaml.safe_load(Path(policy_path).read_text(encoding="utf-8")),
@@ -446,6 +446,7 @@ def run_demo(
         command,
         artifact.name,
         started,
+        measurement={"protocol": protocol.as_dict()},
     )
     return out_dir
 
@@ -456,9 +457,13 @@ def _pct(value: float | None) -> str:
 
 def _tables(results: Mapping[str, Any]) -> dict[str, Any]:
     slo = results["slo"]
+    protocol = results["protocol"]
     setup = [
         ["models", ", ".join(results["models"])],
         ["artifact version", results["artifact_version"]],
+        ["protocol", protocol["name"]],
+        ["system message", protocol["system_message"] or "none"],
+        ["max_tokens", protocol["max_tokens"]],
         ["policy config", json.dumps(results["policy_config"])],
         ["tight SLO (ms)", f"{slo['tight_ms']} ({slo['tight_from']})"],
         ["loose SLO (ms)", f"{slo['loose_ms']} ({slo['loose_from']})"],

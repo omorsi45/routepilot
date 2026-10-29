@@ -232,8 +232,13 @@ def test_the_report_tables_hold_no_prompt_text() -> None:
         "wall_time_s": 1.0,
         "rounds": [ld.summarize_round(rows, setting)],
         "estimator_bound_ms_by_round": {"q0-none": {"a": 12.5}},
+        "protocol": lc.protocol_for("answer-only").as_dict(),
     }
     tables = ld._tables(results)
     text = "\n".join(t.to_csv() for t in tables.values()) + "\n".join(ld.LABELS)
     assert SENTINEL not in text and EM_DASH not in text
     assert "Median end-to-end bound the policy used (q_ms), per model and round" in tables
+    setup = dict(tables["Setup"].itertuples(index=False, name=None))
+    assert setup["protocol"] == "answer-only"
+    assert setup["system message"] == "Reply with only the letter of the correct option."
+    assert setup["max_tokens"] == 16

@@ -78,12 +78,15 @@ def write_results(
     command: Sequence[str],
     policy_version: str | None,
     started_at: datetime,
+    measurement: Mapping[str, Any] | None = None,
 ) -> Path:
     """Write the result files into ``out_dir`` (named by ``runinfo.new_run_id``) and return it.
 
     ``results.json`` is ``results``. ``report.md`` has the title, the run id, the
     Labels line (``results["labels"]`` when given, else ``DEFAULT_LABELS``), every table
-    and every figure. Each figure is saved as ``<name>.png``.
+    and every figure. Each figure is saved as ``<name>.png``. ``measurement``, when given, is
+    how the run was measured (for example the protocol of a live collection) and goes under
+    ``measurement`` in ``run.json``.
     """
     for name in figures:
         if not _SAFE_NAME.match(name):
@@ -103,7 +106,9 @@ def write_results(
         lines += [f"![{name}]({name}.png)", ""]
     _write_text(out_dir / "report.md", "\n".join(lines))
 
-    runinfo.write_run_json(out_dir, experiment, seeds, command, policy_version, started_at)
+    runinfo.write_run_json(
+        out_dir, experiment, seeds, command, policy_version, started_at, extra=measurement
+    )
     return out_dir
 
 

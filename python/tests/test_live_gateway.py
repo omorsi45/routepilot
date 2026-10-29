@@ -57,7 +57,7 @@ def mock_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         "--listen",
         f"127.0.0.1:{port}",
         "--tokens",
-        "12",
+        "40",  # longer than the answer-only cap, so the cap shows in the completion tokens
         "--ttft-median-ms",
         "20",
     ]
@@ -89,7 +89,12 @@ def write_measure_run(tmp_path: Path) -> Path:
     run = tmp_path / "measure-run"
     run.mkdir()
     models = {
-        c.tag: {"worst_case_request_s": 0.5, "load_s": 0.1}
+        c.tag: {
+            "ttft_ms_mean": 100.0,
+            "tokens_per_s_mean": 960.0,  # 0.5 s for a request that runs to 384 tokens
+            "worst_case_request_s": 0.5,
+            "load_s": 0.1,
+        }
         for c in lc.load_catalog()  # the committed models
     }
     (run / "results.json").write_text(json.dumps({"phase": "measure", "models": models}))
@@ -156,12 +161,15 @@ def test_collect_runs_through_the_gateway_and_writes_the_tables(
     assert results["decisions_missing"] == 0
     assert results["realized_items"] == 6 + 8  # all of gpqa, the sample of mmlupro
     assert results["plan"]["used_mmlupro"] == 8
+    assert results["protocol"] == lc.protocol_for("as-written").as_dict()
+    assert results["plan"]["max_tokens"] == 384
     assert results["ground_truth"]["items_with_disagreeing_records"] == 0
 
     outcomes = pd.read_parquet(live / "outcomes.parquet")
     assert len(outcomes) == 3 * 14
     assert set(outcomes["model"]) == {c.id for c in lc.load_catalog()}
     assert (outcomes["prompt_tokens"] > 0).all() and (outcomes["completion_tokens"] > 0).all()
+    assert (outcomes["completion_tokens"] == 40).all()  # the mock's answer, under the 384 cap
     assert (outcomes["cost_usd"] > 0).all()
     measured = pd.read_parquet(live / "measured.parquet")
     assert len(measured) == len(outcomes)
@@ -214,12 +222,76 @@ def test_collect_stops_at_the_budget_and_reports_the_realized_sample(
     assert len(requests) < 3 * 14
 
 
+def test_collect_with_the_answer_only_protocol_sends_the_system_message_and_the_cap(
+    binary: Path, mock_url: str, no_ollama: None, tmp_path: Path
+) -> None:
+    derived, tar_path = build_inputs(tmp_path)
+    live = tmp_path / "live"
+    measure_run = write_measure_run(tmp_path)
+    only = lc.protocol_for("answer-only")
+    command = ["python", "bench/scripts/live_collect.py", "collect", "--protocol", "answer-only"]
+    out = lc.collect(
+        live,
+        tmp_path / "results",
+        measure_run,
+        budget_minutes=5,
+        n_mmlupro=4,
+        protocol="answer-only",
+        config=mock_config(tmp_path, mock_url),
+        tarball=tar_path,
+        derived=derived,
+        binary=binary,
+        command=command,
+    )
+    results = json.loads((out / "results.json").read_text(encoding="utf-8"))
+    assert results["protocol"] == only.as_dict()
+    assert results["plan"]["max_tokens"] == 16
+    # the plan took the measured speeds at the protocol's cap, not the stored 384-token time
+    first = lc.load_catalog()[0].id
+    assert results["plan"]["worst_case_request_s"][first] == pytest.approx(0.1 + 16 / 960)
+    assert results["decisions_missing"] == 0 and results["realized_items"] == 6 + 4
+
+    outcomes = pd.read_parquet(live / "outcomes.parquet")
+    assert len(outcomes) == 3 * 10
+    assert (outcomes["completion_tokens"] == 16).all()  # the mock stops at max_tokens
+    prompts = pd.read_parquet(live / "prompts.parquet").set_index("item_id")
+    for row in outcomes.itertuples():
+        size = len(prompts.loc[row.item_id, "prompt"].encode()) + len(only.system.encode())
+        assert row.prompt_tokens == (size + 3) // 4 + 8  # the mock counts two messages
+
+    assert lc.load_protocol(live) == only
+    run = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    assert run["measurement"]["protocol"] == only.as_dict()
+    assert run["command"] == command
+    report = (out / "report.md").read_text(encoding="utf-8")
+    assert only.system in report and "answer-only" in report
+    for name in ("results.json", "report.md", "run.json"):
+        text = (out / name).read_text(encoding="utf-8")
+        assert SENTINEL not in text and EM_DASH not in text
+
+    with pytest.raises(ValueError, match="answer-only"):  # resume keeps the collection's protocol
+        lc.collect(
+            live,
+            tmp_path / "results",
+            measure_run,
+            n_mmlupro=4,
+            protocol="as-written",
+            resume=True,
+            config=mock_config(tmp_path, mock_url),
+            tarball=tar_path,
+            derived=derived,
+            binary=binary,
+        )
+
+
 def test_a_demo_serves_auto_on_the_learned_policy_in_nine_rounds(
     binary: Path, mock_url: str, no_ollama: None, tmp_path: Path
 ) -> None:
     prompts, outcomes, measured = synthetic_live()
     live = tmp_path / "live"
     live.mkdir()
+    only = lc.protocol_for("answer-only")
+    lc.write_protocol(live, only)  # the protocol the (invented) collection ran with
     prompts.to_parquet(live / "prompts.parquet", index=False)
     outcomes.to_parquet(live / "outcomes.parquet", index=False)
     measured.to_parquet(live / "measured.parquet", index=False)
@@ -252,6 +324,8 @@ def test_a_demo_serves_auto_on_the_learned_policy_in_nine_rounds(
         binary=binary,
     )
     assert train_out.is_dir()
+    trained = json.loads((train_out / "results.json").read_text(encoding="utf-8"))
+    assert trained["protocol"] == only.as_dict()  # the training report names the data's protocol
 
     out = ld.run_demo(
         live,
@@ -271,6 +345,17 @@ def test_a_demo_serves_auto_on_the_learned_policy_in_nine_rounds(
     ]  # fmt: skip
     assert results["decisions_missing"] == 0
     assert results["requests"] == 27 and results["items_per_round"] == 3
+    # the demo sends the protocol the collection used: its system message and its cap
+    assert results["protocol"] == only.as_dict()
+    sent = [json.loads(line) for line in (live / "demo-raw.jsonl").read_text("utf-8").splitlines()]
+    prompt_of = dict(zip(prompts["item_id"], prompts["prompt"], strict=True))
+    assert len(sent) == 27
+    for record in sent:
+        size = len(prompt_of[record["item_id"]].encode()) + len(only.system.encode())
+        assert record["prompt_tokens"] == (size + 3) // 4 + 8  # the mock counts two messages
+        assert record["completion_tokens"] == 16  # the cap, not the mock's 40
+    run = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    assert run["measurement"]["protocol"] == only.as_dict()
     served = {m for r in results["rounds"] for m in r["mix"]}
     assert served <= {c.id for c in lc.load_catalog()} and served
     for r in results["rounds"]:
