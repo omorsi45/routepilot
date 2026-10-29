@@ -5,26 +5,26 @@
 # Not simulated and not assumed.
 profiles:
 - model: qwen2.5-0.5b
-  ttft_median_ms: 34.0
-  ttft_sigma: 0.219828
+  ttft_median_ms: 35.0
+  ttft_sigma: 0.219859
   tpot_median_ms: 5.0
-  tpot_sigma: 0.096328
+  tpot_sigma: 0.174061
   source: measured
   retrieved: '2026-10-29'
   note: measured through RoutePilot on AMD Ryzen 9 7900X 12-Core Processor (24 threads) and AMD Radeon RX 9060 XT, 2026-10-29
 - model: qwen2.5-1.5b
-  ttft_median_ms: 61.0
-  ttft_sigma: 0.287687
-  tpot_median_ms: 7.0625
-  tpot_sigma: 0.152144
+  ttft_median_ms: 64.0
+  ttft_sigma: 0.264745
+  tpot_median_ms: 5.5
+  tpot_sigma: 0.254962
   source: measured
   retrieved: '2026-10-29'
   note: measured through RoutePilot on AMD Ryzen 9 7900X 12-Core Processor (24 threads) and AMD Radeon RX 9060 XT, 2026-10-29
 - model: qwen2.5-3b
-  ttft_median_ms: 77.0
-  ttft_sigma: 0.305956
-  tpot_median_ms: 9.25
-  tpot_sigma: 0.157287
+  ttft_median_ms: 81.0
+  ttft_sigma: 0.301759
+  tpot_median_ms: 6.0
+  tpot_sigma: 0.277181
   source: measured
   retrieved: '2026-10-29'
   note: measured through RoutePilot on AMD Ryzen 9 7900X 12-Core Processor (24 threads) and AMD Radeon RX 9060 XT, 2026-10-29

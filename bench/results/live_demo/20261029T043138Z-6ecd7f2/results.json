@@ -1,0 +1,535 @@
+{
+  "protocol": {
+    "name": "answer-only-user",
+    "system_message": null,
+    "max_tokens": 16,
+    "user_suffix": "\n\nReply with only the letter of the correct option."
+  },
+  "models": [
+    "qwen2.5-0.5b",
+    "qwen2.5-1.5b",
+    "qwen2.5-3b"
+  ],
+  "artifact_version": "21183f8ab3fe",
+  "policy_config": {
+    "mode": "min_cost",
+    "default_floor": 0,
+    "epsilon": 0,
+    "ood_action": "conservative",
+    "on_infeasible": "best_effort"
+  },
+  "slo": {
+    "tight_ms": 58,
+    "loose_ms": 258,
+    "tight_from": "p50 of qwen2.5-0.5b",
+    "loose_from": "p95 of qwen2.5-3b"
+  },
+  "floors": {
+    "values": [
+      0.0,
+      0.166,
+      0.221
+    ],
+    "source": "calibration items only",
+    "rule": "0, the median and the 90th percentile (rounded down to 3 decimals) of best_L(x), the largest lower bound across the models",
+    "n_calibration_items": 150,
+    "best_lower_bound": {
+      "min": 0.06805557358038451,
+      "median": 0.1663259556132117,
+      "p90": 0.2210594498460135,
+      "max": 0.2210594498460135
+    }
+  },
+  "e2e_ms_p50_p95_train_calib": {
+    "qwen2.5-0.5b": [
+      58.0,
+      133.0
+    ],
+    "qwen2.5-1.5b": [
+      87.0,
+      219.0
+    ],
+    "qwen2.5-3b": [
+      113.5,
+      258.0
+    ]
+  },
+  "items_per_round": 120,
+  "test_items_available": 120,
+  "budget_minutes": 25.0,
+  "rounds": [
+    {
+      "round": "q0-none",
+      "min_quality": 0.0,
+      "slo_kind": "none",
+      "slo_e2e_ms": null,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 120
+      },
+      "relaxed": {
+        "any": 0,
+        "latency": 0,
+        "quality": 0
+      },
+      "success": {
+        "n": 120,
+        "hits": 8,
+        "rate": 0.06666666666666667,
+        "wilson_95": [
+          0.03416530668517112,
+          0.12605130462198694
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 120,
+        "rate": 0.06666666666666667
+      },
+      "floor_met_not_relaxed": true,
+      "e2e_ms": {
+        "p50": 58.0,
+        "p95": 132.0
+      },
+      "ttft_ms": {
+        "p50": 35.5,
+        "p95": 52.099999999999994
+      },
+      "completion_tokens_mean": 6.3,
+      "slo": null
+    },
+    {
+      "round": "q0-tight",
+      "min_quality": 0.0,
+      "slo_kind": "tight",
+      "slo_e2e_ms": 58,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 120
+      },
+      "relaxed": {
+        "any": 120,
+        "latency": 120,
+        "quality": 0
+      },
+      "success": {
+        "n": 120,
+        "hits": 7,
+        "rate": 0.058333333333333334,
+        "wilson_95": [
+          0.028541009844239948,
+          0.11552592091113272
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 0,
+        "rate": null
+      },
+      "floor_met_not_relaxed": null,
+      "e2e_ms": {
+        "p50": 50.0,
+        "p95": 126.0
+      },
+      "ttft_ms": {
+        "p50": 29.0,
+        "p95": 36.0
+      },
+      "completion_tokens_mean": 6.3,
+      "slo": {
+        "ms": 58,
+        "met_share": 0.7416666666666667,
+        "p95_within": false,
+        "not_relaxed_met_share": null
+      }
+    },
+    {
+      "round": "q0-loose",
+      "min_quality": 0.0,
+      "slo_kind": "loose",
+      "slo_e2e_ms": 258,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 120
+      },
+      "relaxed": {
+        "any": 0,
+        "latency": 0,
+        "quality": 0
+      },
+      "success": {
+        "n": 120,
+        "hits": 8,
+        "rate": 0.06666666666666667,
+        "wilson_95": [
+          0.03416530668517112,
+          0.12605130462198694
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 120,
+        "rate": 0.06666666666666667
+      },
+      "floor_met_not_relaxed": true,
+      "e2e_ms": {
+        "p50": 50.0,
+        "p95": 124.0
+      },
+      "ttft_ms": {
+        "p50": 29.0,
+        "p95": 40.0
+      },
+      "completion_tokens_mean": 6.3,
+      "slo": {
+        "ms": 258,
+        "met_share": 1.0,
+        "p95_within": true,
+        "not_relaxed_met_share": 1.0
+      }
+    },
+    {
+      "round": "q0.166-none",
+      "min_quality": 0.166,
+      "slo_kind": "none",
+      "slo_e2e_ms": null,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 42,
+        "qwen2.5-1.5b": 46,
+        "qwen2.5-3b": 32
+      },
+      "relaxed": {
+        "any": 60,
+        "latency": 0,
+        "quality": 60
+      },
+      "success": {
+        "n": 120,
+        "hits": 18,
+        "rate": 0.15,
+        "wilson_95": [
+          0.09703812258991285,
+          0.2246752942350994
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 60,
+        "rate": 0.21666666666666667
+      },
+      "floor_met_not_relaxed": true,
+      "e2e_ms": {
+        "p50": 98.0,
+        "p95": 188.84999999999997
+      },
+      "ttft_ms": {
+        "p50": 66.0,
+        "p95": 146.25
+      },
+      "completion_tokens_mean": 5.375,
+      "slo": null
+    },
+    {
+      "round": "q0.166-tight",
+      "min_quality": 0.166,
+      "slo_kind": "tight",
+      "slo_e2e_ms": 58,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 42,
+        "qwen2.5-1.5b": 46,
+        "qwen2.5-3b": 32
+      },
+      "relaxed": {
+        "any": 120,
+        "latency": 120,
+        "quality": 60
+      },
+      "success": {
+        "n": 120,
+        "hits": 19,
+        "rate": 0.15833333333333333,
+        "wilson_95": [
+          0.10376977324488977,
+          0.23409332413190787
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 0,
+        "rate": null
+      },
+      "floor_met_not_relaxed": null,
+      "e2e_ms": {
+        "p50": 62.0,
+        "p95": 155.25
+      },
+      "ttft_ms": {
+        "p50": 36.0,
+        "p95": 89.0
+      },
+      "completion_tokens_mean": 5.408333333333333,
+      "slo": {
+        "ms": 58,
+        "met_share": 0.44166666666666665,
+        "p95_within": false,
+        "not_relaxed_met_share": null
+      }
+    },
+    {
+      "round": "q0.166-loose",
+      "min_quality": 0.166,
+      "slo_kind": "loose",
+      "slo_e2e_ms": 258,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 42,
+        "qwen2.5-1.5b": 46,
+        "qwen2.5-3b": 32
+      },
+      "relaxed": {
+        "any": 75,
+        "latency": 75,
+        "quality": 60
+      },
+      "success": {
+        "n": 120,
+        "hits": 19,
+        "rate": 0.15833333333333333,
+        "wilson_95": [
+          0.10376977324488977,
+          0.23409332413190787
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 45,
+        "rate": 0.24444444444444444
+      },
+      "floor_met_not_relaxed": true,
+      "e2e_ms": {
+        "p50": 54.5,
+        "p95": 154.05
+      },
+      "ttft_ms": {
+        "p50": 33.0,
+        "p95": 83.24999999999999
+      },
+      "completion_tokens_mean": 5.441666666666666,
+      "slo": {
+        "ms": 258,
+        "met_share": 1.0,
+        "p95_within": true,
+        "not_relaxed_met_share": 1.0
+      }
+    },
+    {
+      "round": "q0.221-none",
+      "min_quality": 0.221,
+      "slo_kind": "none",
+      "slo_e2e_ms": null,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 42,
+        "qwen2.5-1.5b": 30,
+        "qwen2.5-3b": 48
+      },
+      "relaxed": {
+        "any": 99,
+        "latency": 0,
+        "quality": 99
+      },
+      "success": {
+        "n": 120,
+        "hits": 17,
+        "rate": 0.14166666666666666,
+        "wilson_95": [
+          0.09036879071257839,
+          0.21519494556064842
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 21,
+        "rate": 0.09523809523809523
+      },
+      "floor_met_not_relaxed": false,
+      "e2e_ms": {
+        "p50": 65.5,
+        "p95": 172.39999999999998
+      },
+      "ttft_ms": {
+        "p50": 34.0,
+        "p95": 118.59999999999997
+      },
+      "completion_tokens_mean": 5.416666666666667,
+      "slo": null
+    },
+    {
+      "round": "q0.221-tight",
+      "min_quality": 0.221,
+      "slo_kind": "tight",
+      "slo_e2e_ms": 58,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 42,
+        "qwen2.5-1.5b": 30,
+        "qwen2.5-3b": 48
+      },
+      "relaxed": {
+        "any": 120,
+        "latency": 120,
+        "quality": 99
+      },
+      "success": {
+        "n": 120,
+        "hits": 17,
+        "rate": 0.14166666666666666,
+        "wilson_95": [
+          0.09036879071257839,
+          0.21519494556064842
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 0,
+        "rate": null
+      },
+      "floor_met_not_relaxed": null,
+      "e2e_ms": {
+        "p50": 62.0,
+        "p95": 127.49999999999997
+      },
+      "ttft_ms": {
+        "p50": 35.5,
+        "p95": 85.0
+      },
+      "completion_tokens_mean": 5.383333333333334,
+      "slo": {
+        "ms": 58,
+        "met_share": 0.425,
+        "p95_within": false,
+        "not_relaxed_met_share": null
+      }
+    },
+    {
+      "round": "q0.221-loose",
+      "min_quality": 0.221,
+      "slo_kind": "loose",
+      "slo_e2e_ms": 258,
+      "n": 120,
+      "ok": 120,
+      "failed": 0,
+      "mix": {
+        "qwen2.5-0.5b": 42,
+        "qwen2.5-1.5b": 30,
+        "qwen2.5-3b": 48
+      },
+      "relaxed": {
+        "any": 118,
+        "latency": 118,
+        "quality": 99
+      },
+      "success": {
+        "n": 120,
+        "hits": 17,
+        "rate": 0.14166666666666666,
+        "wilson_95": [
+          0.09036879071257839,
+          0.21519494556064842
+        ]
+      },
+      "success_not_relaxed": {
+        "n": 2,
+        "rate": 0.0
+      },
+      "floor_met_not_relaxed": false,
+      "e2e_ms": {
+        "p50": 61.0,
+        "p95": 122.84999999999995
+      },
+      "ttft_ms": {
+        "p50": 36.0,
+        "p95": 86.05
+      },
+      "completion_tokens_mean": 5.383333333333334,
+      "slo": {
+        "ms": 258,
+        "met_share": 1.0,
+        "p95_within": true,
+        "not_relaxed_met_share": 1.0
+      }
+    }
+  ],
+  "requests": 1080,
+  "served_differs_from_chosen": 0,
+  "decisions_missing": 0,
+  "warmups": [
+    {
+      "model": "qwen2.5-0.5b",
+      "ok": true,
+      "wall_ms": 61.77649999881396
+    },
+    {
+      "model": "qwen2.5-1.5b",
+      "ok": true,
+      "wall_ms": 46.67499999777647
+    },
+    {
+      "model": "qwen2.5-3b",
+      "ok": true,
+      "wall_ms": 72.92679999954998
+    }
+  ],
+  "estimator_bound_ms_by_round": {
+    "q0-tight": {
+      "qwen2.5-0.5b": 162.2046204328437,
+      "qwen2.5-1.5b": 199.3601024241334,
+      "qwen2.5-3b": 223.80165714916592
+    },
+    "q0-loose": {
+      "qwen2.5-0.5b": 158.47349687793155,
+      "qwen2.5-1.5b": 199.3601024241334,
+      "qwen2.5-3b": 223.80165714916592
+    },
+    "q0.166-tight": {
+      "qwen2.5-0.5b": 155.41862773362652,
+      "qwen2.5-1.5b": 205.84557509965833,
+      "qwen2.5-3b": 315.7775812135029
+    },
+    "q0.166-loose": {
+      "qwen2.5-0.5b": 155.41862773362652,
+      "qwen2.5-1.5b": 204.4599001606863,
+      "qwen2.5-3b": 342.3637397169034
+    },
+    "q0.221-tight": {
+      "qwen2.5-0.5b": 149.30321857731886,
+      "qwen2.5-1.5b": 193.0945427366705,
+      "qwen2.5-3b": 307.7899965286647
+    },
+    "q0.221-loose": {
+      "qwen2.5-0.5b": 149.30321857731886,
+      "qwen2.5-1.5b": 191.87658563474815,
+      "qwen2.5-3b": 290.70132806283334
+    }
+  },
+  "wall_time_s": 106.24662280000484,
+  "labels": [
+    "latency is measured through RoutePilot on this machine (the decision log), never simulated",
+    "prices are an ASSUMPTION (Ruling V1-R42); the policy chooses on its own predictions",
+    "the tight SLO is the fastest model's measured p50 end-to-end time and the loose SLO the slowest model's measured p95, both over the train and calibration requests",
+    "the quality floors are 0, the median and the 90th percentile of the best lower bound over the calibration items (rounded down to 3 decimals), the same floors the live replay used",
+    "the gateway's online latency estimator starts from the measured profiles and learns from the demo's own traffic, so later rounds are not independent of earlier ones",
+    "realized success is graded against the release's ground truth; a round has a few dozen items, so its intervals are wide",
+    "no prompt text and no model output is in this report"
+  ]
+}
