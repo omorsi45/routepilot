@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
@@ -402,10 +403,35 @@ func TestStreamClientDisconnectCancelsUpstream(t *testing.T) {
 }
 
 func TestStreamBackpressure(t *testing.T) {
-	// The mock caps a stream at 100000 tokens, so that is the total here.
+	// The mock caps a stream at 100000 tokens, so that is the total here. The mock also stops
+	// at the request's max_tokens, and the gateway forwards the model's output budget when
+	// the client sets none, so the request asks for the whole stream explicitly: with the
+	// default budget of 4096 the stream would end, not stall, before the buffers are full.
+	//
+	// Every socket on the path (mock to gateway, gateway to client) gets small, explicit
+	// kernel buffers. An explicit size also turns off Linux's buffer autotuning, which
+	// otherwise keeps widening a stalled connection and lets the producer creep on, so the
+	// only buffering left to measure is the gateway's.
 	const total = 100000
-	e := newMockEnv(t, cfgOpts{upstreamA: fmt.Sprintf("m;tokens=%d;tpot_ms=0", total)})
-	resp := postStream(t, newStreamClient(), startGateway(t, e), streamReqBody("model-a", false))
+	m := mock.NewHandler(mock.Config{})
+	up := cappedServer(t, m)
+	cfg := buildConfig(t, cfgOpts{
+		baseURL:    up.URL + "/v1",
+		upstreamA:  fmt.Sprintf("m;tokens=%d;tpot_ms=0", total),
+		maxOutputA: total,
+	})
+	prov := openaicompat.New(cfg.Providers[0], "", &http.Client{Transport: cappedTransport()})
+	gw, err := New(cfg, map[string]provider.Provider{"mockp": prov}, Options{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	e := &env{gw: gw, mock: m}
+	tr := cappedTransport()
+	client := &streamClient{Client: &http.Client{Transport: tr}, tr: tr}
+	body := fmt.Sprintf(`{"model":"model-a","stream":true,"max_tokens":%d,"messages":[{"role":"user","content":"hi"}]}`, total)
+	resp := postStream(t, client, cappedServer(t, gw.Handler()).URL, body)
 	br := bufio.NewReader(resp.Body)
 	if _, err := readEvent(br); err != nil {
 		t.Fatalf("read first event: %v", err)
@@ -414,16 +440,16 @@ func TestStreamBackpressure(t *testing.T) {
 	// The client now stops reading. Socket buffers fill and the gateway must
 	// stop pulling from the upstream instead of buffering without bound. How
 	// long the buffers take to fill depends on machine load, so wait until the
-	// producer has stalled: two samples 300ms apart are equal. Under -race on a
-	// two-core CI runner filling the autotuned loopback buffers took about 5s
-	// (the stall landed exactly at an earlier 5s limit), so allow 20s.
-	stalled := waitForStall(t, e, 100*time.Millisecond, 300*time.Millisecond, 20*time.Second)
+	// producer has stalled: two samples 1s apart are equal (a shorter window let a
+	// busy CI runner report a pause as a stall). Under -race on a two-core runner
+	// filling the buffers took about 5s, so allow 20s.
+	stalled := waitForStall(t, e, 100*time.Millisecond, time.Second, 20*time.Second)
 
 	// Then it must stay stalled while the client keeps not reading.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(time.Second)
 	after := e.mock.Stats().EventsWritten
 
-	t.Logf("events written: %d when stalled, %d 500ms later, of %d", stalled, after, total)
+	t.Logf("events written: %d when stalled, %d 1s later, of %d", stalled, after, total)
 	if after != stalled {
 		t.Errorf("upstream kept writing after it stalled: %d -> %d", stalled, after)
 	}
@@ -433,6 +459,51 @@ func TestStreamBackpressure(t *testing.T) {
 
 	_ = resp.Body.Close()
 	waitFor(t, 2*time.Second, "upstream canceled", func() bool { return e.mock.Stats().Canceled == 1 })
+}
+
+// smallSocketBuffer is the kernel send and receive buffer size of a capped connection.
+const smallSocketBuffer = 64 << 10
+
+// capBuffers gives a TCP connection small, explicit kernel buffers.
+func capBuffers(c net.Conn) net.Conn {
+	if tc, ok := c.(*net.TCPConn); ok {
+		_ = tc.SetReadBuffer(smallSocketBuffer)
+		_ = tc.SetWriteBuffer(smallSocketBuffer)
+	}
+	return c
+}
+
+// cappedListener caps the buffers of every connection it accepts.
+type cappedListener struct{ net.Listener }
+
+func (l cappedListener) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return capBuffers(c), nil
+}
+
+// cappedServer serves h on loopback with capped connection buffers.
+func cappedServer(t *testing.T, h http.Handler) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewUnstartedServer(h)
+	srv.Listener = cappedListener{srv.Listener}
+	srv.Start()
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// cappedTransport dials connections with capped buffers.
+func cappedTransport() *http.Transport {
+	var d net.Dialer
+	return &http.Transport{DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+		c, err := d.DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, err
+		}
+		return capBuffers(c), nil
+	}}
 }
 
 // waitForStall polls the mock's written-event count every interval until the

@@ -46,6 +46,9 @@ type cfgOpts struct {
 	serverMax     int
 	ttftMs        int // provider ttft_timeout_ms; 0 keeps the config default
 	idleMs        int // provider idle_timeout_ms; 0 keeps the config default
+	// maxOutputA sets model-a's max_output_tokens (and a context window that fits it), so a
+	// request can ask for a longer completion than the default 4096; 0 keeps the defaults.
+	maxOutputA int
 }
 
 // buildConfig returns a parsed config with two models and two tenants:
@@ -75,7 +78,7 @@ func buildConfig(t *testing.T, o cfgOpts) *config.Config {
     base_url: %q
 %smodels:
   - id: model-a
-    deployments:
+%s    deployments:
       - name: dep-a
         provider: mockp
         upstream_model: %q
@@ -92,12 +95,20 @@ tenants:
   - id: tenant-b
     api_key_sha256: %s
     allowed_models: ["model-a"]
-`, o.baseURL, providerTimeouts(o), o.upstreamA, keyHash(keyA), o.tenantAMaxMs, keyHash(keyB))
+`, o.baseURL, providerTimeouts(o), modelALimits(o), o.upstreamA, keyHash(keyA), o.tenantAMaxMs, keyHash(keyB))
 	cfg, err := config.Parse([]byte(sb.String()))
 	if err != nil {
 		t.Fatalf("parse test config: %v", err)
 	}
 	return cfg
+}
+
+// modelALimits renders model-a's optional output limit and a context window that fits it.
+func modelALimits(o cfgOpts) string {
+	if o.maxOutputA <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("    max_output_tokens: %d\n    context_window: %d\n", o.maxOutputA, 2*o.maxOutputA)
 }
 
 // providerTimeouts renders the optional provider timeout lines.
