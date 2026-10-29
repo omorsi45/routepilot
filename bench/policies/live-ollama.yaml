@@ -1,0 +1,11 @@
+# Learned routing policy for the live local experiment (plan Task 33).
+#
+# min_cost: pick the cheapest model whose quality lower bound clears the floor. The floor
+# comes from the request (routepilot.min_quality) or the tenant; with none the default floor 0
+# lets the cheapest model answer. A request whose floor no model clears is relaxed
+# (best_effort) and answered by the model with the best lower bound.
+mode: min_cost
+default_floor: 0
+epsilon: 0
+ood_action: conservative
+on_infeasible: best_effort

@@ -1,0 +1,243 @@
+{
+  "phase": "collect",
+  "measure_run": "20261029T015819Z-00deb40",
+  "protocol": {
+    "name": "answer-only",
+    "system_message": "Reply with only the letter of the correct option.",
+    "max_tokens": 16
+  },
+  "models": [
+    {
+      "id": "qwen2.5-0.5b",
+      "tag": "qwen2.5:0.5b",
+      "params_b": 0.5
+    },
+    {
+      "id": "qwen2.5-1.5b",
+      "tag": "qwen2.5:1.5b",
+      "params_b": 1.5
+    },
+    {
+      "id": "qwen2.5-3b",
+      "tag": "qwen2.5:3b",
+      "params_b": 3.0
+    }
+  ],
+  "assumed_prices_usd_per_mtok": {
+    "qwen2.5-0.5b": {
+      "in": 0.01,
+      "out": 0.03
+    },
+    "qwen2.5-1.5b": {
+      "in": 0.03,
+      "out": 0.09
+    },
+    "qwen2.5-3b": {
+      "in": 0.06,
+      "out": 0.18
+    }
+  },
+  "plan": {
+    "budget_minutes": 30.0,
+    "cap": 600,
+    "worst_case_request_s": {
+      "qwen2.5-0.5b": 0.12826847468144348,
+      "qwen2.5-1.5b": 0.21546173013992065,
+      "qwen2.5-3b": 0.26068591377607486
+    },
+    "planned_mmlupro": 600,
+    "used_mmlupro": 600,
+    "gpqa_items": 198,
+    "max_tokens": 16,
+    "seed": 0
+  },
+  "stopped_by_budget": false,
+  "request_time_s": 329.8674013999407,
+  "wall_time_s": 351.8966775000008,
+  "warmups": [
+    {
+      "model": "qwen2.5-0.5b",
+      "ok": true,
+      "wall_ms": 78.912400000263
+    },
+    {
+      "model": "qwen2.5-1.5b",
+      "ok": true,
+      "wall_ms": 69.58550000126706
+    },
+    {
+      "model": "qwen2.5-3b",
+      "ok": true,
+      "wall_ms": 77.64619999943534
+    }
+  ],
+  "decisions_missing": 0,
+  "ollama_loaded": {
+    "qwen2.5-0.5b": [
+      {
+        "name": "qwen2.5:0.5b",
+        "size_bytes": 481810185,
+        "size_vram_bytes": 481810185,
+        "context_length": 4096
+      }
+    ],
+    "qwen2.5-1.5b": [
+      {
+        "name": "qwen2.5:1.5b",
+        "size_bytes": 1166236712,
+        "size_vram_bytes": 1166236712,
+        "context_length": 4096
+      }
+    ],
+    "qwen2.5-3b": [
+      {
+        "name": "qwen2.5:3b",
+        "size_bytes": 2159374499,
+        "size_vram_bytes": 2159374499,
+        "context_length": 4096
+      }
+    ]
+  },
+  "ground_truth": {
+    "items": 798,
+    "items_with_disagreeing_records": 0,
+    "records_voting": 16524,
+    "records_with_another_prompt": 0
+  },
+  "per_model": {
+    "qwen2.5-0.5b": {
+      "tag": "qwen2.5:0.5b",
+      "requests": 798,
+      "ok": 798,
+      "failed": 0,
+      "failure_kinds": {},
+      "in_outcomes": 798,
+      "accuracy": 0.10651629072681704,
+      "accuracy_by_dataset": {
+        "gpqa": {
+          "n": 198,
+          "accuracy": 0.030303030303030304
+        },
+        "mmlupro": {
+          "n": 600,
+          "accuracy": 0.13166666666666665
+        }
+      },
+      "graded_by": {
+        "cue": 541,
+        "none": 206,
+        "last_letter": 51
+      },
+      "hit_max_tokens": 223,
+      "prompt_tokens_mean": 269.5563909774436,
+      "prompt_tokens_max": 2834,
+      "completion_tokens_mean": 7.4223057644110275,
+      "completion_tokens_max": 16,
+      "total_tokens_max": 2836,
+      "mean_cost_usd_assumed": 2.918233082706767e-06,
+      "ttft_ms": {
+        "mean": 36.796992481203006,
+        "p50": 34.0,
+        "p95": 51.0
+      },
+      "e2e_ms": {
+        "mean": 77.65789473684211,
+        "p50": 60.0,
+        "p95": 135.0
+      }
+    },
+    "qwen2.5-1.5b": {
+      "tag": "qwen2.5:1.5b",
+      "requests": 798,
+      "ok": 798,
+      "failed": 0,
+      "failure_kinds": {},
+      "in_outcomes": 798,
+      "accuracy": 0.16666666666666666,
+      "accuracy_by_dataset": {
+        "gpqa": {
+          "n": 198,
+          "accuracy": 0.08585858585858586
+        },
+        "mmlupro": {
+          "n": 600,
+          "accuracy": 0.19333333333333333
+        }
+      },
+      "graded_by": {
+        "cue": 577,
+        "none": 202,
+        "last_letter": 19
+      },
+      "hit_max_tokens": 202,
+      "prompt_tokens_mean": 269.5563909774436,
+      "prompt_tokens_max": 2834,
+      "completion_tokens_mean": 7.072681704260652,
+      "completion_tokens_max": 16,
+      "total_tokens_max": 2838,
+      "mean_cost_usd_assumed": 8.723233082706765e-06,
+      "ttft_ms": {
+        "mean": 66.52130325814537,
+        "p50": 61.0,
+        "p95": 100.14999999999998
+      },
+      "e2e_ms": {
+        "mean": 120.43734335839599,
+        "p50": 100.5,
+        "p95": 221.14999999999998
+      }
+    },
+    "qwen2.5-3b": {
+      "tag": "qwen2.5:3b",
+      "requests": 798,
+      "ok": 798,
+      "failed": 0,
+      "failure_kinds": {},
+      "in_outcomes": 798,
+      "accuracy": 0.19674185463659147,
+      "accuracy_by_dataset": {
+        "gpqa": {
+          "n": 198,
+          "accuracy": 0.045454545454545456
+        },
+        "mmlupro": {
+          "n": 600,
+          "accuracy": 0.24666666666666667
+        }
+      },
+      "graded_by": {
+        "cue": 413,
+        "none": 295,
+        "last_letter": 90
+      },
+      "hit_max_tokens": 336,
+      "prompt_tokens_mean": 269.5563909774436,
+      "prompt_tokens_max": 2834,
+      "completion_tokens_mean": 9.43734335839599,
+      "completion_tokens_max": 16,
+      "total_tokens_max": 2840,
+      "mean_cost_usd_assumed": 1.7872105263157895e-05,
+      "ttft_ms": {
+        "mean": 86.17418546365914,
+        "p50": 77.0,
+        "p95": 141.14999999999998
+      },
+      "e2e_ms": {
+        "mean": 176.17794486215539,
+        "p50": 165.5,
+        "p95": 277.29999999999995
+      }
+    }
+  },
+  "realized_items": 798,
+  "realized_by_dataset": {
+    "gpqa": 198,
+    "mmlupro": 600
+  },
+  "labels": [
+    "latency and token counts are measured on this machine through RoutePilot (decision log)",
+    "prices are an ASSUMPTION (Ruling V1-R42): proportional to the parameter count, 0.02 USD per million input tokens and 0.06 per million output tokens per billion parameters",
+    "answers are graded by the last standalone option letter after an answer cue, else the last standalone option letter, against the ground truth of the release",
+    "no prompt text and no model output is in this report"
+  ]
+}
