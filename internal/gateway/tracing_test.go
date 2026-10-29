@@ -301,7 +301,10 @@ func TestStreamSpans(t *testing.T) {
 	a := tr.only("upstream.attempt")
 	wantStr(t, a, "rp.outcome", "ok")
 	wantInt(t, a, "rp.attempt", 1)
-	if !a.EndTime.After(a.StartTime) || tr.root.EndTime.Before(a.EndTime) {
+	// The attempt must lie inside the root span. A clock as coarse as Windows' 0.5 ms tick can
+	// give every one of these timestamps the same value, so equal times are allowed; what
+	// must hold is the order.
+	if a.EndTime.Before(a.StartTime) || a.StartTime.Before(tr.root.StartTime) || tr.root.EndTime.Before(a.EndTime) {
 		t.Errorf("attempt %v..%v is not inside the root %v..%v", a.StartTime, a.EndTime, tr.root.StartTime, tr.root.EndTime)
 	}
 	wantOnlyAllowedAttributes(t, exp)
