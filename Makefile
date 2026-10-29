@@ -81,6 +81,10 @@ bench-smoke: ## build the binary and run the replay gate on the synthetic fixtur
 		--input testdata/bench/gate/items.jsonl \
 		--baseline testdata/bench/gate/baseline.json
 
+.PHONY: demo
+demo: ## build and run the demo: routing headers, relaxation, a pinned model, a failover, a budget 429 and metrics (no dataset, Docker or keys)
+	bash scripts/demo.sh
+
 .PHONY: verify
 verify: check test test-race py-check ## everything the CI lane runs
 

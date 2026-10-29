@@ -1,0 +1,115 @@
+# RoutePilot demo config: the gateway with the learned live-ollama policy over the mock upstream.
+# scripts/demo.sh (make demo) builds the two binaries, starts rp-mock and then
+# "routepilot serve --config examples/config.demo.yaml", and walks through what the gateway does.
+#
+# The routing DECISIONS come from a policy trained on real local Ollama runs of three Qwen2.5
+# models; the ANSWERS come from the mock, so the demo shows routing, not answer quality.
+#
+# Relative paths resolve against this file's directory. The ports below must match scripts/demo.sh.
+# The gateway speaks plaintext HTTP, so this example binds loopback only.
+server:
+  listen: "127.0.0.1:18780"
+  shutdown_grace_ms: 2000
+  # Measured time to first token and time per output token of the three models, the policy's
+  # priors for its latency estimates.
+  latency_profiles: ../bench/latency/live-ollama.yaml
+
+providers:
+  - name: mock
+    type: openaicompat
+    base_url: http://127.0.0.1:18781/v1
+
+# The three model IDs are the ones the artifact was trained on. Prices are an ASSUMPTION
+# (Ruling V1-R42), not the price of anything: proportional to the parameter count, 0.02 USD per
+# million input tokens and 0.06 per million output tokens for each billion parameters, as in
+# bench/configs/live-ollama.yaml.
+models:
+  - id: qwen2.5-0.5b
+    rank: 1
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.01"
+    output_price_per_mtok: "0.03"
+    deployments:
+      - name: qwen2.5-0.5b-mock
+        provider: mock
+        upstream_model: qwen2.5-0.5b
+  - id: qwen2.5-1.5b
+    rank: 2
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.03"
+    output_price_per_mtok: "0.09"
+    deployments:
+      - name: qwen2.5-1.5b-mock
+        provider: mock
+        upstream_model: qwen2.5-1.5b
+  - id: qwen2.5-3b
+    rank: 3
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.06"
+    output_price_per_mtok: "0.18"
+    deployments:
+      - name: qwen2.5-3b-mock
+        provider: mock
+        upstream_model: qwen2.5-3b
+  # The failover demo. The mock reads "fail=http500" after the semicolon as an instruction to
+  # answer with an HTTP 500, so the first deployment always fails and the second answers. The
+  # model is not in the policy artifact, so "auto" never picks it; a client asks for it by name.
+  - id: demo-failover
+    rank: 4
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.06"
+    output_price_per_mtok: "0.18"
+    deployments:
+      - name: demo-failover-a
+        provider: mock
+        upstream_model: "mock;fail=http500"
+      - name: demo-failover-b
+        provider: mock
+        upstream_model: mock
+
+routing:
+  policy: learned
+
+policies:
+  root: ../policies
+  stable:
+    name: live-ollama
+    version: 21183f8ab3fe
+    config: ../bench/policies/live-ollama.yaml
+
+# Every routing decision, with a prompt hash prefix and never prompt text. Under bench/scratch,
+# which git ignores.
+decision_log:
+  path: ../bench/scratch/demo/decisions.jsonl
+
+tenants:
+  # Only the SHA-256 of a client key is stored, never the key itself.
+  # Compute a hash with:  printf %s your-key | shasum -a 256
+  # This hash is for the fake local key "demo-key-local".
+  - id: demo
+    api_key_sha256: 8b98693f57d481139ed5b92daf7ba8b09e22e380fcd1bf02532c777ac80aa940
+    allowed_models: ["*"]
+    rpm: 600
+    tpm: 200000
+    max_concurrency: 32
+    budget_usd: "1"
+    budget_period: total
+
+  # A tenant with a tiny budget, to show the 429 a tenant gets when its budget cannot cover
+  # another request. Each request reserves its worst case (at most 64 output tokens here), and
+  # the budget is spent as the requests finish.
+  # This hash is for the fake local key "demo-key-tight".
+  - id: demo-tight
+    api_key_sha256: bcf32485dd02e8b4f03c75d2a9826b19745d9f0ddf2eb13ea68a0147bb71e261
+    allowed_models: ["*"]
+    default_max_tokens: 64
+    budget_usd: "0.00001"
+    budget_period: total
