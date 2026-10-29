@@ -23,33 +23,32 @@ import (
 )
 
 // recordingStore is an accounting.Store that keeps the rows it is given. It can fail, can
-// block until its context ends, and notes what it saw of the context it was called with.
+// block until its context ends or its unblock channel is closed, and notes what it saw of the
+// context it was called with.
 type recordingStore struct {
-	mu        sync.Mutex
-	rows      []accounting.UsageRow
-	fail      error
-	block     bool
-	ctxErrs   []error
-	deadlines []time.Duration // time left to each call's deadline, 0 when it had none
-	onRecord  func()
+	mu       sync.Mutex
+	rows     []accounting.UsageRow
+	fail     error
+	block    bool
+	unblock  chan struct{} // ends a block when closed; nil blocks until the context ends
+	ctxErrs  []error
+	onRecord func()
 }
 
 func (r *recordingStore) RecordAttempt(ctx context.Context, row accounting.UsageRow) error {
 	r.mu.Lock()
 	r.ctxErrs = append(r.ctxErrs, ctx.Err())
-	var left time.Duration
-	if d, ok := ctx.Deadline(); ok {
-		left = time.Until(d)
-	}
-	r.deadlines = append(r.deadlines, left)
 	fail, block, hook := r.fail, r.block, r.onRecord
 	r.mu.Unlock()
 	if hook != nil {
 		hook()
 	}
 	if block {
-		<-ctx.Done()
-		return ctx.Err()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-r.unblock:
+		}
 	}
 	if fail != nil {
 		return fail
@@ -57,6 +56,18 @@ func (r *recordingStore) RecordAttempt(ctx context.Context, row accounting.Usage
 	r.mu.Lock()
 	r.rows = append(r.rows, row)
 	r.mu.Unlock()
+	return nil
+}
+
+// RecordAttempts takes a batch the way the batcher sends it: row by row through RecordAttempt,
+// so a failing, blocking or recording store behaves the same for a batch as for a row. The
+// first error ends the batch.
+func (r *recordingStore) RecordAttempts(ctx context.Context, rows []accounting.UsageRow) error {
+	for _, row := range rows {
+		if err := r.RecordAttempt(ctx, row); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -90,13 +101,14 @@ func TestGatewayWritesOneRowPerAttempt(t *testing.T) {
 		models: failoverModels(), policy: config.PolicyCheapest, upstream: upstream503For("uc"), clock: steppingClock(),
 	})
 	store := &recordingStore{}
-	e.gw.usageLedger = store
+	useLedger(t, e.gw, store)
 
 	rec := e.post(chatBody("auto", "hi"))
 
 	if rec.Code != http.StatusOK || modelOf(t, rec) != "pricey" {
 		t.Fatalf("status %d model %q, want 200 from pricey: %s", rec.Code, modelOf(t, rec), rec.Body.String())
 	}
+	flushUsage(t, e.gw)
 	rows := store.got()
 	if len(rows) != 2 {
 		t.Fatalf("got %d rows, want one per attempt (2): %+v", len(rows), rows)
@@ -133,12 +145,13 @@ func TestGatewayWritesOneRowPerAttempt(t *testing.T) {
 func TestGatewayWritesNothingWithoutAnAttempt(t *testing.T) {
 	e := newAttemptEnv(t, attemptOpts{models: failoverModels(), policy: config.PolicyCheapest})
 	store := &recordingStore{}
-	e.gw.usageLedger = store
+	useLedger(t, e.gw, store)
 
 	do(e.gw.Handler(), http.MethodPost, "/v1/chat/completions", "test-key-nobody", chatBody("auto", "hi"))
 	e.post(chatBody("no-such-model", "hi"))
 	e.post(`{"model":`)
 
+	flushUsage(t, e.gw)
 	if rows := store.got(); len(rows) != 0 {
 		t.Errorf("rows = %+v, want none", rows)
 	}
@@ -154,13 +167,14 @@ func TestGatewayRowsForStreams(t *testing.T) {
 	t.Run("answered", func(t *testing.T) {
 		e := newAttemptEnv(t, attemptOpts{models: []modelSpec{{id: "m", in: "1", out: "2", deps: []depSpec{{"m-a", "ua;tokens=2"}}}}, clock: steppingClock()})
 		store := &recordingStore{}
-		e.gw.usageLedger = store
+		useLedger(t, e.gw, store)
 
 		rec := e.post(streamBody("m"))
 
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "[DONE]") {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
+		flushUsage(t, e.gw)
 		rows := store.got()
 		if len(rows) != 1 {
 			t.Fatalf("rows = %+v, want 1", rows)
@@ -180,13 +194,14 @@ func TestGatewayRowsForStreams(t *testing.T) {
 			{id: "m", deps: []depSpec{{"dep-a", "ua;fail=http500"}, {"dep-b", "ub"}}},
 		}})
 		store := &recordingStore{}
-		e.gw.usageLedger = store
+		useLedger(t, e.gw, store)
 
 		rec := e.post(streamBody("m"))
 
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
+		flushUsage(t, e.gw)
 		rows := store.got()
 		if len(rows) != 2 || rows[0].Deployment != "dep-a" || rows[0].Status != "http_500" || rows[1].Deployment != "dep-b" || rows[1].Status != "ok" {
 			t.Fatalf("rows = %+v, want dep-a http_500 then dep-b ok", rows)
@@ -199,10 +214,11 @@ func TestGatewayRowsForStreams(t *testing.T) {
 	t.Run("dies after the commit", func(t *testing.T) {
 		e := newAttemptEnv(t, attemptOpts{models: []modelSpec{{id: "m", in: "1", out: "2", deps: []depSpec{{"m-a", "ua;fail=midstream;fail_after=2"}}}}})
 		store := &recordingStore{}
-		e.gw.usageLedger = store
+		useLedger(t, e.gw, store)
 
 		e.post(streamBody("m"))
 
+		flushUsage(t, e.gw)
 		rows := store.got()
 		if len(rows) != 1 {
 			t.Fatalf("rows = %+v, want 1", rows)
@@ -218,13 +234,14 @@ func TestGatewayRowsForStreams(t *testing.T) {
 func TestGatewayRowCostEstimateIsTheLearnedExpectedCost(t *testing.T) {
 	e := newLearnedEnv(t, learnedOpts{})
 	store := &recordingStore{}
-	e.gw.usageLedger = store
+	useLedger(t, e.gw, store)
 
 	rec := e.post(chatBody("auto", learnedPrompt), nil)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
+	flushUsage(t, e.gw)
 	rows := store.got()
 	if len(rows) != 1 {
 		t.Fatalf("rows = %+v, want 1", rows)
@@ -272,7 +289,7 @@ func TestGatewayRowWhenTheClientLeaves(t *testing.T) {
 	}}
 	gw, _ := newFakeBudgetGateway(t, budget, p, nil)
 	store := &recordingStore{}
-	gw.usageLedger = store
+	useLedger(t, gw, store)
 	srv := httptest.NewServer(gw.Handler())
 	t.Cleanup(srv.Close)
 
@@ -322,12 +339,13 @@ func TestGatewayRowWhenAClientWriteFails(t *testing.T) {
 	}}
 	gw, _ := newFakeBudgetGateway(t, 1_000_000_000, p, nil)
 	store := &recordingStore{}
-	gw.usageLedger = store
+	useLedger(t, gw, store)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(streamReqBody("model-a", false)))
 	req.Header.Set("Authorization", "Bearer "+keyA)
 	gw.Handler().ServeHTTP(&brokenWriter{ResponseRecorder: httptest.NewRecorder(), okWrites: 1}, req)
 
+	flushUsage(t, gw)
 	rows := store.got()
 	if len(rows) != 1 || rows[0].Status != "canceled" || !rows[0].UsageEstimated {
 		t.Fatalf("rows = %+v, want one canceled, estimated row", rows)
@@ -340,7 +358,7 @@ func TestGatewayLedgerFailureNeverFailsTheRequest(t *testing.T) {
 	e := newAttemptEnv(t, attemptOpts{
 		models: failoverModels(), policy: config.PolicyCheapest, upstream: upstream503For("uc"),
 	})
-	e.gw.usageLedger = &recordingStore{fail: errors.New("disk is full")}
+	useLedger(t, e.gw, &recordingStore{fail: errors.New("disk is full")})
 	const secret = "sentinel-prompt-do-not-log"
 
 	rec := e.post(chatBody("auto", secret))
@@ -348,6 +366,7 @@ func TestGatewayLedgerFailureNeverFailsTheRequest(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d, want 200: %s", rec.Code, rec.Body.String())
 	}
+	flushUsage(t, e.gw)
 	if n := e.gw.AccountingErrors(); n != 2 {
 		t.Errorf("AccountingErrors = %d, want 2, one per row that was lost", n)
 	}
@@ -365,30 +384,60 @@ func TestGatewayLedgerFailureNeverFailsTheRequest(t *testing.T) {
 	}
 }
 
-// TestGatewayLedgerWriteIsBoundedTo250ms: a store that never answers delays the response by
-// at most the bound, and the lost row is counted.
-func TestGatewayLedgerWriteIsBoundedTo250ms(t *testing.T) {
+// TestGatewayResponseDoesNotWaitForTheLedger (Ruling V1-R38): a store that never answers
+// delays no response, because the rows are queued and the request returns at once. Nothing is
+// lost while the queue has room, and the rows are written when the store recovers.
+func TestGatewayResponseDoesNotWaitForTheLedger(t *testing.T) {
 	e := newAttemptEnv(t, attemptOpts{models: []modelSpec{{id: "m", deps: []depSpec{{"m-a", "ua"}}}}})
-	store := &recordingStore{block: true}
-	e.gw.usageLedger = store
+	store := &recordingStore{block: true, unblock: make(chan struct{})}
+	useLedger(t, e.gw, store)
+	var release sync.Once
+	t.Cleanup(func() { release.Do(func() { close(store.unblock) }) }) // runs before the batcher is closed
 
+	const requests = 20 // at the old 250 ms bound these would take 5 s
 	start := time.Now()
-	rec := e.post(chatBody("m", "hi"))
-	took := time.Since(start)
+	for i := 0; i < requests; i++ {
+		if rec := e.post(chatBody("m", "hi")); rec.Code != http.StatusOK {
+			t.Fatalf("request %d: status %d: %s", i, rec.Code, rec.Body.String())
+		}
+	}
+	if took := time.Since(start); took > 2*time.Second {
+		t.Errorf("%d requests took %v with a blocked ledger, want no wait for it", requests, took)
+	}
+	if n := e.gw.AccountingErrors(); n != 0 {
+		t.Errorf("AccountingErrors = %d, want 0: the queue has room for these rows", n)
+	}
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	release.Do(func() { close(store.unblock) })
+	flushUsage(t, e.gw)
+	if got := len(store.got()); got != requests {
+		t.Errorf("%d rows written after the store recovered, want %d", got, requests)
 	}
-	if took < 200*time.Millisecond || took > 3*time.Second {
-		t.Errorf("request took %v with a blocked ledger, want about the 250ms bound", took)
+}
+
+// TestGatewayCountsRowsTheQueueHasNoRoomFor: a full queue loses the row, never fails the
+// request, and the loss is counted in AccountingErrors and in the scraped counter.
+func TestGatewayCountsRowsTheQueueHasNoRoomFor(t *testing.T) {
+	e := newAttemptEnv(t, attemptOpts{models: []modelSpec{{id: "m", deps: []depSpec{{"m-a", "ua"}}}}})
+	store := &recordingStore{}
+	// Room for two rows and an hour before the writer would flush them: the third row is refused.
+	useLedgerWith(t, e.gw, store, accounting.BatcherOptions{QueueRows: 2, MaxBatch: 1000, FlushEvery: time.Hour})
+
+	for i := 0; i < 3; i++ {
+		if rec := e.post(chatBody("m", "hi")); rec.Code != http.StatusOK {
+			t.Fatalf("request %d: status %d: %s", i, rec.Code, rec.Body.String())
+		}
 	}
+
 	if n := e.gw.AccountingErrors(); n != 1 {
-		t.Errorf("AccountingErrors = %d, want 1", n)
+		t.Errorf("AccountingErrors = %d, want 1: the row of the third request", n)
 	}
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	if len(store.deadlines) != 1 || store.deadlines[0] <= 0 || store.deadlines[0] > 250*time.Millisecond {
-		t.Errorf("deadline left at the call = %v, want a deadline of at most 250ms", store.deadlines)
+	if got := scrapeOf(t, e.gw).value(t, "rp_accounting_write_errors_total", nil); got != 1 {
+		t.Errorf("rp_accounting_write_errors_total = %v, want 1", got)
+	}
+	closeUsage(t, e.gw)
+	if got := len(store.got()); got != 2 {
+		t.Errorf("%d rows written, want the 2 that were queued", got)
 	}
 }
 
@@ -402,11 +451,12 @@ func TestGatewayRowsAreWrittenAfterTheBudgetCommit(t *testing.T) {
 	store.onRecord = func() {
 		spentAtWrite, _ = e.inner.Spent(context.Background(), "tenant-a", e.lim, e.now())
 	}
-	e.gw.usageLedger = store
+	useLedger(t, e.gw, store)
 
 	if rec := e.post(chatBody("auto", "hi")); rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
+	flushUsage(t, e.gw)
 	if spentAtWrite != stdActual {
 		t.Errorf("budget counter at the time of the write = %d, want the committed %d", spentAtWrite, stdActual)
 	}
@@ -424,7 +474,7 @@ func TestLedgerSumMatchesTheBudgetCounter(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	e.gw.usageLedger = store
+	useLedger(t, e.gw, store)
 
 	for i := 0; i < 3; i++ { // each fails over from cheap (503, free) to pricey
 		if rec := e.post(chatBody("auto", "hi")); rec.Code != http.StatusOK {
@@ -434,6 +484,7 @@ func TestLedgerSumMatchesTheBudgetCounter(t *testing.T) {
 	if rec := e.post(chatBody("cheap", "hi")); rec.Code != http.StatusServiceUnavailable && rec.Code != http.StatusBadGateway {
 		t.Fatalf("pinned cheap: status %d, want a 5xx", rec.Code)
 	}
+	flushUsage(t, e.gw)
 
 	ledger, err := store.TenantSpend(context.Background(), "tenant-a", time.Time{}, time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC))
 	if err != nil {

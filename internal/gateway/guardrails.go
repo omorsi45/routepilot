@@ -18,6 +18,9 @@ const (
 	actorAdmin     = "admin"
 )
 
+// rolloutWriteTimeout bounds the ledger write of one rollout event.
+const rolloutWriteTimeout = 250 * time.Millisecond
+
 // Limits of the decision index (Ruling V1-R31): the guard's window is ten minutes, and a
 // verdict on an older decision says nothing about the canary as it is now.
 const (
@@ -150,11 +153,12 @@ func (s *Server) disarmGuard() {
 
 // recordRollout writes a rollout event to the usage ledger, if there is one. A failure never
 // stops the rollback it describes; it is counted with the other lost ledger writes and logged.
+// Rollout events are rare and written directly, not through the row batcher.
 func (s *Server) recordRollout(ev accounting.RolloutEvent) {
 	if s.usageLedger == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), usageWriteTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), rolloutWriteTimeout)
 	defer cancel()
 	if err := s.usageLedger.RecordRollout(ctx, ev); err != nil {
 		s.accountingErrors.Add(1)

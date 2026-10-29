@@ -57,14 +57,53 @@ func (s *sqlStore) RecordAttempt(ctx context.Context, r UsageRow) error {
 	if err := r.validate(); err != nil {
 		return err
 	}
-	_, err := s.db.ExecContext(ctx, s.d.rebind(insertUsageSQL),
-		r.RequestID, r.Attempt, r.Tenant, r.Model, r.Deployment, r.PromptTokens, r.CompletionTokens,
-		s.d.encodeBool(r.UsageEstimated), int64(r.CostEstimate), int64(r.CostActual), r.PolicyVersion, r.Status,
-		s.d.encodeTime(r.StartedAt), s.d.encodeTime(r.EndedAt))
+	_, err := s.db.ExecContext(ctx, s.d.rebind(insertUsageSQL), s.usageArgs(r)...)
 	if err != nil {
 		return fmt.Errorf("accounting: record attempt %s/%d: %w", r.RequestID, r.Attempt, err)
 	}
 	return nil
+}
+
+// RecordAttempts writes the rows in one transaction with one prepared insert, so the commit
+// (and with it the log sync) is paid once per batch and not once per row. Every row is
+// validated before the transaction starts, so a bad row rejects the batch whole.
+func (s *sqlStore) RecordAttempts(ctx context.Context, rows []UsageRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	for i, r := range rows {
+		if err := r.validate(); err != nil {
+			return fmt.Errorf("accounting: batch row %d: %w", i, err)
+		}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("accounting: record %d attempts: %w", len(rows), err)
+	}
+	defer func() { _ = tx.Rollback() }() // a no-op once the transaction is committed
+	stmt, err := tx.PrepareContext(ctx, s.d.rebind(insertUsageSQL))
+	if err != nil {
+		return fmt.Errorf("accounting: record %d attempts: %w", len(rows), err)
+	}
+	defer stmt.Close()
+	for _, r := range rows {
+		if _, err := stmt.ExecContext(ctx, s.usageArgs(r)...); err != nil {
+			return fmt.Errorf("accounting: record attempt %s/%d: %w", r.RequestID, r.Attempt, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("accounting: record %d attempts: %w", len(rows), err)
+	}
+	return nil
+}
+
+// usageArgs are the values of insertUsageSQL for r, in the order of its placeholders.
+func (s *sqlStore) usageArgs(r UsageRow) []any {
+	return []any{
+		r.RequestID, r.Attempt, r.Tenant, r.Model, r.Deployment, r.PromptTokens, r.CompletionTokens,
+		s.d.encodeBool(r.UsageEstimated), int64(r.CostEstimate), int64(r.CostActual), r.PolicyVersion, r.Status,
+		s.d.encodeTime(r.StartedAt), s.d.encodeTime(r.EndedAt),
+	}
 }
 
 func (s *sqlStore) RecordRollout(ctx context.Context, e RolloutEvent) error {

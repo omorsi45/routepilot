@@ -19,9 +19,11 @@ import (
 const sqliteTimeLayout = "2006-01-02T15:04:05.000000000Z07:00"
 
 // sqliteDSNQuery sets the pragmas every connection gets: wait up to 5 s for a lock instead of
-// failing at once, and write-ahead logging so a reader (routepilot reconcile) does not block
-// the gateway's writes.
-const sqliteDSNQuery = "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+// failing at once, write-ahead logging so a reader (routepilot reconcile) does not block the
+// gateway's writes, and synchronous NORMAL, which in WAL mode syncs the log at checkpoints
+// and not at every commit. A crash of the process loses nothing; a power cut can lose the
+// last transactions but cannot corrupt the database (Ruling V1-R38).
+const sqliteDSNQuery = "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)"
 
 var sqliteDDL = []string{
 	`CREATE TABLE IF NOT EXISTS usage (

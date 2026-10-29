@@ -12,8 +12,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver
 )
 
-// postgresMaxConns bounds the pool: the gateway writes a handful of small rows per request
-// and each write is bounded to 250 ms, so a few connections are enough.
+// postgresMaxConns bounds the pool: the gateway's batcher writes one transaction at a time,
+// and rollout events and readers are rare, so a few connections are enough.
 const postgresMaxConns = 8
 
 // postgresMigrationLock is the advisory lock that serializes schema creation, so two

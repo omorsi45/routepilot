@@ -59,9 +59,11 @@ type Options struct {
 	// learned policy's latency SLOs, and is fed from the streaming path. Nil builds an
 	// estimator with no prior profiles, so it knows only what this server observes.
 	Latency *latency.Estimator
-	// Accounting is the usage ledger: one row per attempt sent to a provider, written once the
-	// request is over. Nil keeps no ledger. A failed write never fails the request; it is
-	// counted (Server.AccountingErrors) and logged.
+	// Accounting is the usage ledger: one row per attempt sent to a provider. The rows are
+	// queued when the request is over and written in batches in the background, so a request
+	// never waits for the store. Nil keeps no ledger. A lost write never fails the request; it
+	// is counted (Server.AccountingErrors) and logged. The caller runs Server.CloseUsage after
+	// the server has drained, and only then closes the store.
 	Accounting accounting.Store
 	// DecisionLog receives one record per routing decision (shadow decisions included) and
 	// every feedback line. Nil keeps no log, and then POST /v1/feedback is not served. The
@@ -117,9 +119,11 @@ type Server struct {
 	budgets map[string]quota.BudgetLimit
 	// budgetOvershoot is the total committed above reservations (see BudgetOvershoot).
 	budgetOvershoot atomic.Int64
-	// usageLedger is Options.Accounting, nil for none, and accountingErrors counts the rows it
-	// failed to take (see AccountingErrors).
+	// usageLedger is Options.Accounting, nil for none: it takes the rollout events directly.
+	// usage writes the attempt rows to it off the request path (see attachLedger), and
+	// accountingErrors counts the writes either lost (see AccountingErrors).
 	usageLedger      accounting.Store
+	usage            *accounting.Batcher
 	accountingErrors atomic.Int64
 	// decisions is Options.DecisionLog, nil for none.
 	decisions *decisionlog.Writer
@@ -211,7 +215,6 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 		return nil, fmt.Errorf("gateway: %w", err)
 	}
 	s.readBodyTimeout = opts.ReadBodyTimeout
-	s.usageLedger = opts.Accounting
 	s.decisions = opts.DecisionLog
 	if learned {
 		s.initGuard()
@@ -227,6 +230,10 @@ func New(cfg *config.Config, providers map[string]provider.Provider, opts Option
 		return nil, err
 	}
 	s.setTracerProvider(opts.TracerProvider)
+	// Last, so that a New that fails above leaves no writer goroutine behind.
+	if opts.Accounting != nil {
+		s.attachLedger(opts.Accounting, accounting.BatcherOptions{})
+	}
 	return s, nil
 }
 

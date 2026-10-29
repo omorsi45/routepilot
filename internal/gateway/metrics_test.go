@@ -378,12 +378,13 @@ func TestAttemptsAndCostsMatchTheLedger(t *testing.T) {
 		models: failoverModels(), policy: config.PolicyCheapest, upstream: upstream503For("uc"),
 	})
 	store := &recordingStore{}
-	e.gw.usageLedger = store
+	useLedger(t, e.gw, store)
 	for i := 0; i < 3; i++ {
 		if rec := e.post(chatBody("auto", "hi")); rec.Code != http.StatusOK {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
 	}
+	flushUsage(t, e.gw)
 	rows := store.got()
 	if len(rows) == 0 {
 		t.Fatal("no ledger rows")
@@ -525,7 +526,7 @@ func TestBreakerGauge(t *testing.T) {
 // scrape, read at the moment of the scrape.
 func TestComponentCountersAreExported(t *testing.T) {
 	e := newAttemptEnv(t, attemptOpts{models: []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua"}}}}})
-	e.gw.usageLedger = &recordingStore{fail: errors.New("disk full")}
+	useLedger(t, e.gw, &recordingStore{fail: errors.New("disk full")})
 	e.gw.addOvershoot(123)
 	log, err := decisionlog.Open(filepath.Join(t.TempDir(), "decisions.jsonl"), 1<<20)
 	if err != nil {
@@ -545,6 +546,7 @@ func TestComponentCountersAreExported(t *testing.T) {
 	if rec := e.post(chatBody("m", "hi")); rec.Code != http.StatusOK {
 		t.Fatalf("a failing ledger and a dead decision log failed the request: %d %s", rec.Code, rec.Body.String())
 	}
+	flushUsage(t, e.gw)
 	sc = scrapeOf(t, e.gw)
 	if got := sc.value(t, "rp_accounting_write_errors_total", nil); got != 1 {
 		t.Errorf("rp_accounting_write_errors_total = %v, want 1 (the one row that failed)", got)

@@ -111,6 +111,7 @@ func TestNoSecretsOrPromptsAnywhere(t *testing.T) {
 		DecisionLog:    dlog,
 		Accounting:     store,
 	})
+	t.Cleanup(func() { closeUsage(t, gw) })
 
 	// One request that fails before the body is read, and one of each kind that is served.
 	if rec := doHeaders(gw.Handler(), "test-key-wrong", redactionBody("auto", false), nil); rec.Code != http.StatusUnauthorized {
@@ -129,6 +130,7 @@ func TestNoSecretsOrPromptsAnywhere(t *testing.T) {
 	if err := dlog.Close(); err != nil {
 		t.Fatal(err)
 	}
+	flushUsage(t, gw)
 	decisions, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatal(err)

@@ -3,16 +3,12 @@ package gateway
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"strconv"
 	"time"
 
 	"github.com/omorsi45/routepilot/internal/accounting"
 	"github.com/omorsi45/routepilot/internal/provider"
 )
-
-// usageWriteTimeout bounds the ledger write of one request: all its rows together.
-const usageWriteTimeout = 250 * time.Millisecond
 
 // Attempt statuses other than a provider failure kind or an HTTP status.
 const (
@@ -75,10 +71,33 @@ func (a *attemptUsage) finish(at time.Time, status string) {
 	a.endSpan(status)
 }
 
-// AccountingErrors is the number of usage ledger rows that could not be written since the
-// server started: the store failed or did not answer within the write bound. The metrics
-// export it as rp_accounting_errors_total.
+// AccountingErrors is the number of usage ledger writes that were lost since the server
+// started: rows the ledger writer's queue had no room for, rows of a batch the store failed to
+// write or did not answer within the write bound, rows still queued when shutdown gave up on
+// them, and rollout events the store refused. The metrics export it as
+// rp_accounting_write_errors_total.
 func (s *Server) AccountingErrors() int64 { return s.accountingErrors.Load() }
+
+// attachLedger makes store the usage ledger: the rollout events go to it directly and the
+// attempt rows of the requests go through a batcher that writes them off the request path.
+// tune sets the batcher's sizes and intervals; the zero value takes the defaults.
+func (s *Server) attachLedger(store accounting.Store, tune accounting.BatcherOptions) {
+	tune.OnLost = func(n int) { s.accountingErrors.Add(int64(n)) }
+	tune.Logger = s.logger
+	s.usageLedger = store
+	s.usage = accounting.NewBatcher(store, tune)
+}
+
+// CloseUsage stops taking usage rows and writes the ones still queued, giving up when ctx
+// ends (the rows left are then counted by AccountingErrors). The caller runs it once the HTTP
+// server has drained, so no request is still adding rows, and before it closes the store.
+// Without a ledger it does nothing, and a second call is harmless.
+func (s *Server) CloseUsage(ctx context.Context) error {
+	if s.usage == nil {
+		return nil
+	}
+	return s.usage.Close(ctx)
+}
 
 // usageRows is the ledger rows of the request: one per attempt sent, numbered from 1 in send
 // order. It must run after settleAttempts, so that tokens and costs are final.
@@ -105,37 +124,15 @@ func (s *Server) usageRows(rs *reqState) []accounting.UsageRow {
 	return rows
 }
 
-// recordUsage writes the request's rows to the usage ledger, if there is one. It runs once
-// the handler has returned, so the budget commit is done and every cost is final, and it is
-// detached from the request context: a client that left still gets its attempts recorded.
-// All rows share one usageWriteTimeout. A failure never reaches the client; it is counted
-// and logged once.
+// recordUsage queues the request's rows for the usage ledger, if there is one. It runs once
+// the handler has returned, so the budget commit is done and every cost is final. It only
+// appends to the ledger writer's queue and never waits for the store: the rows reach the
+// store within the writer's flush interval, whether or not the client is still there. A row
+// the queue has no room for, or that the store later fails to write, never reaches the
+// client; the writer counts it (AccountingErrors) and logs the cause once per failed batch.
 func (s *Server) recordUsage(rs *reqState) {
-	if s.usageLedger == nil || len(rs.attemptUsages) == 0 {
+	if s.usage == nil || len(rs.attemptUsages) == 0 {
 		return
 	}
-	rows := s.usageRows(rs)
-	ctx, cancel := context.WithTimeout(context.Background(), usageWriteTimeout)
-	defer cancel()
-	var (
-		lost  int
-		first error
-	)
-	for _, row := range rows {
-		if err := s.usageLedger.RecordAttempt(ctx, row); err != nil {
-			lost++
-			if first == nil {
-				first = err
-			}
-		}
-	}
-	if lost == 0 {
-		return
-	}
-	s.accountingErrors.Add(int64(lost))
-	s.logger.LogAttrs(context.Background(), slog.LevelWarn, "usage ledger write failed",
-		slog.String("request_id", rs.id),
-		slog.Int("rows_lost", lost),
-		slog.String("error", first.Error()),
-	)
+	s.usage.Enqueue(s.usageRows(rs))
 }

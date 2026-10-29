@@ -88,6 +88,7 @@ func newGuardEnv(t *testing.T, o learnedOpts, prov provider.Provider) *guardEnv 
 		t.Fatalf("New: %v", err)
 	}
 	g.gw = gw
+	t.Cleanup(func() { closeUsage(t, gw) })
 	return g
 }
 

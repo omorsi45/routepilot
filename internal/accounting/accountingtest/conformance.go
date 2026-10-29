@@ -70,6 +70,10 @@ func Run(t *testing.T, open Factory) {
 		fn   func(*testing.T, accounting.Store)
 	}{
 		{"Idempotent", idempotent},
+		{"BatchIdempotent", batchIdempotent},
+		{"BatchRejectsInvalidRows", batchRejectsInvalidRows},
+		{"BatchHonoursContext", batchHonoursContext},
+		{"BatchAfterCloseFails", batchAfterClose},
 		{"RejectsInvalidRows", rejectsInvalidRows},
 		{"SpendSumsActualInWindow", spendSumsActualInWindow},
 		{"SpendWindowIsExactToTheMicrosecond", spendWindowMicroseconds},
@@ -105,6 +109,71 @@ func idempotent(t *testing.T, s accounting.Store) {
 	mustRecord(t, s, row("req-2", 1, "tenant-a", 7, base))
 	if got := spend(t, s, "tenant-a", time.Time{}, farFuture); got != 157 {
 		t.Errorf("spend with attempt 2 and another request = %d, want 157", got)
+	}
+}
+
+// batchIdempotent: a batch writes each (request, attempt) once, the first copy winning,
+// whether the key is already stored or appears twice in the batch; repeating a batch changes
+// nothing, and an empty batch is not an error.
+func batchIdempotent(t *testing.T, s accounting.Store) {
+	mustRecord(t, s, row("req-1", 1, "tenant-a", 100, base))
+	again := row("req-1", 1, "tenant-b", 999, base.Add(time.Minute))
+	again.Status = "http_500"
+	dupFirst := row("req-2", 1, "tenant-a", 7, base)
+	dupSecond := row("req-2", 1, "tenant-b", 555, base)
+	batch := []accounting.UsageRow{
+		again, row("req-1", 2, "tenant-a", 50, base), dupFirst, dupSecond, row("req-3", 1, "tenant-a", 3, base),
+	}
+
+	for pass := 1; pass <= 2; pass++ {
+		if err := s.RecordAttempts(ctx(t), batch); err != nil {
+			t.Fatalf("RecordAttempts pass %d error = %v", pass, err)
+		}
+		if got := spend(t, s, "tenant-a", time.Time{}, farFuture); got != 160 {
+			t.Errorf("pass %d: tenant-a spend = %d, want 160 (100 stored + 50 + 7 + 3, each key once)", pass, got)
+		}
+		if got := spend(t, s, "tenant-b", time.Time{}, farFuture); got != 0 {
+			t.Errorf("pass %d: tenant-b spend = %d, want 0: a repeated key must be ignored whole", pass, got)
+		}
+	}
+	if err := s.RecordAttempts(ctx(t), nil); err != nil {
+		t.Errorf("RecordAttempts of an empty batch error = %v, want nil", err)
+	}
+}
+
+// batchRejectsInvalidRows: one bad row rejects the batch and none of its good rows lands.
+func batchRejectsInvalidRows(t *testing.T, s accounting.Store) {
+	bad := row("req-bad", 1, "tenant-a", 100, base)
+	bad.Tenant = ""
+	batch := []accounting.UsageRow{row("req-good", 1, "tenant-a", 10, base), bad, row("req-good", 2, "tenant-a", 20, base)}
+	if err := s.RecordAttempts(ctx(t), batch); err == nil {
+		t.Error("RecordAttempts with an invalid row succeeded, want an error")
+	}
+	if got := spend(t, s, "tenant-a", time.Time{}, farFuture); got != 0 {
+		t.Errorf("spend after a rejected batch = %d, want 0: no row of it may land", got)
+	}
+}
+
+// batchHonoursContext: a canceled context writes nothing.
+func batchHonoursContext(t *testing.T, s accounting.Store) {
+	done, cancel := context.WithCancel(context.Background())
+	cancel()
+	batch := []accounting.UsageRow{row("req-ctx", 1, "tenant-a", 100, base), row("req-ctx", 2, "tenant-a", 100, base)}
+	if err := s.RecordAttempts(done, batch); err == nil {
+		t.Error("RecordAttempts with a canceled context succeeded, want an error")
+	}
+	if got := spend(t, s, "tenant-a", time.Time{}, farFuture); got != 0 {
+		t.Errorf("spend = %d, want 0: a canceled batch must not land", got)
+	}
+}
+
+// batchAfterClose: using a closed store is an error, for a batch as for a row.
+func batchAfterClose(t *testing.T, s accounting.Store) {
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close error = %v", err)
+	}
+	if err := s.RecordAttempts(ctx(t), []accounting.UsageRow{row("req-closed", 1, "tenant-a", 1, base)}); err == nil {
+		t.Error("RecordAttempts after Close succeeded, want an error")
 	}
 }
 

@@ -64,6 +64,11 @@ type Store interface {
 	// RecordAttempt writes a row. It is idempotent on (RequestID, Attempt): a second row with
 	// the same key is ignored whole, whatever else it says, and is not an error.
 	RecordAttempt(ctx context.Context, row UsageRow) error
+	// RecordAttempts writes rows in one transaction, each idempotent on (RequestID, Attempt)
+	// as in RecordAttempt: a key that is already stored, or that appears twice in rows, keeps
+	// its first row. A row that fails validation rejects the whole batch before anything is
+	// written, and a failed transaction writes none of them. An empty batch is not an error.
+	RecordAttempts(ctx context.Context, rows []UsageRow) error
 	// RecordRollout appends a rollout event.
 	RecordRollout(ctx context.Context, event RolloutEvent) error
 	// TenantSpend is the sum of CostActual over the tenant's rows with EndedAt in

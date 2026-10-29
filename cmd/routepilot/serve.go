@@ -38,6 +38,8 @@ const (
 	redisPingTimeout = 5 * time.Second
 	// accountingOpenTimeout bounds connecting to the usage ledger and creating its tables.
 	accountingOpenTimeout = 15 * time.Second
+	// usageCloseTimeout bounds writing the usage rows still queued at shutdown.
+	usageCloseTimeout = 15 * time.Second
 	// tracingShutdownTimeout bounds the final flush of the trace exporter at shutdown.
 	tracingShutdownTimeout = 5 * time.Second
 )
@@ -158,8 +160,8 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 		return err
 	}
 	if store != nil {
-		// Closed when serve returns, which is after the HTTP server has drained, so the last
-		// requests still write their rows.
+		// Closed when serve returns, after the HTTP server has drained and the gateway has
+		// written the rows it still queued (closeUsageQueue), so the last requests keep theirs.
 		defer func() {
 			if err := store.Close(); err != nil {
 				logger.Warn("closing the usage ledger failed", slog.String("error", err.Error()))
@@ -193,6 +195,10 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 	if err != nil {
 		return err
 	}
+	// Deferred after the store's close, so it runs before it: when serve returns the HTTP
+	// server has drained, so no request adds rows any more, and the gateway writes the rows
+	// still queued before the store goes away.
+	defer closeUsageQueue(gw, logger)
 
 	// Background work stops with the server, and serve waits for it so nothing logs after
 	// it returns.
@@ -381,6 +387,16 @@ func otherSectionsDiffer(running, reloaded *config.Config) bool {
 	a, b := *running, *reloaded
 	a.Policies, b.Policies = config.PoliciesConfig{}, config.PoliciesConfig{}
 	return !reflect.DeepEqual(a, b)
+}
+
+// closeUsageQueue writes the usage rows the gateway still holds in memory, within
+// usageCloseTimeout, and logs when it gave up on some. Without a usage ledger it does nothing.
+func closeUsageQueue(gw *gateway.Server, logger *slog.Logger) {
+	ctx, cancel := context.WithTimeout(context.Background(), usageCloseTimeout)
+	defer cancel()
+	if err := gw.CloseUsage(ctx); err != nil {
+		logger.Warn("writing the queued usage rows failed", slog.String("error", err.Error()))
+	}
 }
 
 // closeDecisionLog drains and closes the decision log, and says so when records were lost.

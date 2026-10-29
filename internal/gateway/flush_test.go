@@ -39,6 +39,11 @@ func (s *slowStore) RecordAttempt(_ context.Context, _ accounting.UsageRow) erro
 	return nil
 }
 
+// RecordAttempts is a slow write too, one delay per batch.
+func (s *slowStore) RecordAttempts(ctx context.Context, rows []accounting.UsageRow) error {
+	return s.RecordAttempt(ctx, rows[0])
+}
+
 // TestCompleteResponseIsFlushedBeforeBookkeeping (Ruling V1-R30): the client has the whole
 // response, status and body, long before the post-response work is done. The ledger write
 // takes 300 ms; the client must not wait for it, for an answer or for an error.
@@ -62,9 +67,9 @@ func TestCompleteResponseIsFlushedBeforeBookkeeping(t *testing.T) {
 				{id: "m", deps: []depSpec{{"dep-a", tc.upstream}}},
 			}})
 			store := newSlowStore(storeDelay)
-			e.gw.usageLedger = store
+			useLedger(t, e.gw, store)
 			srv := httptest.NewServer(e.gw.Handler())
-			defer srv.Close() // waits for the handler, so the slow write ends inside the test
+			defer srv.Close() // waits for the handler; the slow write runs on the batcher, which the test cleanup closes
 
 			req, err := http.NewRequest(http.MethodPost, srv.URL+"/v1/chat/completions", strings.NewReader(chatBody("m", "hi")))
 			if err != nil {
