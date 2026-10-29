@@ -1,8 +1,9 @@
 name: Integration
 
 # The slow lane: the env-gated suites against real Redis and PostgreSQL service containers,
-# and the container image build. ci.yml stays hermetic (no container runtime); the tests here
-# skip themselves without the two variables below, so they are exercised only in this lane.
+# the container image build, and the compose stack smoke test. ci.yml stays hermetic (no
+# container runtime); the tests here skip themselves without the two variables below, so they
+# are exercised only in this lane.
 
 on:
   push:
@@ -71,3 +72,15 @@ jobs:
 
       - name: build the container image
         run: docker build -f deploy/Dockerfile -t routepilot:ci .
+
+      # The compose stack end to end (gateway, mock upstream, Redis, PostgreSQL, Prometheus,
+      # Grafana, collector): the script waits for /readyz, sends one auto request with the demo
+      # key, checks /metrics and tears the stack down. The step after it removes the stack again
+      # if the script was killed before it could.
+      - name: compose smoke
+        run: bash scripts/compose-smoke.sh
+
+      - name: compose down
+        if: always()
+        run: docker compose -f deploy/docker-compose.yml down -v
+

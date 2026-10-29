@@ -1,0 +1,10 @@
+# Prometheus for the compose stack: scrapes the gateway's /metrics every 5 seconds over the
+# compose network.
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: routepilot
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["routepilot:8080"]

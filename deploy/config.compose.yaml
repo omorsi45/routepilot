@@ -1,0 +1,107 @@
+# RoutePilot gateway config for the compose stack (deploy/docker-compose.yml).
+#
+# The routing DECISIONS come from the live-ollama policy, trained on real local Ollama runs of
+# three Qwen2.5 models. The ANSWERS come from the mock upstream (rp-mock), so this stack
+# demonstrates routing, metrics and accounting, not answer quality.
+#
+# Every path below is inside the routepilot container. docker-compose.yml mounts the policy
+# artifact, its optimizer configuration and the latency profiles read-only at these paths.
+
+server:
+  # Inside the compose network only. docker-compose.yml publishes the port on 127.0.0.1 and
+  # nowhere else: the gateway speaks plaintext HTTP, so do not expose it on another interface
+  # without TLS in front.
+  listen: "0.0.0.0:8080"
+  # Measured time to first token and time per output token of the three models (see
+  # bench/latency/live-ollama.yaml): the learned policy's priors for its latency estimates.
+  latency_profiles: /etc/routepilot/live-ollama-latency.yaml
+
+providers:
+  - name: mock
+    type: openaicompat
+    base_url: http://rp-mock:9090/v1
+
+# The three model IDs are the ones the artifact was trained on; each is served by the mock.
+# Prices are an ASSUMPTION (Ruling V1-R42), not the price of anything: proportional to the
+# parameter count, 0.02 USD per million input tokens and 0.06 per million output tokens for each
+# billion parameters, as in bench/configs/live-ollama.yaml.
+models:
+  - id: qwen2.5-0.5b
+    rank: 1
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.01"
+    output_price_per_mtok: "0.03"
+    deployments:
+      - name: qwen2.5-0.5b-mock
+        provider: mock
+        upstream_model: qwen2.5-0.5b
+  - id: qwen2.5-1.5b
+    rank: 2
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.03"
+    output_price_per_mtok: "0.09"
+    deployments:
+      - name: qwen2.5-1.5b-mock
+        provider: mock
+        upstream_model: qwen2.5-1.5b
+  - id: qwen2.5-3b
+    rank: 3
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.06"
+    output_price_per_mtok: "0.18"
+    deployments:
+      - name: qwen2.5-3b-mock
+        provider: mock
+        upstream_model: qwen2.5-3b
+
+routing:
+  policy: learned
+
+# The artifact directory is <root>/<name>/<version>.
+policies:
+  root: /policies
+  stable:
+    name: live-ollama
+    version: 21183f8ab3fe
+    config: /etc/routepilot/live-ollama.yaml
+
+# Rate-limit counters and budgets live in Redis; the URL is read from the environment.
+quota:
+  backend: redis
+  redis_url_env: ROUTEPILOT_REDIS_URL
+
+# One row per upstream attempt in PostgreSQL; the DSN is read from the environment.
+accounting:
+  driver: postgres
+  postgres_dsn_env: ROUTEPILOT_POSTGRES_DSN
+
+# Every routing decision, with a prompt hash prefix and never prompt text. /var/lib/routepilot
+# is the "state" volume, owned by the image's nonroot user (uid 65532).
+decision_log:
+  path: /var/lib/routepilot/decisions.jsonl
+
+# One span per chat request to the OpenTelemetry collector's OTLP/HTTP receiver (the path
+# /v1/traces is added to the URL). The collector prints a summary of what it receives.
+tracing:
+  otlp_endpoint: http://otel-collector:4318
+
+tenants:
+  # Only the SHA-256 of the key is stored. The key is the fake local value "demo-key-local".
+  - id: demo
+    api_key_sha256: 8b98693f57d481139ed5b92daf7ba8b09e22e380fcd1bf02532c777ac80aa940
+    allowed_models: ["*"]
+    rpm: 600
+    tpm: 200000
+    # A request without max_tokens reserves default_max_tokens (4096) plus its input bound, so
+    # the burst must be at least that. 200000 is the tpm itself, which is also the default.
+    tpm_burst: 200000
+    max_concurrency: 32
+    # A one-dollar budget in total (not per month); the rp_budget_* series follow it.
+    budget_usd: "1"
+    budget_period: total

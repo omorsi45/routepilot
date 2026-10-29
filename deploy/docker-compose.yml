@@ -1,0 +1,128 @@
+# RoutePilot demo stack: the gateway with the live-ollama policy over the mock upstream, Redis
+# and PostgreSQL behind it, and Prometheus, Grafana and an OpenTelemetry collector watching it.
+#
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   docker compose -f deploy/docker-compose.yml down -v
+#
+# Gateway on http://127.0.0.1:8080, Prometheus on :9091, Grafana (dashboard "RoutePilot") on :3000.
+# scripts/compose-smoke.sh does the whole round trip: up, an auto request with the demo key
+# (its fake key demo-key-local, whose SHA-256 is in config.compose.yaml), the checks, down.
+#
+# This is a LOCAL DEMO, not a deployment recipe:
+#   - Every host port binds 127.0.0.1. Do not widen that: the gateway speaks plaintext HTTP, and
+#     /metrics is served without authentication (by design, for the internal network).
+#   - The passwords and the demo key are throwaway values that only work in this stack.
+#   - Redis and PostgreSQL are not published; only the services below talk to them.
+name: routepilot-compose
+
+# routepilot and rp-mock are one image (deploy/Dockerfile holds both binaries); rp-mock only
+# changes the entrypoint. Both name the same build so compose builds it before either starts.
+x-gateway-image: &gateway-image
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  image: routepilot-compose:local
+
+services:
+  routepilot:
+    <<: *gateway-image
+    command: ["serve", "--config", "/etc/routepilot/config.yaml"]
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ROUTEPILOT_REDIS_URL: redis://redis:6379/0
+      # The password is the throwaway one of the postgres service below.
+      ROUTEPILOT_POSTGRES_DSN: postgres://postgres:compose-pass-local@postgres:5432/routepilot?sslmode=disable
+    volumes:
+      - ./config.compose.yaml:/etc/routepilot/config.yaml:ro
+      - ../bench/policies/live-ollama.yaml:/etc/routepilot/live-ollama.yaml:ro
+      - ../bench/latency/live-ollama.yaml:/etc/routepilot/live-ollama-latency.yaml:ro
+      - ../policies/live-ollama/21183f8ab3fe:/policies/live-ollama/21183f8ab3fe:ro
+      # The decision log. The image creates /var/lib/routepilot owned by uid 65532 (the nonroot
+      # user of the distroless base, which has no shell to chown with), and a new named volume
+      # takes the ownership of the directory it is mounted over.
+      - state:/var/lib/routepilot
+    # The distroless image has no shell or curl, so the gateway has no container healthcheck:
+    # poll http://127.0.0.1:8080/readyz instead (scripts/compose-smoke.sh does).
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      rp-mock:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+
+  rp-mock:
+    <<: *gateway-image
+    entrypoint: ["/rp-mock"]
+    command:
+      - "--listen"
+      - "0.0.0.0:9090"
+      - "--ttft-median-ms"
+      - "40"
+      - "--ttft-sigma"
+      - "0.3"
+      - "--tpot-median-ms"
+      - "5"
+      - "--tokens"
+      - "64"
+
+  redis:
+    image: redis:7.4-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      # A throwaway password for a database that lives and dies with this demo stack.
+      POSTGRES_PASSWORD: compose-pass-local
+      POSTGRES_DB: routepilot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d routepilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    # 9091 on the host, so it never clashes with a mock on 9090 (rp-mock's default port).
+    ports:
+      - "127.0.0.1:9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:13.3.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      # For a loopback demo only: anyone who can reach the port is a read-only viewer, and the
+      # login form and basic auth are off so the default admin account cannot be used.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+    volumes:
+      # Only the two provisioning directories we have, so Grafana keeps its own empty ones for
+      # plugins and alerting instead of logging that they are missing.
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.164.0
+    volumes:
+      # The image starts /otelcol with --config=/etc/otelcol/config.yaml.
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+
+volumes:
+  state:

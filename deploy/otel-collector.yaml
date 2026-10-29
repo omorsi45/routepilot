@@ -1,0 +1,17 @@
+# OpenTelemetry collector for the compose stack: receives the gateway's traces over OTLP/HTTP
+# and prints a one-line summary of each batch to its log (docker compose logs otel-collector).
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug]
