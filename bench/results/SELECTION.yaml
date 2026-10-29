@@ -1,0 +1,117 @@
+# Which run of each experiment the generated docs show.
+#
+# docs/results.md and docs/performance.md are built from bench/results by
+# bench/scripts/render_docs.py. An experiment with no entry here shows its newest run. An entry
+# is a run ID and a one-line reason; `status` is one of:
+#   current  shown with its tables (the first entry when `status` is left out)
+#   also     shown with its tables next to the current run
+#   older    listed by run ID and reason only (superseded or a different pool)
+# The script fails when a run named here does not exist.
+
+data:
+  - run: "20261028T004933Z-bec7b21"
+    status: current
+    reason: Newest run.
+  - run: "20261028T000340Z-dc84ab7"
+    status: older
+    reason: Superseded. It defined the cheapest model as the one with the lowest fitted price; the newest run defines it as the lowest mean cost per item on train and calibration, as the replay charges it.
+
+baselines:
+  - run: "20261028T004934Z-bec7b21"
+    status: current
+    reason: Flagship pool.
+  - run: "20261028T004943Z-bec7b21"
+    status: also
+    reason: Mixed pool (flagship plus four small models), sensitivity only. The small models' costs are fitted from their recorded costs.
+
+headline:
+  - run: "20261028T203202Z-028d6b4"
+    status: current
+    reason: Flagship pool.
+  - run: "20261028T203239Z-028d6b4"
+    status: also
+    reason: Mixed pool (flagship plus four small models), sensitivity only. The small models' costs are fitted from their recorded costs.
+
+train:
+  - run: "20261028T202236Z-e49df83"
+    status: current
+    reason: Newest run, the mixed pool.
+  - run: "20261028T021252Z-7802bb3"
+    status: older
+    reason: Not superseded. It is the flagship pool training run that produced the artifact used by the flagship runs above.
+
+mf_train:
+  - run: "20261028T202400Z-e49df83"
+    status: current
+    reason: Newest run, the mixed pool.
+  - run: "20261028T033419Z-5e4dbcc"
+    status: older
+    reason: Not superseded. It is the flagship pool run behind the RouteLLM matrix-factorization baseline in the flagship runs above.
+
+inupper:
+  - run: "20261028T012056Z-1212012"
+    status: current
+    reason: Newest run, with the prompt overhead fitted on train and calibration and checked on test and held-out records.
+  - run: "20261028T011427Z-7753c32"
+    status: older
+    reason: Superseded. An intermediate fit of the prompt overhead; the fitted value for intern-s1 differed from its refit without the anomaly exclusion, which the newest run settles.
+  - run: "20261028T004946Z-bec7b21"
+    status: older
+    reason: Superseded. It reports the raw bound only, before the prompt overhead was fitted and checked out of sample.
+
+failover:
+  - run: "20261029T010235Z-f5ff91d"
+    status: current
+    reason: The mock cuts a share of A's streams after the first content chunk, so the mid-stream arm tests the no-second-call rule on many streams.
+  - run: "20261028T233539Z-ee7619a"
+    status: older
+    reason: Superseded. Its mid-stream arm used a mock directive that cut every stream on A, so A's breaker opened after a few cuts and almost no stream tested the rule.
+
+quota_correctness:
+  - run: "20261029T010202Z-f5ff91d"
+    status: current
+    reason: Usage-ledger rows are written in batches off the request path, and the mock caps each answer at the request's max_tokens.
+  - run: "20261028T233917Z-ee7619a"
+    status: older
+    reason: Superseded. First run with 64 clients, made before the usage ledger was written in batches; ledger rows were lost and the ledger checks failed.
+  - run: "20261028T234039Z-ee7619a"
+    status: older
+    reason: Superseded. Control run of the same early code with fewer clients, made to see whether the lost ledger rows depended on concurrency.
+
+live_collect:
+  - run: "20261029T042250Z-6ecd7f2"
+    status: current
+    reason: Answer-only-user protocol, the one the live runs below use. The instruction is appended to the user message and there is no system message.
+  - run: "20261029T015819Z-00deb40"
+    status: also
+    reason: Speed measurement straight on Ollama that chose the candidate models. It is not a collection.
+  - run: "20261029T015906Z-00deb40"
+    status: also
+    reason: First collection, protocol as written. The dataset prompt is sent unchanged and long answers are allowed.
+  - run: "20261029T033743Z-766a3b8"
+    status: also
+    reason: Answer-only protocol. The instruction is a system message.
+
+live_train:
+  - run: "20261029T043015Z-6ecd7f2"
+    status: current
+    reason: Trained on the answer-only-user collection.
+  - run: "20261029T034651Z-766a3b8"
+    status: older
+    reason: Superseded. Trained on the answer-only collection with the instruction as a system message; its artifact is no longer in the tree.
+
+live_demo:
+  - run: "20261029T043138Z-6ecd7f2"
+    status: current
+    reason: Uses the answer-only-user artifact.
+  - run: "20261029T034751Z-766a3b8"
+    status: older
+    reason: Superseded. Used the answer-only artifact with the instruction as a system message; that artifact is no longer in the tree.
+
+overhead:
+  - run: "20261028T193224Z-9ac474d"
+    status: current
+    reason: Primary run. The scratch files (gateway request log, configs) were on a native Linux filesystem (ext4).
+  - run: "20261028T185609Z-44f7f4d"
+    status: also
+    reason: First Linux run, shown for its tail. Its scratch files were on the slow /mnt/c mount, and the gateway's request log on that mount made the 2000 rps non-streaming cell slow. The primary run repeated the experiment with the scratch files on ext4.
