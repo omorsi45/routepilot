@@ -273,8 +273,10 @@ func (s *Server) waitBeforeRetry(ctx context.Context, attempt int, err error) er
 		wait = reliability.Backoff(attempt, s.rand)
 	}
 	// Context deadlines are wall-clock times, so compare with the real clock
-	// even when the server clock is injected.
-	if deadline, ok := ctx.Deadline(); ok && time.Now().Add(wait).After(deadline) {
+	// even when the server clock is injected. A wait that ends exactly at the
+	// deadline leaves the next attempt no time, so it counts as crossing it; on a
+	// coarse clock (0.5 ms steps on Windows) the two times are often equal.
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Add(wait).Before(deadline) {
 		return context.DeadlineExceeded
 	}
 	if wait <= 0 {
