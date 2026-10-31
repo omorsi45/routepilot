@@ -50,3 +50,15 @@ func TestRunNoArgs(t *testing.T) {
 		t.Errorf("stderr = %q, want it to contain %q", stderr.String(), "usage")
 	}
 }
+
+// TestUsageNamesWhatPolicyCanDo: the top-level usage line for policy lists all three
+// things the subcommand does, so gate is not a hidden command.
+func TestUsageNamesWhatPolicyCanDo(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	run(nil, &stdout, &stderr)
+
+	if want := "verify, inspect or gate a trained policy artifact"; !strings.Contains(stderr.String(), want) {
+		t.Errorf("usage = %q, want it to contain %q", stderr.String(), want)
+	}
+}

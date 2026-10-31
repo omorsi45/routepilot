@@ -15,7 +15,7 @@ coverage.*
 /data/raw/
 /data/derived/
 
-# Trained policy artifacts (about 6 MB each) stay local; a small live artifact is committed later
+# Trained policy artifacts (about 6 MB each) stay local; only the small live-ollama artifact is committed
 /policies/flagship/
 /policies/mixed/
 

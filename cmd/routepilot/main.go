@@ -12,7 +12,7 @@ import (
 const usage = "usage: routepilot <command>\n\ncommands:\n" +
 	"  serve     run the gateway (routepilot serve -config <path>)\n" +
 	"  replay    replay recorded outcomes through a routing policy (routepilot replay --help)\n" +
-	"  policy    verify or inspect a trained policy artifact (routepilot policy --help)\n" +
+	"  policy    verify, inspect or gate a trained policy artifact (routepilot policy --help)\n" +
 	"  reconcile compare the usage ledger with the budget counters (routepilot reconcile --config <path>)\n" +
 	"  version   print the version and exit\n"
 

@@ -101,7 +101,7 @@ beat it.
 Two things the run does show. At lambda 0 (a reference, not an operating point) the learned
 dual policy reaches 56.0% [53.7%, 58.3%] success at 44.3% lower cost, which suggests the
 predictor carries signal. And the gap appears between calibration and test: on the
-calibration split, where lambda is tuned, the tuned policy is 0.9 points below the best
+calibration split, where lambda is tuned, the tuned policy is 0.96 points below the best
 single model (49.2% against 50.1%), on the test split 4.55 points. The run labels the
 calibration figure in-sample and optimistic, because the calibrators were fitted on that
 split. The losses concentrate in a few datasets: the largest drops against the best single
@@ -255,8 +255,8 @@ docker compose -f deploy/docker-compose.yml down -v
 `bash scripts/compose-smoke.sh` does the whole round trip (up, an `auto` request with the demo
 key, a check of `/metrics`, down), and the integration workflow in `.github/workflows` runs
 it. Every host port binds `127.0.0.1`. The stack is a local demo and not a deployment recipe:
-Grafana allows anonymous viewing, and the Redis and PostgreSQL passwords and the demo key are
-throwaway values.
+Grafana allows anonymous viewing, and PostgreSQL's password and the demo key are throwaway
+values. Redis has no password.
 
 ## Security notes
 

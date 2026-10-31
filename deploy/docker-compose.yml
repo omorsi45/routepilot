@@ -11,7 +11,8 @@
 # This is a LOCAL DEMO, not a deployment recipe:
 #   - Every host port binds 127.0.0.1. Do not widen that: the gateway speaks plaintext HTTP, and
 #     /metrics is served without authentication (by design, for the internal network).
-#   - The passwords and the demo key are throwaway values that only work in this stack.
+#   - The PostgreSQL password and the demo key are throwaway values that only work in this
+#     stack. Redis has no password.
 #   - Redis and PostgreSQL are not published; only the services below talk to them.
 name: routepilot-compose
 
@@ -70,7 +71,7 @@ services:
       - "64"
 
   redis:
-    image: redis:7.4-alpine
+    image: redis:7.4.12-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -78,7 +79,7 @@ services:
       retries: 10
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.11-alpine
     environment:
       # A throwaway password for a database that lives and dies with this demo stack.
       POSTGRES_PASSWORD: compose-pass-local

@@ -51,7 +51,7 @@ This page lists what RoutePilot does not do, what its experiments did not show, 
 - **Rollbacks and canary changes can be undone by a reload.** A rollback or canary change made through the admin API, or by the guardrail, lives in memory. The next reload restores what the config file says.
 - **Hot reload re-reads only the `policies` section.** Other config changes need a restart.
 - **Rotated decision log files are never deleted.**
-- **The compose stack is a local demo.** Grafana allows anonymous viewing, and the services use throwaway local passwords.
+- **The compose stack is a local demo.** Grafana allows anonymous viewing, PostgreSQL's password is a throwaway local value, and Redis has no password.
 
 ## Platform and measurement
 

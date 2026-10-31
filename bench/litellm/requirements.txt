@@ -1316,7 +1316,7 @@ litellm==1.106.6 \
     --hash=sha256:af0b6f4a3df53194b74188a972f103f41ee5ed86afeefc7d9a1ea40156cc0f2e \
     --hash=sha256:ec3cae6c87971657c9ae905b6d23aef456e979c8848f22bbc5096a31e1a1da4d \
     --hash=sha256:f3398d8c21ac9fe851f1788a2d811af7f369fb485d775a25a9b3f517b0b3e88b
-    # via -r /home/omar_morsi/rp-scratch/litellm.in
+    # via -r litellm.in
 litellm-enterprise==0.1.76.post1 \
     --hash=sha256:eee9bfe5c885dc533ac650fd08f915216e92697549475c321c37776985b4d791 \
     --hash=sha256:f767a911b2f0de1fa8e5e6cee0f69a26261542faf2a8c2b5f5acd17431c7fd2a

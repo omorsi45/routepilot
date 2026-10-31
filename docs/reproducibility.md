@@ -11,7 +11,7 @@ This page says what machine produced the committed results, which commands produ
 | Linux host | Ubuntu under WSL2 on the same machine: kernel 6.18.33.2-microsoft-standard-WSL2, glibc 2.39, 15.2 GB RAM visible. The overhead and LiteLLM experiments ran here, and so did one of the two clock probes. |
 | Go | 1.27.2 (the `go.mod` version), `windows/amd64` and `linux/amd64` |
 | Python | 3.14.7 on Windows, 3.14.9 under WSL2 |
-| Python packages | Pinned with `==` in `python/pyproject.toml`: numpy 2.5.4, scipy 1.18.1, pandas 3.1.0, pyarrow 26.0.0, scikit-learn 1.9.1, matplotlib 3.11.2, pyyaml 6.0.3; development: pytest 9.2.0, ruff 0.17.3; build: setuptools 82.0.0 |
+| Python packages | The direct dependencies are pinned with `==` in `python/pyproject.toml`: numpy 2.5.4, scipy 1.18.1, pandas 3.1.0, pyarrow 26.0.0, scikit-learn 1.9.1, matplotlib 3.11.2, pyyaml 6.0.3; development: pytest 9.2.0, ruff 0.17.3; build: setuptools 82.0.0. Transitive versions were not recorded and there is no lock file, so a later `make py-setup` can resolve different ones |
 | Other tools | GNU Make 4.4.1 and Git 2.55.0 for Windows (read from the tools on this machine on 2026-10-29), bash from Git for Windows |
 | LiteLLM | 1.106.6 in a separate environment, resolved with uv 0.11.2 and pinned with hashes in `bench/litellm/requirements.txt` ([bench/litellm/README.md](../bench/litellm/README.md)) |
 | Ollama | 0.34.2 on the Windows host, with the models qwen2.5:0.5b, qwen2.5:1.5b and qwen2.5:3b (Q4_K_M) |
@@ -145,6 +145,6 @@ The gateway tests, `make demo` and `make bench-smoke` need no dataset, no Docker
 - **Results from a retrained artifact.** Expect the same figures up to the last digits, and note that a decision sitting on a tie or on a calibration bin edge can flip. The committed results were produced with `dea4486d7575` (flagship) and `15201d82e792` (mixed).
 - **Anything timed.** Overhead, throughput and the LiteLLM comparison depend on the machine, its load, WSL2 and the share of the CPU that the load generator, the gateway and the mock take from each other. Each cell is one run. The tables are measurements of one machine on one day, not values to reproduce to the digit.
 - **The local-model experiments.** Outputs and latency depend on the Ollama version, the hardware and what else uses the server. Another local application shared the Ollama server during part of the first collection ([limitations](limitations.md#evaluation-and-experiments)).
-- **Interpreter and library versions.** The Windows runs used Python 3.14.7 and the Linux runs 3.14.9. The package versions are the same pins in both.
+- **Interpreter and library versions.** The Windows runs used Python 3.14.7 and the Linux runs 3.14.9. The direct dependencies have the same pins in both; transitive versions were not recorded.
 
 Sampling in the experiments is seeded (see Seeds).
