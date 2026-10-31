@@ -253,7 +253,7 @@ def classify_attempts(
 def read_decision_records(directory: Path) -> list[dict[str, Any]]:
     """Every decision record in the ``*.jsonl`` files of ``directory``, oldest file first.
 
-    A rotated file (``decisions.<UTC time>.jsonl``) sorts before the active ``decisions.jsonl``.
+    A rotated file (``decisions.<UTC time>.<sequence>.jsonl``) sorts before the active ``decisions.jsonl``.
     Lines of any other record type (feedback) are skipped. A line that is not JSON, such as the
     torn last line of a file still being written, raises ValueError naming the file.
     """

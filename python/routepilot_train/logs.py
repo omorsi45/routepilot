@@ -69,8 +69,8 @@ COLUMNS = [
 def _log_files(path_glob: str | Path) -> list[Path]:
     """The files a glob (or a directory, meaning its ``*.jsonl`` files) names, sorted by name.
 
-    Rotated files are ``<base>.<UTC yyyymmddTHHMMSSZ>.jsonl``, which sort by time and before
-    the active ``<base>.jsonl``.
+    Rotated files are ``<base>.<UTC yyyymmddTHHMMSS.uuuuuuZ>.<sequence>.jsonl``, which sort by
+    time and before the active ``<base>.jsonl``.
     """
     path = Path(path_glob)
     if path.is_dir():

@@ -420,9 +420,14 @@ func (a AccountingConfig) validate(add addFunc) {
 // decision_log.max_bytes is not set: 100 MiB.
 const defaultDecisionLogMaxBytes = 104857600
 
+// minDecisionLogMaxBytes is the smallest decision_log.max_bytes: 1 MiB. A smaller file would
+// rotate several times a second at a few thousand requests per second, leaving a stream of
+// tiny files for the training pipeline to read.
+const minDecisionLogMaxBytes = 1 << 20
+
 // DecisionLogConfig configures the decision log. Path is relative to the config file's
 // directory. MaxBytes is the size past which the file is rotated; it defaults to 100 MiB
-// once a path is set.
+// once a path is set and must be at least 1 MiB.
 type DecisionLogConfig struct {
 	Path     string `yaml:"path"`
 	MaxBytes int64  `yaml:"max_bytes"`
@@ -431,6 +436,8 @@ type DecisionLogConfig struct {
 func (d DecisionLogConfig) validate(add addFunc) {
 	if d.MaxBytes < 0 {
 		add("decision_log.max_bytes", "must not be negative, got %d", d.MaxBytes)
+	} else if d.MaxBytes > 0 && d.MaxBytes < minDecisionLogMaxBytes {
+		add("decision_log.max_bytes", "must be at least 1 MiB (%d bytes), got %d", minDecisionLogMaxBytes, d.MaxBytes)
 	}
 	if d.Path == "" && d.MaxBytes != 0 {
 		add("decision_log.max_bytes", "set without decision_log.path")

@@ -24,8 +24,12 @@ import (
 // the record that did not fit, so a slow disk never slows a request.
 const queueSize = 4096
 
-// rotatedTimeLayout is the UTC time in the name of a rotated file.
-const rotatedTimeLayout = "20060102T150405Z"
+// rotatedTimeLayout is the UTC time, to the microsecond, in the name of a rotated file. It has
+// a fixed width, so names sort by time.
+const rotatedTimeLayout = "20060102T150405.000000Z"
+
+// maxNameTries bounds how many sequence numbers a rotation tries when the name is taken.
+const maxNameTries = 1000
 
 // Record is one routing decision, written as one JSON line with "type": "decision". The
 // primary decision of a request carries the outcome (Outcome); a shadow decision, which was
@@ -123,17 +127,18 @@ type Writer struct {
 	errs    atomic.Int64
 
 	// The fields below belong to the writer goroutine (and to open, before it starts).
-	f        *os.File
-	bw       *bufio.Writer
-	size     int64
-	closeErr error
+	f         *os.File
+	bw        *bufio.Writer
+	size      int64
+	rotations int // the sequence number of the latest rotated file name
+	closeErr  error
 }
 
 // Open opens the log at path for appending, creating it and its directory if needed, and
 // starts the writer goroutine. maxBytes must be positive: once the file is larger than that
-// it is renamed to <path without extension>.<UTC yyyymmddTHHMMSSZ>.jsonl and a new file is
-// started. Records already in the file are kept; an unfinished last line is closed off with a
-// newline so the next record starts on its own line.
+// it is renamed to <path without extension>.<UTC yyyymmddTHHMMSS.uuuuuuZ>.<sequence>.jsonl
+// and a new file is started. Records already in the file are kept; an unfinished last line
+// is closed off with a newline so the next record starts on its own line.
 func Open(path string, maxBytes int64) (*Writer, error) {
 	return open(path, maxBytes, queueSize, time.Now, nil)
 }
@@ -294,9 +299,12 @@ func (w *Writer) flush() {
 	}
 }
 
-// rotate moves the active file aside and starts a new one. The name carries the UTC time of
-// the rotation; if that name is taken (two rotations in one second) the time moves on a
-// second until it is free, so no file is ever overwritten.
+// rotate moves the active file aside and starts a new one. The name is the UTC time of the
+// rotation, to the microsecond, and a sequence number that counts the rotations of this
+// writer, so rotations in the same microsecond (or under a frozen clock) still get distinct
+// names that sort in rotation order. If a file of that name is already there, from an earlier
+// run, the next sequence number is tried: the name never moves forward in time, and no file
+// is ever overwritten.
 func (w *Writer) rotate() error {
 	if err := w.bw.Flush(); err != nil {
 		w.bw.Reset(w.f)
@@ -305,17 +313,17 @@ func (w *Writer) rotate() error {
 	closeErr := w.f.Close()
 	w.f = nil
 	base := strings.TrimSuffix(w.path, filepath.Ext(w.path))
-	at := w.now().UTC()
+	stamp := w.now().UTC().Format(rotatedTimeLayout)
 	var target string
 	for i := 0; ; i++ {
-		target = base + "." + at.Format(rotatedTimeLayout) + ".jsonl"
+		w.rotations++
+		target = fmt.Sprintf("%s.%s.%06d.jsonl", base, stamp, w.rotations)
 		if _, err := os.Lstat(target); os.IsNotExist(err) {
 			break
 		}
-		if i >= 3600 {
+		if i >= maxNameTries {
 			return fmt.Errorf("decisionlog: no free name to rotate %s to", w.path)
 		}
-		at = at.Add(time.Second)
 	}
 	renameErr := os.Rename(w.path, target)
 	reopenErr := w.openFile() // a log with nowhere to go would lose every later record

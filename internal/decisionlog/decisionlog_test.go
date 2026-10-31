@@ -94,7 +94,7 @@ func TestWriterWritesOneJSONLinePerRecord(t *testing.T) {
 	}
 }
 
-// TestWriterRotates: once the file passes maxBytes it is renamed to <base>.<UTC time>.jsonl
+// TestWriterRotates: once the file passes maxBytes it is renamed to <base>.<UTC time>.<n>.jsonl
 // and a new file starts, with no record split or lost, also when the clock does not move
 // between rotations (the names must still be distinct, so nothing is overwritten).
 func TestWriterRotates(t *testing.T) {
@@ -119,14 +119,14 @@ func TestWriterRotates(t *testing.T) {
 	if len(rotated) < 3 {
 		t.Fatalf("rotated files = %v, want several for %d records at max %d", rotated, total, max)
 	}
-	name := regexp.MustCompile(`^decisions\.\d{8}T\d{6}Z\.jsonl$`)
+	name := regexp.MustCompile(`^decisions\.\d{8}T\d{6}\.\d{6}Z\.\d{6}\.jsonl$`)
 	for _, n := range rotated {
 		if !name.MatchString(n) {
-			t.Errorf("rotated file %q does not match decisions.<yyyymmddTHHMMSSZ>.jsonl", n)
+			t.Errorf("rotated file %q does not match decisions.<yyyymmddTHHMMSS.uuuuuuZ>.<sequence>.jsonl", n)
 		}
 	}
-	if !contains(rotated, "decisions.20261028T010203Z.jsonl") {
-		t.Errorf("rotated files = %v, want the first named for the clock, decisions.20261028T010203Z.jsonl", rotated)
+	if !contains(rotated, "decisions.20261028T010203.000000Z.000001.jsonl") {
+		t.Errorf("rotated files = %v, want the first named for the clock, decisions.20261028T010203.000000Z.000001.jsonl", rotated)
 	}
 	var want []int
 	for i := range total {
@@ -181,8 +181,8 @@ func TestWriterRotatedNamesFollowTheClock(t *testing.T) {
 	_ = w.Close()
 
 	rotated, _ := readLines(t, dir, "log.jsonl")
-	if len(rotated) < 2 || rotated[0] != "log.20260102T030505Z.jsonl" || rotated[1] != "log.20260102T030605Z.jsonl" {
-		t.Errorf("rotated = %v, want log.20260102T030505Z.jsonl then log.20260102T030605Z.jsonl first", rotated)
+	if len(rotated) < 2 || rotated[0] != "log.20260102T030505.000000Z.000001.jsonl" || rotated[1] != "log.20260102T030605.000000Z.000002.jsonl" {
+		t.Errorf("rotated = %v, want log.20260102T030505.000000Z.000001.jsonl then log.20260102T030605.000000Z.000002.jsonl first", rotated)
 	}
 }
 
@@ -358,7 +358,7 @@ func TestOpenRotatesAnOversizedExistingFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The oversized file is moved aside by Open itself, before any record is written.
-	if info, err := os.Stat(filepath.Join(dir, "decisions.20260506T070809Z.jsonl")); err != nil || info.Size() != int64(len(old)) {
+	if info, err := os.Stat(filepath.Join(dir, "decisions.20260506T070809.000000Z.000001.jsonl")); err != nil || info.Size() != int64(len(old)) {
 		t.Fatalf("after Open the old file should be rotated whole: %v (%v)", info, err)
 	}
 	if info, err := os.Stat(path); err != nil || info.Size() != 0 {
@@ -368,7 +368,7 @@ func TestOpenRotatesAnOversizedExistingFile(t *testing.T) {
 	_ = w.Close()
 
 	rotated, lines := readLines(t, dir, "decisions.jsonl")
-	if len(rotated) != 1 || rotated[0] != "decisions.20260506T070809Z.jsonl" {
+	if len(rotated) != 1 || rotated[0] != "decisions.20260506T070809.000000Z.000001.jsonl" {
 		t.Errorf("rotated = %v, want the oversized old file moved aside", rotated)
 	}
 	if len(lines) != 21 {
