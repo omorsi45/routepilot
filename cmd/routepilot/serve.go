@@ -378,14 +378,17 @@ func buildRegistry(cfg *config.Config, logger *slog.Logger) (*policy.Registry, e
 			return fresh.Policies, nil
 		}
 	}
-	reg, err := policy.NewRegistry(load, cfg.BaseDir())
+	catalog := make([]string, len(cfg.Models))
+	for i, m := range cfg.Models {
+		catalog[i] = m.ID
+	}
+	reg, err := policy.NewRegistry(load, cfg.BaseDir(), policy.WithCatalog(catalog), policy.WithLogger(logger))
 	if err != nil {
 		return nil, err
 	}
 	if path := cfg.Path(); path != "" {
 		reg.SetConfigFile(path)
 	}
-	reg.SetLogger(logger)
 	snap := reg.Snapshot()
 	attrs := []slog.Attr{slog.String("stable", snap.Stable.Version), slog.Int("shadow", len(snap.Shadow))}
 	if snap.Canary != nil {

@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -128,16 +129,40 @@ type Registry struct {
 	lastCfg config.PoliciesConfig // the latest configuration the loader returned
 	stamps  map[string]fileStamp  // the watched files as they were at the latest attempt
 	logger  *slog.Logger
+	// catalog is the model ids a slot is checked against (WithCatalog); empty checks nothing.
+	catalog []string
+}
+
+// RegistryOption configures a Registry at construction.
+type RegistryOption func(*Registry)
+
+// WithCatalog gives the registry the ids of the models the gateway routes among. A slot whose
+// artifact predicts for none of them is refused, as a load error (so a reload to it keeps the
+// old snapshot): the router would find no model it can score and answer every automatic
+// request with a capability error. A slot that covers only some of them loads, and the
+// registry logs which models it leaves out, because those are never chosen automatically.
+// Without it, or with no ids, nothing is checked.
+func WithCatalog(modelIDs []string) RegistryOption {
+	return func(r *Registry) { r.catalog = append([]string(nil), modelIDs...) }
+}
+
+// WithLogger sets where the registry logs from its first load on; SetLogger does the same
+// later.
+func WithLogger(l *slog.Logger) RegistryOption {
+	return func(r *Registry) { r.logger = l }
 }
 
 // NewRegistry loads and verifies every policy load() names, resolving relative paths
 // against baseDir. It fails when the stable slot (or any other) does not load; no registry
 // is returned then.
-func NewRegistry(load func() (config.PoliciesConfig, error), baseDir string) (*Registry, error) {
+func NewRegistry(load func() (config.PoliciesConfig, error), baseDir string, opts ...RegistryOption) (*Registry, error) {
 	if load == nil {
 		return nil, errors.New("policy registry: load function is nil")
 	}
 	r := &Registry{load: load, baseDir: baseDir, now: time.Now}
+	for _, o := range opts {
+		o(r)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	snap, err := r.build(0)
@@ -377,7 +402,34 @@ func (r *Registry) loadSlot(role, label, root string, ref config.PolicyRef) (Slo
 	if err != nil {
 		return Slot{}, fmt.Errorf("policy registry: %s policy %s/%s: %w", label, ref.Name, ref.Version, err)
 	}
+	if err := r.checkCoverage(label, ref, art); err != nil {
+		return Slot{}, err
+	}
 	return Slot{Role: role, Artifact: art, Config: pc, Version: art.Version() + "+" + pc.Hash8()}, nil
+}
+
+// checkCoverage compares the artifact's models with the catalog: none in common is an error,
+// some missing is logged. It checks nothing without a catalog.
+func (r *Registry) checkCoverage(label string, ref config.PolicyRef, art *Artifact) error {
+	if len(r.catalog) == 0 {
+		return nil
+	}
+	var missing []string
+	for _, id := range r.catalog {
+		if !art.HasModel(id) {
+			missing = append(missing, id)
+		}
+	}
+	switch {
+	case len(missing) == len(r.catalog):
+		return fmt.Errorf("policy registry: %s policy %s/%s covers none of the catalog's models (it predicts for %s, the catalog has %s)",
+			label, ref.Name, ref.Version, strings.Join(art.Models(), ", "), strings.Join(r.catalog, ", "))
+	case len(missing) > 0 && r.logger != nil:
+		r.logger.Warn("a policy does not cover every model of the catalog, so those models are never chosen automatically",
+			slog.String("slot", label), slog.String("policy", ref.Name+"/"+ref.Version),
+			slog.String("uncovered", strings.Join(missing, ", ")))
+	}
+	return nil
 }
 
 // stampAll stamps the config file (with cfgStamp, taken before the loader read it) and
