@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -24,8 +25,20 @@ type gateRun struct {
 }
 
 // fakePython replaces the command runner for the test and returns what it was asked to run.
-// It answers with the exit code and error it is given and writes stdout to the gate's stdout.
+// It answers with the exit code and error it is given, writes stdout to the gate's stdout and,
+// like the real estimators, leaves a verdict in gate.json that agrees with a code of 0 or 1.
 func fakePython(t *testing.T, code int, err error, stdout string) *gateRun {
+	t.Helper()
+	return fakePythonWriting(t, code, err, stdout, func(outDir string) {
+		if code == 0 || code == 1 {
+			writeFile(t, filepath.Join(outDir, "gate.json"), fmt.Sprintf("{\"pass\": %t}\n", code == 0))
+		}
+	})
+}
+
+// fakePythonWriting is fakePython with its own account of what the Python side leaves in the
+// output directory.
+func fakePythonWriting(t *testing.T, code int, err error, stdout string, leave func(outDir string)) *gateRun {
 	t.Helper()
 	g := &gateRun{code: code, err: err, stdout: stdout}
 	orig := runGateCommand
@@ -33,6 +46,7 @@ func fakePython(t *testing.T, code int, err error, stdout string) *gateRun {
 		g.calls++
 		g.name, g.args = name, slices.Clone(args)
 		_, _ = io.WriteString(out, g.stdout)
+		leave(args[slices.Index(args, "--out")+1])
 		return g.code, g.err
 	}
 	t.Cleanup(func() { runGateCommand = orig })

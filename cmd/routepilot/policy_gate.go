@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -24,13 +25,16 @@ const policyGateUsage = "usage: routepilot policy gate --config FILE --input FIL
 	"deterministic. The three files and the verdict (gate.json) are written to --out. The\n" +
 	"verdict comes from the off-policy estimators in python/routepilot_train/ope.py, run with\n" +
 	"--python (default .venv/Scripts/python.exe when it exists, else .venv/bin/python).\n" +
-	"exit codes: 0 the candidate passes, 1 it fails the gate, 2 usage or runtime error\n"
+	"exit codes: 0 the candidate passes, 1 it fails the gate, 2 usage or runtime error. An\n" +
+	"estimators run that exits 0 or 1 without a gate.json that says the same is an error (2).\n"
 
 // The files the gate writes under --out, besides gate.json.
 const (
 	gateLoggedFile    = "logged.jsonl"
 	gateCandidateFile = "candidate.jsonl"
 	gateIncumbentFile = "incumbent.jsonl"
+	// gateVerdictFile is the verdict the Python side writes into --out.
+	gateVerdictFile = "gate.json"
 )
 
 // runGateCommand runs the Python side of the gate and returns its exit code. An error means
@@ -125,6 +129,13 @@ func runPolicyGate(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "routepilot policy gate: %v\n", err)
 		return 2
 	}
+	// A verdict left by an earlier run must not stand for this one, for the exit code check
+	// below or for anything that reads the file instead.
+	gatePath := filepath.Join(*outDir, gateVerdictFile)
+	if err := os.Remove(gatePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		fmt.Fprintf(stderr, "routepilot policy gate: remove the previous verdict: %v\n", err)
+		return 2
+	}
 	for _, r := range replays {
 		sum, err := replayFiles(*configPath, *inputPath, filepath.Join(*outDir, r.file), replay.Options{
 			Split: *split, Policy: replay.PolicyLearned, Seed: *seed,
@@ -149,8 +160,37 @@ func runPolicyGate(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "routepilot policy gate: run %s: %v\n", *python, err)
 		return 2
 	case code == 0 || code == 1:
+		// An interpreter that cannot import the estimators exits 1 too, before it judges
+		// anything. The code is a verdict only when the estimators wrote one that says the same.
+		pass, err := readGateVerdict(gatePath)
+		switch {
+		case err != nil:
+			fmt.Fprintf(stderr, "routepilot policy gate: the estimators exited with %d but left no usable %s: %v\n", code, gateVerdictFile, err)
+			return 2
+		case pass != (code == 0):
+			fmt.Fprintf(stderr, "routepilot policy gate: the estimators exited with %d but %s says pass=%t, which disagrees\n", code, gateVerdictFile, pass)
+			return 2
+		}
 		return code
 	}
 	fmt.Fprintf(stderr, "routepilot policy gate: the estimators exited with %d\n", code)
 	return 2
+}
+
+// readGateVerdict reads whether the candidate passed from the gate.json at path.
+func readGateVerdict(path string) (bool, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	var v struct {
+		Pass *bool `json:"pass"`
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return false, fmt.Errorf("decode: %w", err)
+	}
+	if v.Pass == nil {
+		return false, errors.New("no \"pass\" field")
+	}
+	return *v.Pass, nil
 }
