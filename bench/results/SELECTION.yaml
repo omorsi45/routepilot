@@ -9,9 +9,12 @@
 # The script fails when a run named here does not exist.
 
 data:
-  - run: "20261031T064740Z-d02bb26"
+  - run: "20261031T075023Z-f03e732"
     status: current
-    reason: Newest run, with per-token prices fitted on train and calibration rows only.
+    reason: Newest run, with per-token prices fitted on train and calibration rows only and the rows-fitted column counting those rows.
+  - run: "20261031T064740Z-d02bb26"
+    status: older
+    reason: "Superseded: its rows-fitted column counted the rows of every split, not the train and calibration rows the prices were fitted on."
   - run: "20261028T004933Z-bec7b21"
     status: older
     reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
