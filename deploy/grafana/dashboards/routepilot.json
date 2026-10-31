@@ -518,7 +518,7 @@
     {
       "id": 11,
       "title": "Policy rollbacks and reload errors",
-      "description": "Rollbacks of the stable policy and failed policy reloads in the last hour.",
+      "description": "Rollbacks of the stable policy and of the canary, and failed policy reloads in the last hour.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",

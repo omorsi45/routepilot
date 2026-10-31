@@ -61,7 +61,8 @@ type Sources struct {
 	DecisionLogDropped func() int64
 	// PolicyReloadErrors counts the policy reloads that failed and left the old policies.
 	PolicyReloadErrors func() uint64
-	// PolicyRollbacks counts the rollbacks of the stable policy.
+	// PolicyRollbacks counts the rollbacks of the stable policy and of the canary, whether an
+	// operator asked for them or the guardrails did.
 	PolicyRollbacks func() uint64
 	// BreakerStates maps each configured deployment to BreakerClosed, BreakerHalfOpen or
 	// BreakerOpen.
@@ -193,7 +194,7 @@ func NewMetrics(tenants []string, reg prometheus.Registerer) *Metrics {
 		}, m.read(func(s *Sources) float64 { return call64(s.BudgetOvershootPico) })),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Name: "rp_policy_rollbacks_total",
-			Help: "Rollbacks of the stable policy.",
+			Help: "Rollbacks of the stable policy and of the canary, manual or by the guardrails.",
 		}, m.read(func(s *Sources) float64 { return callU64(s.PolicyRollbacks) })),
 		prometheus.NewCounterFunc(prometheus.CounterOpts{
 			Name: "rp_policy_reload_errors_total",
