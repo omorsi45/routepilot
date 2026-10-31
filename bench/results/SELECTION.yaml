@@ -188,9 +188,9 @@ overhead:
     reason: First Linux run, shown for its tail. Its scratch files were on the slow /mnt/c mount, and the gateway's request log on that mount made the 2000 rps non-streaming cell slow. The primary run repeated the experiment with the scratch files on ext4.
 
 clock:
-  - run: "20261029T074240Z-e12fd9f"
+  - run: "20261031T070316Z-f0429c6"
     status: current
-    reason: WSL2 Linux on the machine that ran the performance experiments. The step is far below the 1000 ns the experiments need. The probe ran from a tree where bench/scripts/clock_probe.py was not yet committed (git_dirty true); the script was committed with the runs.
-  - run: "20261029T074230Z-e12fd9f"
+    reason: WSL2 Linux on the machine that ran the performance experiments. The step is far below the 1000 ns the experiments need.
+  - run: "20261031T070310Z-f0429c6"
     status: also
-    reason: Windows 11 on the same machine. The step is far above 1000 ns, which is why the timing experiments run on Linux. The probe ran from a tree where bench/scripts/clock_probe.py was not yet committed (git_dirty true); the script was committed with the runs.
+    reason: Windows 11 on the same machine. The step is far above 1000 ns, which is why the timing experiments run on Linux.

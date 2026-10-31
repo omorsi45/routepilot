@@ -1,6 +1,6 @@
 # clock
 
-Run `20261029T074240Z-e12fd9f`.
+Run `20261031T070316Z-f0429c6`.
 
 **Labels:** measured on this host with rp-load --clock-probe, which reads time.Now for 200 ms and reports the smallest non-zero difference between two consecutive reads (the clock step) and the share of equal consecutive reads; nothing here is simulated, fitted or assumed; a step above 1000 ns is too coarse for the sub-millisecond quantities of the performance experiments, which refuse to run on it.
 

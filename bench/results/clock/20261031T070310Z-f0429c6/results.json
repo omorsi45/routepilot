@@ -6,32 +6,32 @@
   "probe_ms": 200,
   "probes": [
     {
+      "clock_step_ns": 344800,
+      "zero_fraction": 0.9999930258937987
+    },
+    {
+      "clock_step_ns": 501200,
+      "zero_fraction": 0.9999922363768076
+    },
+    {
       "clock_step_ns": 501300,
-      "zero_fraction": 0.999992547414366
+      "zero_fraction": 0.9999922033888122
     },
     {
-      "clock_step_ns": 502500,
-      "zero_fraction": 0.9999899682025348
+      "clock_step_ns": 501100,
+      "zero_fraction": 0.9999926513527229
     },
     {
-      "clock_step_ns": 502000,
-      "zero_fraction": 0.9999912429303375
-    },
-    {
-      "clock_step_ns": 379700,
-      "zero_fraction": 0.9999922225159638
-    },
-    {
-      "clock_step_ns": 501500,
-      "zero_fraction": 0.9999919279584254
+      "clock_step_ns": 501400,
+      "zero_fraction": 0.9999927064451428
     }
   ],
   "summary": {
     "probes": 5,
-    "min_step_ns": 379700,
-    "median_step_ns": 501500,
-    "max_step_ns": 502500,
-    "max_zero_fraction": 0.999992547414366,
+    "min_step_ns": 344800,
+    "median_step_ns": 501200,
+    "max_step_ns": 501400,
+    "max_zero_fraction": 0.9999930258937987,
     "threshold_ns": 1000,
     "coarse": true
   },

@@ -1,8 +1,8 @@
 {
-  "run_id": "20261029T074240Z-e12fd9f",
+  "run_id": "20261031T070316Z-f0429c6",
   "experiment": "clock",
-  "git_sha": "e12fd9fb1a9155d4740214cae5197e9698552c0e",
-  "git_dirty": true,
+  "git_sha": "f0429c6eb2ca7c82418c70e316846ac880c5a8a8",
+  "git_dirty": false,
   "policy_version": null,
   "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
   "seeds": {},
@@ -13,8 +13,8 @@
   },
   "go_version": "go1.27.2",
   "python_version": "3.14.9",
-  "started_at": "2026-10-29T07:42:40Z",
-  "ended_at": "2026-10-29T07:42:46Z",
+  "started_at": "2026-10-31T07:03:16Z",
+  "ended_at": "2026-10-31T07:03:21Z",
   "command": [
     "python",
     "bench/scripts/clock_probe.py"

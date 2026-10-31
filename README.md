@@ -127,7 +127,7 @@ Calibration and systems measurements:
 | LiteLLM 1.106.6 (8 workers) against the same mock, p95 over the direct path, no streaming, at 100 / 500 / 1000 / 2000 requests per second | LiteLLM +10.27 / +68.64 / +69.12 / +2284.51 ms (saturated at 2000); RoutePilot +0.29 / +0.35 / +0.29 / +0.58 ms. With streaming, LiteLLM dropped arrivals and returned errors from 500 requests per second. One configuration, no master key set (which can only favor LiteLLM). | [`20261028T234116Z-ee7619a`](bench/results/litellm/20261028T234116Z-ee7619a/) |
 | Failover, 10,000 requests with injected failures before the stream | 1,749 first attempts failed, 1,749 recovered (100.00%), 0 requests failed; target 99% | [`20261029T010235Z-f5ff91d`](bench/results/failover/20261029T010235Z-f5ff91d/) |
 | Quota, 64 clients, budget 0.05 USD | spend 0.049904 USD (memory) and 0.049894 USD (Redis), overshoot counter 0, 9 of 9 and 10 of 10 checks passed | [`20261029T010202Z-f5ff91d`](bench/results/quota_correctness/20261029T010202Z-f5ff91d/) |
-| Clock step of the timing host | 30 ns on Linux, about 0.4 to 0.5 ms on Windows, which is why every timing run is on Linux | [`20261029T074240Z-e12fd9f`](bench/results/clock/20261029T074240Z-e12fd9f/), [`20261029T074230Z-e12fd9f`](bench/results/clock/20261029T074230Z-e12fd9f/) |
+| Clock step of the timing host | 30 ns on Linux, about 0.3 to 0.5 ms on Windows, which is why every timing run is on Linux | [`20261031T070316Z-f0429c6`](bench/results/clock/20261031T070316Z-f0429c6/), [`20261031T070310Z-f0429c6`](bench/results/clock/20261031T070310Z-f0429c6/) |
 
 Live check on local models (three Qwen2.5 models through Ollama, **measured** latency through
 the gateway, **assumed** prices proportional to parameter count; 148 test items, so wide
