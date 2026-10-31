@@ -226,6 +226,7 @@ def run_ablations(
     the shipped artifact's committed training run is looked up for its wall time.
     """
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived, shipped, policy_config = Path(derived), Path(shipped), Path(policy_config)
     scratch = Path(scratch)
@@ -432,7 +433,7 @@ def run_ablations(
         "labels": _labels(),
     }
 
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     shown = (
         list(command) if command else ["python", "bench/scripts/ablations.py", "--pool", pool_name]
     )
@@ -446,6 +447,7 @@ def run_ablations(
         shown,
         shipped.name,
         started,
+        git=start_git,
     )
     return out_dir
 

@@ -564,8 +564,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     pinned = pinned_litellm_version(REQUIREMENTS.read_text(encoding="utf-8"))
 
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.monotonic()
-    run_id = runinfo.new_run_id(started)
+    run_id = runinfo.new_run_id(started, start_git)
     out_dir = args.out or ROOT / "bench" / "results" / EXPERIMENT / run_id
     scratch = args.scratch_root / f"{EXPERIMENT}-{run_id}"
     scratch.mkdir(parents=True, exist_ok=True)
@@ -643,6 +644,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         None,
         started,
         extra=probe,
+        git=start_git,
     )
     report = render_report(results, info["machine"], info["run_id"], info["go_version"])
     (out_dir / "report.md").write_text(report, encoding="utf-8", newline="\n")

@@ -315,6 +315,7 @@ def run_shift_ood(
     verdict, and RuntimeError when the replay input has no held-out (or test) items.
     """
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived, artifact, policy_config = Path(derived), Path(artifact), Path(policy_config)
     pool = json.loads((derived / "pools" / f"{pool_name}.json").read_text(encoding="utf-8"))
@@ -394,7 +395,7 @@ def run_shift_ood(
         "labels": _labels(base_config.get("ood_action")),
     }
 
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     shown = (
         list(command) if command else ["python", "bench/scripts/shift_ood.py", "--pool", pool_name]
     )
@@ -408,6 +409,7 @@ def run_shift_ood(
         shown,
         artifact.name,
         started,
+        git=start_git,
     )
     return out_dir
 

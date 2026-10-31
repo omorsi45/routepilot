@@ -38,7 +38,12 @@ def write(tmp_path: Path, **overrides) -> Path:
     args = {
         "out_dir": tmp_path / RUN_ID,
         "experiment": "demo",
-        "results": {"pool": "flagship", "count": np.int64(3), "rate": np.float64(0.25)},
+        "results": {
+            "pool": "flagship",
+            "count": np.int64(3),
+            "rate": np.float64(0.25),
+            "labels": ["latency is simulated", "prices are fitted from recorded costs"],
+        },
         "tables": {"main": pd.DataFrame({"policy": ["a", "b"], "cost": [0.000185, 12.5]})},
         "figures": {"pareto": figure()},
         "seeds": {"bootstrap": 0},
@@ -64,6 +69,7 @@ def test_write_results_layout(tmp_path):
         "pool": "flagship",
         "count": 3,
         "rate": 0.25,
+        "labels": ["latency is simulated", "prices are fitted from recorded costs"],
     }
     run = json.loads((out / "run.json").read_text(encoding="utf-8"))
     assert list(run) == RUN_JSON_KEYS
@@ -93,18 +99,30 @@ def test_written_files_use_lf_and_are_ascii_safe(tmp_path):
 def test_nan_and_inf_become_null_in_results_json(tmp_path):
     out = write(
         tmp_path,
-        results={"a": float("nan"), "b": [float("inf"), 1.5], "c": {"d": np.float64("nan")}},
+        results={
+            "a": float("nan"),
+            "b": [float("inf"), 1.5],
+            "c": {"d": np.float64("nan")},
+            "labels": ["x"],
+        },
     )
     text = (out / "results.json").read_text(encoding="utf-8")
     assert "NaN" not in text and "Infinity" not in text
-    assert json.loads(text) == {"a": None, "b": [None, 1.5], "c": {"d": None}}
+    assert json.loads(text) == {"a": None, "b": [None, 1.5], "c": {"d": None}, "labels": ["x"]}
 
 
-def test_custom_labels_replace_the_default_line(tmp_path):
+def test_custom_labels_are_the_labels_line(tmp_path):
     out = write(tmp_path, results={"labels": ["Latency is simulated.", "Prices are assumed."]})
     md = (out / "report.md").read_text(encoding="utf-8")
-    assert "Latency is simulated." in md and "Prices are assumed." in md
+    assert "**Labels:** Latency is simulated.; Prices are assumed.." in md
     assert "fitted from recorded costs" not in md
+
+
+@pytest.mark.parametrize("results", [{}, {"labels": []}, {"labels": None}, {"pool": "flagship"}])
+def test_write_results_refuses_a_report_without_labels(tmp_path, results):
+    with pytest.raises(ValueError, match="labels"):
+        write(tmp_path, results=results)
+    assert not (tmp_path / RUN_ID).exists()
 
 
 def test_missing_cells_render_as_n_a(tmp_path):
@@ -127,6 +145,12 @@ def test_a_measurement_block_goes_into_run_json(tmp_path):
     assert "measurement" not in json.loads(
         (write(tmp_path / "plain")).joinpath("run.json").read_text(encoding="utf-8")
     )
+
+
+def test_write_results_records_the_git_state_it_was_given(tmp_path):
+    out = write(tmp_path, git=("1" * 40, True))
+    run = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    assert run["git_sha"] == "1" * 40 and run["git_dirty"] is True
 
 
 def test_write_results_rejects_an_unsafe_figure_name(tmp_path):

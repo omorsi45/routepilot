@@ -124,6 +124,7 @@ def run_lcb_vs_point(
 ) -> Path:
     """Replay both arms at every floor on both splits and write ``out_root/<run-id>``."""
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived, artifact, policy_config = Path(derived), Path(artifact), Path(policy_config)
     config = derived / "pools" / f"{pool_name}.config.yaml"
@@ -174,7 +175,7 @@ def run_lcb_vs_point(
         "wall_time_s": time.perf_counter() - clock,
         "labels": _labels(),
     }
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     shown = (
         list(command)
         if command
@@ -190,6 +191,7 @@ def run_lcb_vs_point(
         shown,
         artifact.name,
         started,
+        git=start_git,
     )
     return out_dir
 

@@ -33,6 +33,7 @@ FITTED = "fitted from recorded costs"
 def summarize(derived: Path, out_root: Path, command: Sequence[str] | None = None) -> Path:
     """Write the summary under ``out_root/<run-id>`` and return that directory."""
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     outcomes = pd.read_parquet(derived / "outcomes.parquet")
     split_table = pd.read_parquet(derived / "splits.parquet")
     pool_json = {
@@ -72,7 +73,7 @@ def summarize(derived: Path, out_root: Path, command: Sequence[str] | None = Non
     results["zero_cost_flagship"] = _zero_cost(pool_rows["flagship"])
     results["negative_token_rows"] = _negative_tokens(outcomes)
 
-    run_dir = out_root / runinfo.new_run_id(started)
+    run_dir = out_root / runinfo.new_run_id(started, start_git)
     run_dir.mkdir(parents=True, exist_ok=False)
     _write_text(run_dir / "results.json", json.dumps(results, indent=2) + "\n")
     _write_text(run_dir / "report.md", _report(results, run_dir.name))
@@ -83,6 +84,7 @@ def summarize(derived: Path, out_root: Path, command: Sequence[str] | None = Non
         command or ["python", "bench/scripts/data_summary.py"],
         None,
         started,
+        git=start_git,
     )
     return run_dir
 

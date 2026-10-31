@@ -261,6 +261,7 @@ def run_inupper(
 ) -> Path:
     """Compute the ratios for ``pools`` and write the results under ``out_root/<run-id>``."""
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     overheads = {name: _fitted_overheads(derived, name) for name in pools}
     binary = binary or replaytool.build_go(ROOT)
     sections: dict[str, Any] = {}
@@ -301,7 +302,7 @@ def run_inupper(
             "and heldout rows are an out-of-sample check",
         ],
     }
-    out_dir = out_root / runinfo.new_run_id(started)
+    out_dir = out_root / runinfo.new_run_id(started, start_git)
     report.write_results(
         out_dir,
         "inupper",
@@ -312,6 +313,7 @@ def run_inupper(
         command or ["python", "bench/scripts/inupper.py"],
         None,
         started,
+        git=start_git,
     )
     return out_dir
 

@@ -306,6 +306,7 @@ def run_sweeps(
     untouched) when no lambda reaches the target on the calibration split.
     """
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     derived, artifact, policy_config = Path(derived), Path(artifact), Path(policy_config)
     pool = json.loads((derived / "pools" / f"{pool_name}.json").read_text(encoding="utf-8"))
     strong, cheapest = pool["best_single"], pool["cheapest"]
@@ -488,7 +489,7 @@ def run_sweeps(
         "labels": _labels(),
     }
 
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     shown = list(command) if command else ["python", "bench/scripts/sweeps.py", "--pool", pool_name]
     report.write_results(
         out_dir,
@@ -500,6 +501,7 @@ def run_sweeps(
         shown,
         artifact.name,
         started,
+        git=start_git,
     )
     set_lambda(policy_config, tuned)
     return out_dir

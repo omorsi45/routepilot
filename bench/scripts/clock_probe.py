@@ -94,6 +94,7 @@ def run_clock_probe(
 ) -> Path:
     """Build, probe, write the run under ``out_root`` and return its directory."""
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     binary = build(bin_dir)
     found = collect(binary, count, probe)
     summary = summarize(found)
@@ -125,7 +126,7 @@ def run_clock_probe(
         "Host": pd.DataFrame([host]),
     }
     return report.write_results(
-        out_root / runinfo.new_run_id(started),
+        out_root / runinfo.new_run_id(started, start_git),
         EXPERIMENT,
         results,
         tables,
@@ -135,6 +136,7 @@ def run_clock_probe(
         None,
         started,
         measurement=summary,
+        git=start_git,
     )
 
 

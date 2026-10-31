@@ -339,6 +339,7 @@ def run_headline(
     if lambda_source not in LAMBDA_SOURCES:
         raise ValueError(f"lambda_source must be one of {LAMBDA_SOURCES}, got {lambda_source!r}")
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived, artifact, policy_config = Path(derived), Path(artifact), Path(policy_config)
     pool = json.loads((derived / "pools" / f"{pool_name}.json").read_text(encoding="utf-8"))
@@ -600,7 +601,7 @@ def run_headline(
         "labels": _labels(pool_name, xf is not None),
     }
 
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     shown = (
         list(command) if command else ["python", "bench/scripts/headline.py", "--pool", pool_name]
     )
@@ -617,6 +618,7 @@ def run_headline(
         shown,
         artifact.name,
         started,
+        git=start_git,
     )
     return out_dir
 

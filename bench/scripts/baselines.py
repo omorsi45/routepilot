@@ -72,6 +72,7 @@ def run_baselines(
 ) -> Path:
     """Replay the baselines on ``pool_name`` and write the results under ``out_root/<run-id>``."""
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     pool = json.loads((derived / "pools" / f"{pool_name}.json").read_text(encoding="utf-8"))
     config = derived / "pools" / f"{pool_name}.config.yaml"
     replay_input = derived / "replay" / f"{pool_name}.jsonl"
@@ -132,7 +133,7 @@ def run_baselines(
     tables = _tables(results, rows, seeds, per_dataset, frames)
     figures = {"pareto": _pareto_figure(points, front, pool_name)}
 
-    out_dir = out_root / runinfo.new_run_id(started)
+    out_dir = out_root / runinfo.new_run_id(started, start_git)
     seed_info = {
         "random": list(RANDOM_SEEDS),
         "bootstrap": BOOTSTRAP_SEED,
@@ -147,6 +148,7 @@ def run_baselines(
         command or ["python", "bench/scripts/baselines.py", "--pool", pool_name],
         None,
         started,
+        git=start_git,
     )
     return out_dir
 

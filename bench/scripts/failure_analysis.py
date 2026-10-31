@@ -178,6 +178,7 @@ def run_failure_analysis(
 ) -> Path:
     """Replay Best Single and the learned dual point on the test split and write the report."""
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived, policy_config = Path(derived), Path(policy_config)
     pool = json.loads((derived / "pools" / f"{pool_name}.json").read_text(encoding="utf-8"))
@@ -213,7 +214,7 @@ def run_failure_analysis(
         "wall_time_s": time.perf_counter() - clock,
         "labels": list(LABELS),
     }
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     command = ["python", "bench/scripts/failure_analysis.py"]
     report.write_results(
         out_dir,
@@ -225,6 +226,7 @@ def run_failure_analysis(
         command,
         artifact.name,
         started,
+        git=start_git,
     )
     return out_dir
 

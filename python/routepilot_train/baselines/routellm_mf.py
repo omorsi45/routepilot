@@ -340,6 +340,7 @@ def run(
     ``<results_root>/mf_train/<run-id>/`` (default ``bench/results`` of this checkout).
     """
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived = Path(derived)
     pool = json.loads((derived / "pools" / f"{pool_name}.json").read_text(encoding="utf-8"))
@@ -368,7 +369,7 @@ def run(
     digest = hashlib.sha256(out.read_bytes()).hexdigest()
 
     root = Path(results_root) if results_root is not None else runinfo.repo_root() / "bench/results"
-    results_dir = root / EXPERIMENT / runinfo.new_run_id(started)
+    results_dir = root / EXPERIMENT / runinfo.new_run_id(started, start_git)
     results = {
         "pool": pool_name,
         "strong": strong,
@@ -424,6 +425,7 @@ def run(
         shown,
         digest[:12],
         started,
+        git=start_git,
     )
     return {
         "mf_file": out,

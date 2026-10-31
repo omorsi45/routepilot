@@ -363,6 +363,7 @@ def run(
     check_calibrator(calibrator)
     design.check_feature_set(feature_set)
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived = Path(derived)
     pool_path = derived / "pools" / f"{pool_name}.json"
@@ -370,7 +371,7 @@ def run(
 
     train, calib = load_fit_data(derived, pool, prompts_file)
     fit = fit_pool(train, calib, pool, dim, progress, calibrator, feature_set)
-    git_sha, _ = runinfo.git_state()
+    git_sha = start_git[0]
     bundle, weights = artifact.assemble_bundle(
         dim=fit.dim,
         dense_mean=fit.dense_mean,
@@ -389,7 +390,7 @@ def run(
     wall_time = time.perf_counter() - clock
 
     root = Path(results_root) if results_root is not None else runinfo.repo_root() / "bench/results"
-    results_dir = root / EXPERIMENT / runinfo.new_run_id(started)
+    results_dir = root / EXPERIMENT / runinfo.new_run_id(started, start_git)
     command = [
         "python",
         "-m",
@@ -420,6 +421,7 @@ def run(
         command,
         version,
         started,
+        git=start_git,
     )
     return {
         "version": version,

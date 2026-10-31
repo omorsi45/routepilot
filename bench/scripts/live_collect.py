@@ -632,6 +632,7 @@ def measure(tags: Sequence[str]) -> dict[str, Any]:
 def run_measure(out_root: Path, tags: Sequence[str] = CANDIDATES) -> Path:
     """Measure ``tags`` and write ``results.json``, ``report.md`` and ``run.json``."""
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     measured = measure(tags)
     results = {
@@ -657,7 +658,7 @@ def run_measure(out_root: Path, tags: Sequence[str] = CANDIDATES) -> Path:
                 "load s": m["load_s"],
             }
         )
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     command = ["python", "bench/scripts/live_collect.py", "measure"]
     report.write_results(
         out_dir,
@@ -669,6 +670,7 @@ def run_measure(out_root: Path, tags: Sequence[str] = CANDIDATES) -> Path:
         command,
         None,
         started,
+        git=start_git,
     )
     return out_dir
 
@@ -1020,6 +1022,7 @@ def collect(
     ``run.json`` records (default: the bare ``collect`` command).
     """
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     proto = protocol_for(protocol)
     live_dir = Path(live_dir).resolve()
@@ -1184,7 +1187,7 @@ def collect(
         "labels": list(LABELS),
     }
     tables = _collect_tables(results, catalog)
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     report.write_results(
         out_dir,
         EXPERIMENT,
@@ -1196,6 +1199,7 @@ def collect(
         None,
         started,
         measurement={"protocol": proto.as_dict()},
+        git=start_git,
     )
     return out_dir
 

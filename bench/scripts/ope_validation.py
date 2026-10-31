@@ -360,6 +360,7 @@ def run_ope_validation(
     Raises ValueError when the policy config has no lambda or no ``ood_action``.
     """
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived, artifact, policy_config = Path(derived), Path(artifact), Path(policy_config)
     seeds = list(seeds)
@@ -470,7 +471,7 @@ def run_ope_validation(
         "labels": _labels(bootstrap, floor),
     }
 
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     shown = (
         list(command)
         if command
@@ -486,6 +487,7 @@ def run_ope_validation(
         shown,
         artifact.name,
         started,
+        git=start_git,
     )
     return out_dir
 

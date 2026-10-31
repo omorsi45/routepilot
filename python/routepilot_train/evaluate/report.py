@@ -21,11 +21,6 @@ from routepilot_train import runinfo
 
 matplotlib.use("Agg")
 
-DEFAULT_LABELS = (
-    "prices are fitted from recorded costs, not list prices",
-    "latency is simulated, never measured, wherever it is shown",
-    "nothing here is assumed",
-)
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
@@ -79,15 +74,21 @@ def write_results(
     policy_version: str | None,
     started_at: datetime,
     measurement: Mapping[str, Any] | None = None,
+    git: runinfo.GitState | None = None,
 ) -> Path:
     """Write the result files into ``out_dir`` (named by ``runinfo.new_run_id``) and return it.
 
     ``results.json`` is ``results``. ``report.md`` has the title, the run id, the
-    Labels line (``results["labels"]`` when given, else ``DEFAULT_LABELS``), every table
-    and every figure. Each figure is saved as ``<name>.png``. ``measurement``, when given, is
-    how the run was measured (for example the protocol of a live collection) and goes under
-    ``measurement`` in ``run.json``.
+    Labels line (``results["labels"]``, which must be a non-empty list: a report never
+    gets labels the experiment did not write), every table and every figure. Each figure
+    is saved as ``<name>.png``. ``measurement``, when given, is how the run was measured
+    (for example the protocol of a live collection) and goes under ``measurement`` in
+    ``run.json``. ``git`` is the state taken when the run started (see
+    ``runinfo.git_state``).
     """
+    labels = results.get("labels")
+    if not labels:
+        raise ValueError(f"the results of {experiment!r} have no labels")
     for name in figures:
         if not _SAFE_NAME.match(name):
             raise ValueError(f"figure name {name!r} is not a plain file stem")
@@ -96,7 +97,6 @@ def write_results(
     payload = _plain(results)
     _write_text(out_dir / "results.json", json.dumps(payload, indent=2) + "\n")
 
-    labels = results.get("labels") or list(DEFAULT_LABELS)
     lines = [f"# {experiment}", "", f"Run `{out_dir.name}`.", ""]
     lines += [f"**Labels:** {'; '.join(str(label) for label in labels)}.", ""]
     for name, table in tables.items():
@@ -107,7 +107,7 @@ def write_results(
     _write_text(out_dir / "report.md", "\n".join(lines))
 
     runinfo.write_run_json(
-        out_dir, experiment, seeds, command, policy_version, started_at, extra=measurement
+        out_dir, experiment, seeds, command, policy_version, started_at, extra=measurement, git=git
     )
     return out_dir
 

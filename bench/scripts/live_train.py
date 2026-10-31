@@ -433,6 +433,7 @@ def run_live_train(
     ``command`` is what ``run.json`` records (default: the bare script name).
     """
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     live_dir = Path(live_dir).resolve()
     catalog = live_collect.load_catalog(config)
@@ -550,7 +551,7 @@ def run_live_train(
         "wall_time_s": time.perf_counter() - clock,
         "labels": list(LABELS),
     }
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     command = list(command) if command else ["python", SCRIPT]
     report.write_results(
         out_dir,
@@ -563,6 +564,7 @@ def run_live_train(
         summary["version"],
         started,
         measurement={"protocol": protocol.as_dict()},
+        git=start_git,
     )
     return out_dir
 

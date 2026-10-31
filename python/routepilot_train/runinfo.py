@@ -19,6 +19,9 @@ from routepilot_train.data import selection
 # Results directories are output, not input: a new one must not make the tree look dirty.
 _RESULTS_PATHSPEC = ":(exclude)bench/results"
 
+# The HEAD SHA and whether the tree is dirty; (None, None) outside a git checkout.
+GitState = tuple[str | None, bool | None]
+
 
 def repo_root() -> Path:
     """The repository root, found from this file (python/routepilot_train/runinfo.py)."""
@@ -49,10 +52,12 @@ def _git(root: Path, *args: str) -> str | None:
     return proc.stdout if proc.returncode == 0 else None
 
 
-def git_state(root: Path | None = None) -> tuple[str | None, bool | None]:
+def git_state(root: Path | None = None) -> GitState:
     """The full HEAD SHA and whether the tree has changes outside bench/results.
 
-    Both are None when ``root`` is not a git checkout or git is missing.
+    Both are None when ``root`` is not a git checkout or git is missing. A run takes
+    this when it starts and hands it to ``new_run_id`` and ``write_run_json``, so a
+    commit or an edit made while it runs is not recorded as the code that ran.
     """
     root = root or repo_root()
     sha = _git(root, "rev-parse", "HEAD")
@@ -62,10 +67,13 @@ def git_state(root: Path | None = None) -> tuple[str | None, bool | None]:
     return sha.strip(), None if status is None else bool(status.strip())
 
 
-def new_run_id(now: datetime | None = None) -> str:
-    """``<UTC yyyymmddTHHMMSSZ>-<git short SHA>``; the SHA part is ``nogit`` outside git."""
+def new_run_id(now: datetime | None = None, git: GitState | None = None) -> str:
+    """``<UTC yyyymmddTHHMMSSZ>-<git short SHA>``; the SHA part is ``nogit`` outside git.
+
+    ``git`` is the state taken when the run started (default: the state now).
+    """
     moment = _utc(now or datetime.now(UTC))
-    sha, _ = git_state()
+    sha, _ = git if git is not None else git_state()
     return f"{moment.strftime('%Y%m%dT%H%M%SZ')}-{sha[:7] if sha else 'nogit'}"
 
 
@@ -155,15 +163,17 @@ def write_run_json(
     policy_version: str | None,
     started_at: datetime,
     extra: Mapping[str, Any] | None = None,
+    git: GitState | None = None,
 ) -> dict[str, Any]:
     """Write ``dir/run.json`` (creating ``dir``) and return its content.
 
     ``run_id`` is the directory name, which callers build with ``new_run_id``.
     ``ended_at`` is the time of this call. ``extra``, when given, is how the run was measured
     (for example the clock step of a timing experiment) and is stored under ``measurement``;
-    without it the key is absent.
+    without it the key is absent. ``git`` is the state taken when the run started (default:
+    the state now, which is only right for a run that cannot change the code while it runs).
     """
-    sha, dirty = git_state()
+    sha, dirty = git if git is not None else git_state()
     info: dict[str, Any] = {
         "run_id": dir.name,
         "experiment": experiment,

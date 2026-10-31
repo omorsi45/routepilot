@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 import subprocess
@@ -81,6 +82,48 @@ def test_new_run_id_format():
     assert re.fullmatch(r"20261027T235958Z-[0-9a-f]{7,}", run_id)
     assert runinfo.new_run_id(now) == run_id
     assert re.fullmatch(r"\d{8}T\d{6}Z-[0-9a-f]{7,}", runinfo.new_run_id())
+
+
+def test_a_given_git_state_is_recorded_instead_of_the_current_one(tmp_path: Path):
+    now = datetime(2026, 10, 27, 23, 59, 58, tzinfo=UTC)
+    state = ("abcdef0123456789abcdef0123456789abcdef01", True)
+    assert runinfo.new_run_id(now, state) == "20261027T235958Z-abcdef0"
+    assert runinfo.new_run_id(now, (None, None)) == "20261027T235958Z-nogit"
+    info = runinfo.write_run_json(tmp_path / "r", "e", {}, ["x"], None, now, git=state)
+    assert (info["git_sha"], info["git_dirty"]) == state
+    on_disk = json.loads((tmp_path / "r" / "run.json").read_text(encoding="utf-8"))
+    assert (on_disk["git_sha"], on_disk["git_dirty"]) == state
+
+
+RUN_WRITERS = {"write_results", "write_run_json"}
+
+
+def _run_calls(path: Path) -> list[tuple[int, str, ast.Call]]:
+    """Every call in ``path`` of ``new_run_id``, ``write_results`` or ``write_run_json``."""
+    found = []
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr in RUN_WRITERS | {"new_run_id"}:
+                found.append((node.lineno, node.func.attr, node))
+    return found
+
+
+def test_every_run_takes_the_git_state_when_it_starts():
+    """A run that calls the writers without the state taken at its start records the end state."""
+    root = runinfo.repo_root()
+    sources = sorted((root / "bench" / "scripts").glob("*.py"))
+    sources += sorted((root / "python" / "routepilot_train").rglob("*.py"))
+    missing = []
+    seen = 0
+    for path in sources:
+        for line, name, call in _run_calls(path):
+            seen += 1
+            keywords = {k.arg for k in call.keywords}
+            ok = "git" in keywords or (name == "new_run_id" and len(call.args) + len(keywords) >= 2)
+            if not ok:
+                missing.append(f"{path.relative_to(root).as_posix()}:{line} {name}")
+    assert seen > 40  # the walk found the experiments, not nothing
+    assert missing == []
 
 
 def git(root: Path, *args: str) -> None:

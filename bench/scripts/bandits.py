@@ -207,6 +207,7 @@ def run_bandits(
     other reads of the test split.
     """
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived, artifact, policy_config = Path(derived), Path(artifact), Path(policy_config)
     pool = json.loads((derived / "pools" / f"{pool_name}.json").read_text(encoding="utf-8"))
@@ -411,7 +412,7 @@ def run_bandits(
         "labels": _labels(lam),
     }
 
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     shown = (
         list(command) if command else ["python", "bench/scripts/bandits.py", "--pool", pool_name]
     )
@@ -425,6 +426,7 @@ def run_bandits(
         shown,
         artifact.name,
         started,
+        git=start_git,
     )
     return out_dir
 

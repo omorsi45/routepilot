@@ -170,6 +170,7 @@ def run_study(
 ) -> Path:
     """Run the study for ``pool_name`` and write the results under ``out_root/<run-id>``."""
     started = datetime.now(UTC)
+    start_git = runinfo.git_state()
     clock = time.perf_counter()
     derived, artifact = Path(derived), Path(artifact)
     manifest, blob = artifact_io.load_artifact(artifact)
@@ -225,7 +226,7 @@ def run_study(
         "rescoring_time_s": raw_time,
         "labels": _labels(),
     }
-    out_dir = Path(out_root) / runinfo.new_run_id(started)
+    out_dir = Path(out_root) / runinfo.new_run_id(started, start_git)
     shown = (
         list(command)
         if command
@@ -241,6 +242,7 @@ def run_study(
         shown,
         artifact.name,
         started,
+        git=start_git,
     )
     return out_dir
 
