@@ -70,9 +70,11 @@ var knownCapabilities = map[string]bool{
 	CapStreaming: true, CapTools: true, CapJSONObject: true, CapJSONSchema: true, CapVision: true,
 }
 
-// Defaults applied when a field is omitted.
+// Defaults applied when a field is omitted. The listen address is loopback because the
+// gateway speaks plaintext HTTP and serves /metrics unauthenticated: binding another
+// interface is a choice to make in the config, not a default.
 const (
-	defaultListen           = ":8080"
+	defaultListen           = "127.0.0.1:8080"
 	defaultMaxBodyBytes     = 4194304
 	defaultDefaultTimeoutMs = 120000
 	defaultMaxTimeoutMs     = 600000

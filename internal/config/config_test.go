@@ -59,8 +59,8 @@ func TestParseValidAppliesDefaults(t *testing.T) {
 	}
 
 	s := cfg.Server
-	if s.Listen != ":8080" {
-		t.Errorf("Listen = %q", s.Listen)
+	if s.Listen != "127.0.0.1:8080" {
+		t.Errorf("Listen = %q, want the loopback default 127.0.0.1:8080", s.Listen)
 	}
 	if s.MaxBodyBytes != 4194304 {
 		t.Errorf("MaxBodyBytes = %d", s.MaxBodyBytes)

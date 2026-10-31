@@ -260,8 +260,9 @@ throwaway values.
 
 ## Security notes
 
-- The gateway speaks plaintext HTTP. The examples bind `127.0.0.1`; keep it that way, or put
-  TLS in front before binding another interface.
+- The gateway speaks plaintext HTTP. The examples bind `127.0.0.1`, and so does a config
+  without `server.listen` (the default is `127.0.0.1:8080`); keep it that way, or put TLS in
+  front before binding another interface.
 - `GET /metrics` is unauthenticated and served on the main listener, like `/healthz` and
   `/readyz`. Its series hold identifiers (tenant IDs, model and deployment names, policy
   versions), counts, durations and costs, and never a prompt, a message, an API key or a key

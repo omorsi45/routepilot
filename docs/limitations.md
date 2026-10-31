@@ -45,7 +45,7 @@ This page lists what RoutePilot does not do, what its experiments did not show, 
 
 ## Operations and security
 
-- **The gateway speaks plaintext HTTP.** The examples bind loopback. Put TLS in front of the gateway for anything else.
+- **The gateway speaks plaintext HTTP.** The examples and the default `server.listen` (`127.0.0.1:8080`) bind loopback. Put TLS in front of the gateway for anything else.
 - **`/metrics` is unauthenticated.** No series carries prompts or keys. Keep the endpoint on an internal network.
 - **The admin routes have no rate limit.** `/v1/feedback` is charged against the tenant's request rate (`rpm`) like a chat request, so a tenant with no `rpm` has no limit on it either.
 - **Rollbacks and canary changes can be undone by a reload.** A rollback or canary change made through the admin API, or by the guardrail, lives in memory. The next reload restores what the config file says.
