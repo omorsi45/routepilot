@@ -112,6 +112,21 @@ def test_build_pool_contract():
     assert pool["rank"] == {"weak": 1, "mid": 2, "strong": 3}
 
 
+def test_prices_are_fitted_on_train_and_calib_rows_only():
+    outcomes, splits, _ = three_model_pool()
+    baseline = pools.build_pool("demo", outcomes, splits)["prices"]
+    split_of = splits.set_index("item_id")["split"]
+    later = outcomes["item_id"].map(split_of).isin(["test", "heldout"])
+    assert later.any() and not later.all()
+    # a test-split cost that is 50 times the recorded one must not move a fitted price
+    skewed = outcomes.copy()
+    skewed.loc[later & (skewed["model"] == "mid"), "cost_usd"] *= 50
+    moved = pools.build_pool("demo", skewed, splits)["prices"]
+    for model, price in baseline.items():
+        for key in ("in_usd_per_token", "out_usd_per_token"):
+            assert moved[model][key] == pytest.approx(price[key], rel=1e-9), (model, key)
+
+
 def test_build_pool_keeps_only_items_every_model_has():
     outcomes, splits, _ = three_model_pool()
     drop = (outcomes["item_id"] == "a/3") & (outcomes["model"] == "mid")

@@ -2,7 +2,8 @@
 
 A pool is a set of models plus the items every one of them has a record for.
 Prices are not published list prices: they are fitted from the cost recorded in
-the dataset, so every table that shows them says "fitted from recorded costs".
+the dataset on the train and calibration items only, so every table that shows
+them says "fitted from recorded costs".
 """
 
 import hashlib
@@ -144,7 +145,9 @@ def build_pool(
 ) -> dict[str, Any]:
     """Describe the pool made of exactly the models in ``outcomes``.
 
-    Items without a record from every model are dropped. ``rank`` is 1 plus the
+    Items without a record from every model are dropped. ``prices`` are fitted on
+    the train and calibration rows only, because the prices set the cost every learned
+    decision on test is scored with. ``rank`` is 1 plus the
     position in ascending train+calib success, so Best Single has the highest
     rank (the same order that picks ``best_single``). ``rank`` is an addition to
     the documented pool JSON keys; the replay config needs it.
@@ -168,8 +171,13 @@ def build_pool(
     if joined["split"].isna().any():
         raise ValueError("some items have no split")
 
+    tuning = joined.loc[joined["split"].isin(["train", "calib"])]
+    require_splits(tuning, {"train", "calib"})
+    if tuning.empty:
+        raise ValueError("no train or calib rows to fit prices on and choose the best single on")
+
     prices: dict[str, dict[str, Any]] = {}
-    for model, model_rows in rows.groupby("model"):
+    for model, model_rows in tuning.groupby("model"):
         fit = fit_prices(model_rows)
         prices[str(model)] = {
             "in_usd_per_token": fit["in_usd_per_token"],
@@ -179,10 +187,6 @@ def build_pool(
             "price_source": PRICE_SOURCE,
         }
 
-    tuning = joined.loc[joined["split"].isin(["train", "calib"])]
-    require_splits(tuning, {"train", "calib"})
-    if tuning.empty:
-        raise ValueError("no train or calib rows to choose the best single model on")
     stats = tuning.groupby("model").agg(wins=("success", "sum"), cost=("cost_usd", "mean"))
     strongest_first = sorted(
         models, key=lambda m: (-int(stats.loc[m, "wins"]), float(stats.loc[m, "cost"]), m)
