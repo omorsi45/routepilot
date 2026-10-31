@@ -253,3 +253,27 @@ def test_the_report_tables_hold_no_prompt_text() -> None:
     assert setup["user message suffix"] == json.dumps("\n\n" + lc.ANSWER_ONLY_SYSTEM)
     assert setup["max_tokens"] == 16
     assert setup["min_quality floors"] == "0, 0.123, 0.456 (from 150 calibration items)"
+
+
+def test_main_records_the_command_line_it_was_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, object] = {}
+
+    def stub(live_dir: Path, out_root: Path, **kwargs: object) -> Path:
+        seen["live_dir"] = live_dir
+        seen["command"] = kwargs.get("command")
+        return out_root / "run"
+
+    monkeypatch.setattr(ld, "run_demo", stub)
+    live = tmp_path / "live-user"
+    assert ld.main(["--live-dir", str(live), "--max-items", "40"]) == 0
+    assert seen["live_dir"] == live
+    assert seen["command"] == [
+        "python",
+        "bench/scripts/live_demo.py",
+        "--live-dir",
+        str(live),
+        "--max-items",
+        "40",
+    ]

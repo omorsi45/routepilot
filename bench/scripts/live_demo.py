@@ -53,6 +53,7 @@ import sweeps  # noqa: E402
 from lcb_vs_point import wilson_interval  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = "bench/scripts/live_demo.py"  # as run.json shows it, relative to the repository root
 EXPERIMENT = "live_demo"
 RESULTS_ROOT = ROOT / "bench" / "results" / "live_demo"
 SLO_KINDS = ("none", "tight", "loose")
@@ -309,8 +310,12 @@ def run_demo(
     max_items: int = MAX_ITEMS,
     items_per_round: int | None = None,
     binary: Path | None = None,
+    command: Sequence[str] | None = None,
 ) -> Path:
-    """Run the nine rounds and write the report under ``out_root/<run-id>``."""
+    """Run the nine rounds and write the report under ``out_root/<run-id>``.
+
+    ``command`` is what ``run.json`` records (default: the bare script name).
+    """
     started = datetime.now(UTC)
     clock = time.perf_counter()
     live_dir = Path(live_dir).resolve()
@@ -448,7 +453,7 @@ def run_demo(
         "labels": list(LABELS),
     }
     out_dir = Path(out_root) / runinfo.new_run_id(started)
-    command = ["python", "bench/scripts/live_demo.py"]
+    command = list(command) if command else ["python", SCRIPT]
     report.write_results(
         out_dir,
         EXPERIMENT,
@@ -552,6 +557,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--max-items", type=int, default=MAX_ITEMS)
     parser.add_argument("--items-per-round", type=int, default=None, help="override the plan")
     args = parser.parse_args(argv)
+    command = ["python", SCRIPT, *(argv if argv is not None else sys.argv[1:])]
     out = run_demo(
         args.live_dir,
         args.out_root,
@@ -561,6 +567,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         budget_minutes=args.budget_minutes,
         max_items=args.max_items,
         items_per_round=args.items_per_round,
+        command=command,
     )
     print(out.relative_to(ROOT).as_posix() if out.is_relative_to(ROOT) else out)
     return 0

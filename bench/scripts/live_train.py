@@ -65,6 +65,7 @@ import live_collect  # noqa: E402
 import sweeps  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = "bench/scripts/live_train.py"  # as run.json shows it, relative to the repository root
 EXPERIMENT = "live_train"
 DIM = 16384
 MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
@@ -425,8 +426,12 @@ def run_live_train(
     bootstrap: int = baselines.BOOTSTRAP,
     workers: int = sweeps.WORKERS,
     binary: Path | None = None,
+    command: Sequence[str] | None = None,
 ) -> Path:
-    """Run the whole step and return the results directory."""
+    """Run the whole step and return the results directory.
+
+    ``command`` is what ``run.json`` records (default: the bare script name).
+    """
     started = datetime.now(UTC)
     clock = time.perf_counter()
     live_dir = Path(live_dir).resolve()
@@ -546,7 +551,7 @@ def run_live_train(
         "labels": list(LABELS),
     }
     out_dir = Path(out_root) / runinfo.new_run_id(started)
-    command = ["python", "bench/scripts/live_train.py"]
+    command = list(command) if command else ["python", SCRIPT]
     report.write_results(
         out_dir,
         EXPERIMENT,
@@ -643,6 +648,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--gpu", default=GPU)
     parser.add_argument("--workers", type=int, default=sweeps.WORKERS)
     args = parser.parse_args(argv)
+    command = ["python", SCRIPT, *(argv if argv is not None else sys.argv[1:])]
     out = run_live_train(
         args.live_dir,
         args.policies_out,
@@ -651,6 +657,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         profiles_path=args.profiles_path,
         gpu=args.gpu,
         workers=args.workers,
+        command=command,
     )
     print(out.relative_to(ROOT).as_posix() if out.is_relative_to(ROOT) else out)
     return 0

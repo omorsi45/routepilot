@@ -373,6 +373,7 @@ def test_a_run_trains_exports_profiles_and_replays_the_test_split(
         bootstrap=50,
         workers=2,
         binary=binary,
+        command=["python", "bench/scripts/live_train.py", "--live-dir", str(live)],
     )
     results = json.loads((out / "results.json").read_text(encoding="utf-8"))
     version = results["artifact"]["version"]
@@ -428,3 +429,28 @@ def test_a_run_trains_exports_profiles_and_replays_the_test_split(
     assert "ASSUMPTION" in (out / "report.md").read_text(encoding="utf-8")
     run = json.loads((out / "run.json").read_text(encoding="utf-8"))
     assert run["experiment"] == "live_train" and run["policy_version"] == version
+    assert run["command"] == ["python", "bench/scripts/live_train.py", "--live-dir", str(live)]
+
+
+def test_main_records_the_command_line_it_was_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, object] = {}
+
+    def stub(live_dir: Path, policies_out: Path, out_root: Path, **kwargs: object) -> Path:
+        seen["live_dir"] = live_dir
+        seen["command"] = kwargs.get("command")
+        return out_root / "run"
+
+    monkeypatch.setattr(lt, "run_live_train", stub)
+    live = tmp_path / "live-user"
+    assert lt.main(["--live-dir", str(live), "--workers", "2"]) == 0
+    assert seen["live_dir"] == live
+    assert seen["command"] == [
+        "python",
+        "bench/scripts/live_train.py",
+        "--live-dir",
+        str(live),
+        "--workers",
+        "2",
+    ]
