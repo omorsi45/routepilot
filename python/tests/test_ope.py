@@ -666,7 +666,7 @@ def test_gate_compares_policies_on_the_same_items(tmp_path: Path) -> None:
     success = same["checks"]["success"]
     assert same["pass"] and success["pass"]
     assert success["paired_delta"]["mean"] == success["paired_delta"]["lo"] == 0.0
-    # The unpaired comparison the spec words literally does not pass it: one policy's value
+    # The unpaired comparison (each policy's own interval) does not pass it: one policy's value
     # is only known to about +-0.04 here, against a margin of 0.005.
     assert not success["unpaired_pass"]
     assert success["candidate_dr_lower"] < success["required"] - 0.02

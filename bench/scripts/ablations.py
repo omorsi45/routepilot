@@ -7,14 +7,15 @@ Run from the repository root after ``make data`` and ``make train``:
 Seven artifacts, all on the same train and calibration data (ablation artifacts live under
 ``bench/scratch/ablations/`` and are never committed):
 
-- feature set (dim 2^16, spec calibrators): ``both`` (the shipped artifact, not retrained),
-  ``hashed`` only and ``dense`` only. A restricted model is fitted on the restricted design
-  matrix and exported at full length with exact zeros in the dropped block, so Go serves it
-  unchanged; the OOD detector is always fitted on the hashed part.
+- feature set (dim 2^16, the fixed calibration rule): ``both`` (the shipped artifact, not
+  retrained), ``hashed`` only and ``dense`` only. A restricted model is fitted on the restricted
+  design matrix and exported at full length with exact zeros in the dropped block, so Go serves
+  it unchanged; the OOD detector is always fitted on the hashed part.
 - hashed dimension (both features): 2^14, 2^16 (the shipped artifact) and 2^18.
 - calibrator (both features, dim 2^16): every model ``platt`` or every model ``isotonic``. The
-  spec rule picks isotonic from 1000 calibration items, so on this pool the shipped artifact is
-  already all isotonic and the ``isotonic`` artifact is its retrain.
+  fixed calibration rule (isotonic from 1000 calibration items, else Platt) picks isotonic, so on
+  this pool the shipped artifact is already all isotonic and the ``isotonic`` artifact is its
+  retrain.
 
 For each artifact, in two phases:
 
@@ -30,7 +31,7 @@ calibrated ``p`` are recomputed in Python from the exported weights and cross-ch
 the Go predictor. Training wall time and ``weights.bin`` size are reported per artifact. Every
 ablation is reported as it came out, whether or not it helps.
 
-A PyTorch MLP on local Ollama embeddings is not run (Ruling V1-R19).
+A PyTorch MLP on local Ollama embeddings is not run (``NOT_RUN`` says why).
 
 Writes bench/results/ablations/<run-id>/{results.json,report.md,run.json}. Output holds numbers,
 model names and item IDs only, never prompt text.
@@ -67,9 +68,9 @@ EXPERIMENT = "ablations"
 CALIB, TEST = "calib", "test"
 BOOTSTRAP = 1000
 NOT_RUN = (
-    "A PyTorch MLP on local Ollama embeddings is not run in this plan (Ruling V1-R19: no PyTorch "
-    "dependency, and the predictor must stay Go-servable without an embedding model on the "
-    "request path); the ADR of Task 36 records it as a deferred ablation."
+    "A PyTorch MLP on local Ollama embeddings is not run (no PyTorch dependency, and the "
+    "predictor must stay Go-servable without an embedding model on the request path); "
+    "ADR 0007 records it as a deferred ablation."
 )
 
 

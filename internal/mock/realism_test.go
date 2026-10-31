@@ -9,7 +9,7 @@ import (
 	"github.com/omorsi45/routepilot/internal/openai"
 )
 
-// TestMockCapsTheCompletionAtMaxTokens (Ruling V1-R39): like a real provider, the mock never
+// TestMockCapsTheCompletionAtMaxTokens: like a real provider, the mock never
 // answers with more tokens than the request allows, and the usage it reports is what it sent.
 // The length is the smaller of the configured or directive length and the request's cap, where
 // max_completion_tokens wins over max_tokens as it does in the gateway.
@@ -79,7 +79,7 @@ func TestMockCapsTheCompletionAtMaxTokens(t *testing.T) {
 	}
 }
 
-// TestMockDisconnectCutsAStreamAfterTheSecondChunk (Ruling V1-R40): fail=disconnect drops the
+// TestMockDisconnectCutsAStreamAfterTheSecondChunk: fail=disconnect drops the
 // connection once two chunks are out, the role chunk and the first content chunk. That is the
 // first point at which a gateway has committed the response to its client, so the cut is a
 // failure after the commit. fail_after still moves the cut.

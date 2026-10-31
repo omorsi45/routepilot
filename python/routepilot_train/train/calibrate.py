@@ -3,7 +3,7 @@
 ``fit_calibrator`` takes the scores and 0/1 outcomes of one model on the calibration
 split only. With 1000 or more samples it fits an isotonic map on ``sigmoid(s)``, below
 that a two-parameter Platt map on ``s``, which has far less variance on small samples.
-The Task 13 pipeline enforces the split with ``require_splits`` before calling it.
+The pipeline enforces the split with ``require_splits`` before calling it.
 
 ``method`` selects the calibrator instead of that rule, for the calibration study: ``switch``
 is the rule above (the default and the only one a shipped artifact uses), ``isotonic`` and

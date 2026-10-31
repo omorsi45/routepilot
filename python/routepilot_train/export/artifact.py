@@ -4,7 +4,7 @@ Layout: ``<root>/<name>/<version>/manifest.json`` and ``weights.bin``.
 
 ``weights.bin`` is the concatenation of little-endian arrays. The manifest refers to each
 as ``{"offset": bytes, "len": elements, "dtype": "f32" | "i32"}``. Every weight is ``f32``
-and the OOD centroid indices are ``i32`` (Ruling V1-R11). Arrays are laid out with no gaps,
+and the OOD centroid indices are ``i32``. Arrays are laid out with no gaps,
 in manifest order: per model its quality weights then its length weights, then per centroid
 its indices then its values.
 

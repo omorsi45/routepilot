@@ -323,7 +323,7 @@ func TestBudgetIsHard(t *testing.T) {
 	r := newOptRig(t, tieredScores(0.4, 0.6, 0.9), cfg)
 
 	// Nothing fits: 429, never relaxed, whatever on_infeasible says. With no explicit
-	// max_tokens a model is admitted at the output budget it can afford (Task 20), so the
+	// max_tokens a model is admitted at the output budget it can afford, so the
 	// budget must be below the input cost plus one output token of the cheapest model
 	// (100,000,000 + 2,000,000); 199,999,999 now buys cheap 49 tokens.
 	for _, onInf := range []string{config.OnInfeasibleBestEffort, config.OnInfeasibleReject} {

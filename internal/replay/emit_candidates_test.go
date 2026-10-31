@@ -13,7 +13,7 @@ import (
 )
 
 // TestReplayEmitCandidates: with EmitCandidates the learned policy's record lists every model
-// the tenant may use with the numbers the optimizer scored it on (Ruling V1-R32), so a record
+// the tenant may use with the numbers the optimizer scored it on, so a record
 // is the logging policy's own outcome model for the item.
 func TestReplayEmitCandidates(t *testing.T) {
 	r := newLearnedRig(t)
@@ -60,7 +60,7 @@ func TestReplayEmitCandidates(t *testing.T) {
 		}
 	}
 
-	// The key set of a candidate is exactly the brief's.
+	// The key set of a candidate is exactly the documented one.
 	var line struct {
 		Candidates []map[string]json.RawMessage `json:"candidates"`
 	}

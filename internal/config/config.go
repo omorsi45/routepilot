@@ -258,7 +258,7 @@ type ModelConfig struct {
 	OutputPricePerMTok string `yaml:"output_price_per_mtok"`
 	Rank               int    `yaml:"rank"`
 	// PromptOverheadTokens is the number of hidden prompt tokens the provider
-	// adds to every request of this model (Ruling V1-R24). Zero means none.
+	// adds to every request of this model. Zero means none.
 	PromptOverheadTokens int `yaml:"prompt_overhead_tokens"`
 }
 
@@ -321,7 +321,7 @@ type TenantConfig struct {
 	BudgetPeriod string `yaml:"budget_period"`
 }
 
-// maxRedisBudgetUSD is the largest budget_usd the Redis ledger keeps exactly (Ruling V1-R29):
+// maxRedisBudgetUSD is the largest budget_usd the Redis ledger keeps exactly:
 // its Lua arithmetic is exact for integers below 2^53, and 9,000 USD is 9e15 picodollars.
 const (
 	maxRedisBudgetUSD  = 9000
@@ -372,7 +372,7 @@ func (r RuleMatch) isEmpty() bool {
 }
 
 // Accounting drivers accepted in AccountingConfig.Driver. None keeps no ledger, so a default
-// run writes no database file (Ruling V1-R12).
+// run writes no database file.
 const (
 	AccountingNone     = "none"
 	AccountingSQLite   = "sqlite"
@@ -893,19 +893,19 @@ func (c *Config) validateTenants(models map[string]bool, add addFunc) {
 		if burstWindowTooLong(t.TPM, t.TPMBurst) {
 			add(path+".tpm_burst", "window exceeds 24h")
 		}
-		// N3 (Ruling V1-R16): a request without max_tokens reserves up to its input bound plus
+		// A request without max_tokens reserves up to its input bound plus
 		// default_max_tokens tokens, and the input bound is at least 24 (fixed and per-message
 		// overhead), so a smaller burst could never admit it.
-		if t.TPM > 0 && t.TPMBurst < t.DefaultMaxTokens+n3MinInputBound {
-			add(path+".tpm_burst", "below default_max_tokens + %d; requests without max_tokens could never be admitted", n3MinInputBound)
+		if t.TPM > 0 && t.TPMBurst < t.DefaultMaxTokens+minInputBound {
+			add(path+".tpm_burst", "below default_max_tokens + %d; requests without max_tokens could never be admitted", minInputBound)
 		}
 		c.validateTenantBudget(path, t, add)
 	}
 }
 
-// n3MinInputBound is the smallest input token bound a request can have: the fixed overhead
+// minInputBound is the smallest input token bound a request can have: the fixed overhead
 // (16) plus the per-message overhead (8) of one message.
-const n3MinInputBound = 24
+const minInputBound = 24
 
 func (c *Config) validateTenantBudget(path string, t TenantConfig, add addFunc) {
 	switch t.BudgetPeriod {

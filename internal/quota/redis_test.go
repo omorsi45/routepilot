@@ -132,7 +132,7 @@ func TestRedisErrorsDoNotLeakKeys(t *testing.T) {
 	}
 }
 
-// A reservation over the burst is decided in Go (M2-R8): it succeeds with a
+// A reservation over the burst is decided in Go: it succeeds with a
 // zero RetryAfter even when Redis is unreachable, proving no round trip.
 func TestRedisOverBurstReserveDoesNotCallRedis(t *testing.T) {
 	l := quota.NewRedis(newClosedClient(t), "rp-test")

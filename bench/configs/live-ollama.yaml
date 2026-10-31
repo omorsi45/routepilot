@@ -1,4 +1,4 @@
-# RoutePilot config for the live local experiment (plan Task 33): three small Qwen2.5 models
+# RoutePilot config for the live local experiment: three small Qwen2.5 models
 # served by a local Ollama, reached through RoutePilot itself.
 #
 # bench/scripts/live_collect.py serves this file as it is, apart from the listen port and the
@@ -10,7 +10,7 @@
 # (qwen2.5:0.5b), the most accurate-looking larger one (qwen2.5:3b) and one in between
 # (qwen2.5:1.5b), all from one family (see the live_collect report).
 #
-# Prices are an ASSUMPTION (Ruling V1-R42), not the price of anything: proportional to the
+# Prices are an ASSUMPTION, not the price of anything: proportional to the
 # parameter count, 0.02 USD per million input tokens and 0.06 per million output tokens for each
 # billion parameters. Latency is never assumed here: it is measured through the gateway.
 server:

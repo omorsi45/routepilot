@@ -21,7 +21,7 @@ const (
 // rolloutWriteTimeout bounds the ledger write of one rollout event.
 const rolloutWriteTimeout = 250 * time.Millisecond
 
-// Limits of the decision index (Ruling V1-R31): the guard's window is ten minutes, and a
+// Limits of the decision index: the guard's window is ten minutes, and a
 // verdict on an older decision says nothing about the canary as it is now.
 const (
 	decisionIndexMax = 100_000

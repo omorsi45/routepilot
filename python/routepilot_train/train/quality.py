@@ -3,7 +3,7 @@
 One model is fitted per pool model, all on the same design matrix rows. The inputs
 of ``fit_quality`` must come from the train split only: it tunes ``C`` by 5-fold
 cross validation inside them, and the calibration and test splits stay unread. The
-Task 13 pipeline enforces the split with ``require_splits`` before calling it.
+pipeline enforces the split with ``require_splits`` before calling it.
 """
 
 import math

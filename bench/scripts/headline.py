@@ -71,7 +71,7 @@ import sweeps  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 CALIB, TEST = "calib", "test"
 EXPERIMENT = "headline"
-COST_TARGET = 0.25  # the spec: at least this cost reduction against always_strongest ...
+COST_TARGET = 0.25  # at least this cost reduction against always_strongest ...
 SUCCESS_MARGIN = 0.01  # ... with success no more than this far below always_strongest
 BINS = 15
 POLICY_CONFIG = ROOT / "bench" / "policies" / "flagship.yaml"
@@ -82,7 +82,7 @@ LAMBDA_SOURCES = ("config", "tune")
 
 
 def target_check(row: Mapping[str, Any]) -> dict[str, Any]:
-    """Whether a policy row meets the spec's targets against always_strongest.
+    """Whether a policy row meets the targets against always_strongest.
 
     The cost target is a reduction of at least 25%. The success target is "within 1 point":
     the success rate is not more than 0.01 below always_strongest's (a higher rate is within
@@ -537,7 +537,7 @@ def run_headline(
     }
     per_dataset = per_dataset_table(dataset_frames)
     statements = [
-        target_statement("learned dual (spec operating point)", operating["dual"]["targets"]),
+        target_statement("learned dual (chosen operating point)", operating["dual"]["targets"]),
         target_statement("learned min_cost", operating["min_cost"]["targets"]),
         target_statement("RouteLLM MF", operating["routellm_mf"]["targets"]),
         *(
@@ -709,7 +709,7 @@ def _headline_table(results: Mapping[str, Any]) -> pd.DataFrame:
     for r in results["baselines"].values():
         add("baseline", "", None, r)
     kinds = {
-        "dual": "operating point (spec)",
+        "dual": "chosen operating point",
         "min_cost": "operating point",
         "routellm_mf": "operating point (baseline)",
         "dual_lambda0_reference": "reference, not an operating point",
@@ -752,7 +752,7 @@ def _crossfit_table(results: Mapping[str, Any]) -> pd.DataFrame | None:
         ["cross-fit artifact version", xf["artifact_version"]],
         ["salt", xf["salt"]],
         ["items in half A (refit) / half B (tuning)", f"{xf['n_a']} / {xf['n_b']}"],
-        ["calibrators fitted on A (the spec rule)", json.dumps(xf["calibrator_types"])],
+        ["calibrators fitted on A (the fixed calibration rule)", json.dumps(xf["calibrator_types"])],
         ["Best Single success on B", xf["best_single_b_success"]],
         ["target Q_bar on B", xf["target_b"]],
         ["success on B at lambda 0", xf["success_b_at_zero"]],

@@ -117,7 +117,7 @@ func TestParseAcceptsBudgetLimits(t *testing.T) {
 	}
 }
 
-// TestParseRejectsTPMBurstBelowDefaultMaxTokens pins N3 (Ruling V1-R16): a request without
+// TestParseRejectsTPMBurstBelowDefaultMaxTokens pins that a request without
 // max_tokens reserves up to default_max_tokens plus its input bound, so a smaller token
 // burst could never admit it.
 func TestParseRejectsTPMBurstBelowDefaultMaxTokens(t *testing.T) {
@@ -135,7 +135,7 @@ func TestParseRejectsTPMBurstBelowDefaultMaxTokens(t *testing.T) {
 		t.Run("rejects "+tc.name, func(t *testing.T) {
 			_, err := Parse([]byte(tenant(tc.fields)))
 			if err == nil {
-				t.Fatal("Parse succeeded, want the N3 error")
+				t.Fatal("Parse succeeded, want the burst error")
 			}
 			if want := "tenants[0].tpm_burst: " + msg; !strings.Contains(err.Error(), want) {
 				t.Errorf("error %q does not contain %q", err, want)

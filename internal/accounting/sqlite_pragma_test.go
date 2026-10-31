@@ -7,7 +7,7 @@ import (
 
 // TestSQLiteConnectionPragmas: the connection the store writes through is in WAL mode with
 // synchronous NORMAL. The default (FULL) fsyncs the log on every commit, which is what made
-// one write per request too slow for 64 concurrent clients (Ruling V1-R38). Both are
+// one write per request too slow for 64 concurrent clients. Both are
 // per-connection settings, so they are read from the store's own connection.
 func TestSQLiteConnectionPragmas(t *testing.T) {
 	s, err := OpenSQLite(filepath.Join(t.TempDir(), "usage.db"))

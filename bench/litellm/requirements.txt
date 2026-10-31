@@ -1,5 +1,5 @@
 # The LiteLLM proxy and every dependency it locks, for the comparison in
-# bench/scripts/litellm_compare.py (Ruling V1-R37). Resolved on 2026-10-28 with uv 0.11.2 for
+# bench/scripts/litellm_compare.py. Resolved on 2026-10-28 with uv 0.11.2 for
 # Python 3.14 (the latest litellm on PyPI that day is 1.106.6):
 #
 #   echo 'litellm[proxy]==1.106.6' | uv pip compile - --python-version 3.14 --generate-hashes --no-header

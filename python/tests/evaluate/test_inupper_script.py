@@ -166,7 +166,7 @@ def test_no_record_above_1_is_reported_as_such(derived: Path, binary: Path, tmp_
     assert "Records above 1" not in (out / "report.md").read_text(encoding="utf-8")
 
 
-# --- Ruling V1-R24: the bound a model is held to is in_upper + its prompt overhead ---------
+# --- the bound a model is held to is in_upper + its prompt overhead ---------
 
 MODELS = ("cheap-a", "mid-b", "top-c")
 OVERHEADS = {"cheap-a": 0, "mid-b": 100, "top-c": 0}

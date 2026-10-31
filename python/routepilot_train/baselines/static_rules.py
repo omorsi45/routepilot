@@ -1,6 +1,6 @@
 """The static rules baseline: keyword and length rules mapped to models on training data.
 
-The rules (Ruling V1-R6) are fixed before any model is trained. They are the same
+The rules are fixed before any model is trained. They are the same
 ones the Go ``rules`` policy runs from the replay config, so ``match_rule`` mirrors
 ``rules.Order`` in internal/router/policies.go: the first rule whose conditions all
 hold wins, ``contains_any`` looks for a lowercased keyword in the joined message text

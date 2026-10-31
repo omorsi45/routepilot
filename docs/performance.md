@@ -69,7 +69,7 @@ Smallest, median and largest clock step: 379700, 501500 and 502500 ns. The overh
 
 Status: current. Primary run. The scratch files (gateway request log, configs) were on a native Linux filesystem (ext4).
 
-Run facts: commit 9ac474d, started 2026-10-28T19:32:24Z, AMD Ryzen 9 7900X 12-Core Processor (24 threads), 15.2 GB RAM, Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39, go1.27.2. Command: `python bench/scripts/overhead.py --scratch-root /home/omar_morsi/rp-scratch`.
+Run facts: commit 9ac474d, started 2026-10-28T19:32:24Z, AMD Ryzen 9 7900X 12-Core Processor (24 threads), 15.2 GB RAM, Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39, go1.27.2. Command: `python bench/scripts/overhead.py --scratch-root ~/rp-scratch`.
 
 Labels: real local measurement, nothing simulated. Machine: AMD Ryzen 9 7900X 12-Core Processor (24 threads), 15.2 GB RAM, Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39, go1.27.2. The load generator (rp-load), the gateway (routepilot serve) and the mock (rp-mock) share one machine and talk over loopback. The mock's delays are configured constants (time to first token 20 ms, 1 ms per output token, 16 output tokens), so absolute latencies are the mock's; only the difference between the gateway path and the direct path measures RoutePilot. Latencies run from each request's scheduled time (open loop, coordinated-omission safe). Measured with rp-load --clock-probe before the run, the clock step is 30 ns (the smallest non-zero difference between consecutive time.Now reads; 0.0000 of the consecutive reads were equal).
 
@@ -285,7 +285,7 @@ The gateway defines this series as the request duration minus the summed duratio
 
 ### Run [`20261028T234116Z-ee7619a`](../bench/results/litellm/20261028T234116Z-ee7619a/)
 
-Run facts: commit ee7619a, started 2026-10-28T23:41:16Z, AMD Ryzen 9 7900X 12-Core Processor (24 threads), 15.2 GB RAM, Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39, go1.27.2. Command: `python bench/scripts/litellm_compare.py --scratch-root /home/omar_morsi/rp-scratch`.
+Run facts: commit ee7619a, started 2026-10-28T23:41:16Z, AMD Ryzen 9 7900X 12-Core Processor (24 threads), 15.2 GB RAM, Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39, go1.27.2. Command: `python bench/scripts/litellm_compare.py --scratch-root ~/rp-scratch`.
 
 Labels: real local measurement, nothing simulated. Machine: AMD Ryzen 9 7900X 12-Core Processor (24 threads), 15.2 GB RAM, Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39, go1.27.2. The load generator (rp-load), the gateway under test and the mock (rp-mock) share one machine and talk over loopback, in one session so the three paths share conditions. The mock's delays are configured constants (time to first token 20 ms, 1 ms per output token, 16 output tokens), so absolute latencies are the mock's; only the differences between paths measure a gateway. Latencies run from each request's scheduled time (open loop, coordinated-omission safe). Measured with rp-load --clock-probe before the run, the clock step is 30 ns (the smallest non-zero difference between consecutive time.Now reads; 0.0000 of the consecutive reads were equal).
 

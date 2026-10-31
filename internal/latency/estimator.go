@@ -207,7 +207,7 @@ func (e *Estimator) quantile(model string, deployments []string, u float64, f fi
 
 // Quantiles returns the u-quantiles in milliseconds of the time to first token and the
 // time per output token of model. Failover may land on any deployment, so each is the
-// maximum over the given deployments (Ruling V1-R9a); a deployment with fewer than
+// maximum over the given deployments; a deployment with fewer than
 // MinObservations effective observations contributes the model's prior profile quantile,
 // and one with neither data nor prior contributes nothing. ok is false when no
 // deployment contributes to either quantity, or u is outside (0, 1).
@@ -238,8 +238,8 @@ func (e *Estimator) UsesPrior(model string, deployments []string, tpot bool) boo
 // bound: the time to first token and the time per token each at the 1-delta/3 quantile
 // (maximum over deployments), and outQ99, an upper bound on the number of output tokens,
 // standing in for its 1-delta/3 quantile. The stored 0.99 quantile of the output length
-// is such a bound when 1-delta/3 <= 0.99, which is why delta below 0.03 returns false
-// (Ruling V1-R9). Pass delta 0.05 for the p95 the router checks. ok is false without an
+// is such a bound when 1-delta/3 <= 0.99, which is why delta below 0.03 returns false.
+// Pass delta 0.05 for the p95 the router checks. ok is false without an
 // estimate, with a nil estimator or for a delta outside [0.03, 1).
 func E2EQuantile(e *Estimator, model string, deps []string, outQ99 float64, delta float64) (float64, bool) {
 	if e == nil || !(delta >= minDelta && delta < 1) {

@@ -59,7 +59,7 @@ def test_the_committed_config_follows_the_rules_of_the_experiment() -> None:
     assert [c.tag for c in catalog] == ["qwen2.5:0.5b", "qwen2.5:1.5b", "qwen2.5:3b"]
     for c in catalog:
         assert c.id == lc.model_id(c.tag)
-        # Ruling V1-R42: 0.02 and 0.06 USD per Mtok for each billion parameters
+        # 0.02 and 0.06 USD per Mtok for each billion parameters
         assert (c.in_usd_per_mtok, c.out_usd_per_mtok) == lc.assumed_prices(c.params_b)
     doc = yaml.safe_load(lc.CONFIG.read_text(encoding="utf-8"))
     assert [m["rank"] for m in doc["models"]] == [1, 2, 3]

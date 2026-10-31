@@ -281,7 +281,7 @@ func TestNewCopiesPromptOverhead(t *testing.T) {
 	}
 }
 
-// TestInUpperAddsModelOverhead pins Ruling V1-R24: the bound a model is
+// TestInUpperAddsModelOverhead pins that the bound a model is
 // checked and costed with is the request bound plus the hidden prompt tokens
 // its provider adds. The request-level bound is unchanged.
 func TestInUpperAddsModelOverhead(t *testing.T) {

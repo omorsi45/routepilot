@@ -194,7 +194,7 @@ def per_item_rows(
 
 
 def test_cheapest_is_the_lowest_mean_recorded_cost_per_item_on_train_and_calib():
-    """Ruling V1-R23: not the lowest fitted price, and test rows are not read."""
+    """Not the lowest fitted price, and test rows are not read."""
     split_of = {f"a/{i}": "train" if i < 2 else "calib" if i < 4 else "test" for i in range(14)}
     # lowest price, but a very long output: expensive per item
     rows = per_item_rows("low-price", split_of, 100, 100_000, 1e-7, 1e-6)
@@ -349,7 +349,7 @@ def test_pool_config_writes_prompt_overhead_tokens_per_model(tmp_path: Path):
         "m-b": 150,
         "m-c": 12,
     }
-    assert "Ruling V1-R24" in text and "\u2014" not in text
+    assert "prompt_overhead_tokens is the largest excess" in text and "\u2014" not in text
 
     # a pool without the key writes an explicit zero for every model
     plain = tmp_path / "plain.config.yaml"

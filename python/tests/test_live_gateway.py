@@ -292,7 +292,7 @@ def test_collect_with_the_answer_only_protocol_sends_the_system_message_and_the_
     results = json.loads((out / "results.json").read_text(encoding="utf-8"))
     assert results["protocol"] == only.as_dict()
     assert results["plan"]["max_tokens"] == 16
-    # the plan took the measured speeds at the protocol's cap, not the stored 384-token time
+    # the collection plan took the measured speeds at the protocol's cap, not the 384-token time
     first = lc.load_catalog()[0].id
     assert results["plan"]["worst_case_request_s"][first] == pytest.approx(0.1 + 16 / 960)
     assert results["decisions_missing"] == 0 and results["realized_items"] == 6 + 4

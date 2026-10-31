@@ -27,7 +27,7 @@ func usageRowCount(t *testing.T, path string) int {
 	return n
 }
 
-// TestGatewayKeepsEveryUsageRowAt64Clients (Ruling V1-R38): 64 clients send requests back to
+// TestGatewayKeepsEveryUsageRowAt64Clients: 64 clients send requests back to
 // back against a SQLite ledger on disk, and once the gateway has closed its ledger writer every
 // request has its row and none is counted lost. When each request wrote its own row
 // synchronously, under a 250 ms bound, on SQLite's single connection with a sync per row, the

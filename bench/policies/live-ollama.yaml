@@ -1,4 +1,4 @@
-# Learned routing policy for the live local experiment (plan Task 33).
+# Learned routing policy for the live local experiment.
 #
 # min_cost: pick the cheapest model whose quality lower bound clears the floor. The floor
 # comes from the request (routepilot.min_quality) or the tenant; with none the default floor 0

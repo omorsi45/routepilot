@@ -879,7 +879,7 @@ func TestRedisBackendEndToEnd(t *testing.T) {
 // TestStreamFailedAttemptUsageIsNotRefunded: a usage-only chunk from the only
 // attempt, which then ends without content, must not be treated as the usage
 // of an answer. No attempt produced a response and the usage is unknown, so
-// the reservation stands (M2-R18).
+// the reservation stands.
 func TestStreamFailedAttemptUsageIsNotRefunded(t *testing.T) {
 	released := make(chan struct{})
 	close(released) // the stream ends cleanly right after its chunks

@@ -136,7 +136,7 @@ func TestDeriveInUpper(t *testing.T) {
 	}
 }
 
-// TestDeriveInUpperCountsForwardedContent pins Ruling M2-R11: everything the
+// TestDeriveInUpperCountsForwardedContent pins that everything the
 // upstream receives is counted, not only message text.
 func TestDeriveInUpperCountsForwardedContent(t *testing.T) {
 	const base = 1 + 8 + 16 // one message "x", per-message and fixed overhead

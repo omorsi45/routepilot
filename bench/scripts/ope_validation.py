@@ -4,18 +4,17 @@ Run from the repository root after ``make data`` and ``make train``:
 
     python bench/scripts/ope_validation.py --pool flagship
 
-The logging policy is the learned ``dual`` policy at the spec lambda (``--policy-config``,
+The logging policy is the learned ``dual`` policy at the tuned lambda (``--policy-config``,
 default ``bench/policies/flagship.yaml``) with epsilon-greedy exploration (epsilon 0.1), replayed
 on the test split once per seed, for 50 seeds, with ``--emit-candidates`` so every record carries
-the policy's own predictions for every model. Four target policies are evaluated from each log
-(Ruling V1-R36):
+the policy's own predictions for every model. Four target policies are evaluated from each log:
 
 * ``always_strongest``: ``fixed`` on the pool's Best Single.
 * ``always_cheapest``: ``fixed`` on the pool's cheapest model.
 * ``static_rules``: the pool config's keyword and length rules.
-* ``learned_min_cost``: the learned ``min_cost`` policy at floor 0.3, no exploration. (The plan
-  said 0.8, written before the lower bounds were known: at 0.8 nearly every flagship decision
-  relaxes to quality, which makes that target the highest-L policy, not a floor policy.)
+* ``learned_min_cost``: the learned ``min_cost`` policy at floor 0.3, no exploration. (A floor
+  of 0.8 would relax nearly every flagship decision to quality, which makes that target the
+  highest-L policy, not a floor policy.)
 
 The true value of a target is its own deterministic full-information replay on the same test
 items: the success rate and the mean recorded cost. For each seed and target the script computes
@@ -28,7 +27,7 @@ sample size of the IPS weights and the support coverage: the share of items wher
 action had positive logging propensity (epsilon exploration only covers the safe set, and a
 decision that relaxed a constraint does not explore).
 
-DR uses one outcome model, the logging policy's own prediction (Ruling V1-R32): ``p`` for
+DR uses one outcome model, the logging policy's own prediction: ``p`` for
 success and ``cost_exp_picousd`` for cost.
 
 Writes bench/results/ope_validation/<run-id>/{results.json,report.md,estimator_error.png,
@@ -63,7 +62,7 @@ EXPERIMENT = "ope_validation"
 TEST = "test"
 SEEDS = range(50)
 EPSILON = 0.1
-FLOOR = 0.3  # Ruling V1-R36
+FLOOR = 0.3  # a floor of 0.8 relaxes nearly every flagship decision to quality
 BOOTSTRAP = 500
 ESTIMATORS = ("ips", "snips", "dr")
 METRICS = ("success", "cost_usd")
@@ -80,7 +79,7 @@ _MAX_CELLS = 4_000_000
 def target_specs(
     pool: Mapping[str, Any], learned: Sequence[str], floor: float
 ) -> list[tuple[str, str, list[str]]]:
-    """(name, replay policy, flags) of the four target policies of Ruling V1-R36.
+    """(name, replay policy, flags) of the four target policies.
 
     The learned target is deterministic: epsilon 0 is passed whatever the policy config says.
     """
@@ -379,7 +378,7 @@ def run_ope_validation(
         "always_strongest": f"fixed {pool['best_single']} (Best Single)",
         "always_cheapest": f"fixed {pool['cheapest']}",
         "static_rules": "the pool config's keyword and length rules, mapped on train+calib",
-        "learned_min_cost": f"learned min_cost at floor {floor}, no exploration (Ruling V1-R36)",
+        "learned_min_cost": f"learned min_cost at floor {floor}, no exploration",
     }
 
     def say(text: str) -> None:
@@ -506,12 +505,12 @@ def _labels(bootstrap: int, floor: float) -> list[str]:
         "the logging seed changes only the exploration draws: the test items are fixed, so the "
         "spread across seeds is exploration noise while each interval also resamples the items "
         "and is wider than that spread; coverage is measured against the in-sample true value",
-        f"Ruling V1-R36: the learned target is min_cost at floor {floor}; the plan's 0.8 relaxes "
+        f"the learned target is min_cost at floor {floor}; a floor of 0.8 relaxes "
         "nearly every flagship decision to quality",
         "support coverage is the share of items where the target's action had positive logging "
         "propensity; epsilon exploration covers only the safe set and a decision that relaxed a "
         "constraint does not explore, so IPS cannot estimate an action outside it",
-        "DR uses one outcome model, the logging policy's own predictions (Ruling V1-R32), so its "
+        "DR uses one outcome model, the logging policy's own predictions, so its "
         "bias includes that model's calibration error",
     ]
 
@@ -577,7 +576,7 @@ def _setup_table(results: Mapping[str, Any]) -> pd.DataFrame:
         ],
         ["OOD action of the logging policy", log["ood_action"]],
         ["logging seeds", f"{len(seeds)} ({seeds[0]} to {seeds[-1]})"],
-        ["learned target floor (Ruling V1-R36)", results["floor"]],
+        ["learned target floor", results["floor"]],
         ["bootstrap", f"{boot['n']} bootstrap resamples per estimate, percentile 95% intervals"],
         ["wall time (s)", round(results["wall_time_s"], 1)],
         [

@@ -6,7 +6,7 @@ writes, next to them:
 - ``splits.parquet``: ``item_id``, ``dataset``, ``split`` for every item.
 - ``pools/<pool>.json`` and ``pools/<pool>.config.yaml`` for ``flagship`` and ``mixed``. The
   config's ``rules`` routing policy carries the static rules mapped on train and calibration.
-  Both carry each model's ``prompt_overhead_tokens`` (Ruling V1-R24, fitted on train and
+  Both carry each model's ``prompt_overhead_tokens`` (fitted on train and
   calibration); the JSON also lists the ``anomalies`` left out of that fit.
 - ``replay/<pool>.jsonl``: the only output that holds prompt text.
 

@@ -157,7 +157,7 @@ def _is_relaxed(value: Any) -> bool:
 
 
 def floor_compliance(df: pd.DataFrame) -> dict[str, Any]:
-    """Whether the realized success rate meets the quality floor (Ruling V1-R5).
+    """Whether the realized success rate meets the quality floor.
 
     Only rows with a ``floor`` and an empty ``relaxed`` list count: a request whose floor
     the router had to relax made no promise. Per floor value: the rows, the realized

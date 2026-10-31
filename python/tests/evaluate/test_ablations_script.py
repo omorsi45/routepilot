@@ -225,7 +225,7 @@ def test_outputs_and_the_shape_of_the_results(tmp_path: Path, binary: Path):
         assert v["test"]["python_go_parity"]["max_abs_diff"] < 1e-9
     assert shipped["test"]["vs_shipped"]["success_delta"] == 0.0
     assert r["always_strongest"]["success_delta_vs_strongest"] == 0.0
-    assert "PyTorch" in r["not_run"] and "V1-R19" in r["not_run"]
+    assert "PyTorch" in r["not_run"] and "Go-servable" in r["not_run"]
 
     report = (out / "report.md").read_text(encoding="utf-8")
     for heading in (

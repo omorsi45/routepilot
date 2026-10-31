@@ -8,7 +8,7 @@ the collection's protocol is recorded in the report) and
 1. splits the live items with the same salt rule as the main experiment (60/20/20 over the item
    IDs, no held-out dataset);
 2. builds the pool ``live-ollama`` (the three models, Best Single and cheapest from the train and
-   calibration items only, the ASSUMPTION prices of Ruling V1-R42), with its replay config and
+   calibration items only, the ASSUMPTION prices), with its replay config and
    replay input;
 3. trains the policy with the usual pipeline at dimension 16384 and exports the artifact to
    ``policies/live-ollama/<version>/`` (it must stay under 2 MB). Training, the static rules and
@@ -76,11 +76,11 @@ PROFILES_PATH = ROOT / "bench" / "latency" / "live-ollama.yaml"
 RESULTS_ROOT = ROOT / "bench" / "results" / "live_train"
 GPU = "AMD Radeon RX 9060 XT"
 PRICE_SOURCE = (
-    "assumed (ASSUMPTION, Ruling V1-R42): 0.02 / 0.06 USD per Mtok per billion parameters"
+    "assumed (ASSUMPTION): 0.02 / 0.06 USD per Mtok per billion parameters"
 )
 
 POLICY_YAML = """\
-# Learned routing policy for the live local experiment (plan Task 33).
+# Learned routing policy for the live local experiment.
 #
 # min_cost: pick the cheapest model whose quality lower bound clears the floor. The floor
 # comes from the request (routepilot.min_quality) or the tenant; with none the default floor 0
@@ -94,7 +94,7 @@ on_infeasible: best_effort
 """
 
 LABELS = (
-    "prices are an ASSUMPTION (Ruling V1-R42): proportional to the parameter count, 0.02 USD per "
+    "prices are an ASSUMPTION: proportional to the parameter count, 0.02 USD per "
     "million input tokens and 0.06 per million output tokens per billion parameters",
     "latency is measured through RoutePilot on this machine (the decision log), never simulated "
     "or assumed",

@@ -8,7 +8,7 @@ import (
 )
 
 // bulkhead caps the non-streaming attempts in flight on each deployment that sets
-// max_inflight (M2-R24), so one slow deployment cannot absorb every goroutine of the server.
+// max_inflight, so one slow deployment cannot absorb every goroutine of the server.
 // A deployment without a limit has no counter and is never full. A nil *bulkhead, which is
 // what a config without any limit gets, behaves as no limit anywhere.
 //

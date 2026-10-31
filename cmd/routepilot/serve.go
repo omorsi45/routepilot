@@ -69,7 +69,7 @@ var policyPollEvery = 5 * time.Second
 var budgetSweepEvery = 30 * time.Second
 
 // guardEvery is how often serve evaluates the guardrails of the learned policy's canary
-// (spec 8: every 10 seconds). Tests replace it.
+// (every 10 seconds). Tests replace it.
 var guardEvery = 10 * time.Second
 
 const serveUsage = "usage: routepilot serve -config <path>\n"

@@ -141,7 +141,7 @@ func (h *budgetHold) gate(ctx context.Context) func(router.Candidate) bool {
 }
 
 // finish ends the reservation. With no attempt sent it is released; otherwise the summed
-// cost of the attempts (Ruling V1-R28) is committed. It runs after the response, under
+// cost of the attempts is committed. It runs after the response, under
 // releaseTimeout and detached from the request context, so a client that left does not
 // leave the reservation behind. A commit above the reservation is counted and logged.
 func (h *budgetHold) finish() {
@@ -175,7 +175,7 @@ func (h *budgetHold) finish() {
 	}
 }
 
-// attemptUsage is what one sent attempt cost (Ruling V1-R28). The exported fields are the
+// attemptUsage is what one sent attempt cost. The exported fields are the
 // record the usage ledger writes once the request is over (resolve fills them in).
 //
 //   - Reported usage, when the provider gave it: the tokens it counted, priced exactly.
@@ -318,8 +318,8 @@ func (a *attemptUsage) observeResponse(resp *openai.ChatCompletion) {
 	a.addStreamed(completionBytes(resp))
 }
 
-// beginAttempt records an attempt at m on dep with output budget k. Every attempt the plan
-// claims has a record, so one that ends in a way nothing accounts for is still charged.
+// beginAttempt records an attempt at m on dep with output budget k. Every attempt the attempt
+// plan claims has a record, so one that ends in a way nothing accounts for is still charged.
 func (rs *reqState) beginAttempt(m catalog.Model, dep catalog.Deployment, k int) *attemptUsage {
 	a := newAttemptUsage(m, dep, rs.reqs, k)
 	if est, ok := rs.estCost[m.ID]; ok {

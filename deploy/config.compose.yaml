@@ -22,7 +22,7 @@ providers:
     base_url: http://rp-mock:9090/v1
 
 # The three model IDs are the ones the artifact was trained on; each is served by the mock.
-# Prices are an ASSUMPTION (Ruling V1-R42), not the price of anything: proportional to the
+# Prices are an ASSUMPTION, not the price of anything: proportional to the
 # parameter count, 0.02 USD per million input tokens and 0.06 per million output tokens for each
 # billion parameters, as in bench/configs/live-ollama.yaml.
 models:

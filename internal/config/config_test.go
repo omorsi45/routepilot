@@ -411,7 +411,7 @@ tenants:`)
 }
 
 func TestTenantLimitDefaults(t *testing.T) {
-	// tpm 5000 keeps the defaulted burst above default_max_tokens + 24 (N3).
+	// tpm 5000 keeps the defaulted burst above default_max_tokens + 24.
 	cfg, err := Parse([]byte(baseYAML(t, "allowed_models:", "rpm: 600\n    tpm: 5000\n    allowed_models:")))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
@@ -490,7 +490,7 @@ func TestHasCapabilityNilDefaultsToStreaming(t *testing.T) {
 
 func TestParseAcceptsBurstWindowAt24h(t *testing.T) {
 	// rpm 1 gives a 60 s emission interval, so a burst of 1440 is exactly 24 h. tpm 3 gives
-	// 20 s, so a burst of 4320 is exactly 24 h and clears default_max_tokens + 24 (N3).
+	// 20 s, so a burst of 4320 is exactly 24 h and clears default_max_tokens + 24.
 	y := baseYAML(t, "allowed_models:", "rpm: 1\n    rpm_burst: 1440\n    tpm: 3\n    tpm_burst: 4320\n    allowed_models:")
 	if _, err := Parse([]byte(y)); err != nil {
 		t.Fatalf("burst window of exactly 24h rejected: %v", err)

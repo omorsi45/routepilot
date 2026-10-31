@@ -82,8 +82,8 @@ func newTestMetrics(tenants ...string) (*Metrics, *prometheus.Registry) {
 	return NewMetrics(tenants, reg), reg
 }
 
-// specSeries are the series of spec 7.7, then the three the plan adds.
-var specSeries = []string{
+// expectedSeries are the series the gateway exposes.
+var expectedSeries = []string{
 	"rp_requests_total", "rp_routing_decisions_total", "rp_request_duration_seconds", "rp_ttft_seconds",
 	"rp_gateway_overhead_seconds", "rp_decision_duration_seconds", "rp_upstream_attempts_total",
 	"rp_cost_estimated_picousd_total", "rp_cost_actual_picousd_total", "rp_budget_rejections_total",
@@ -92,7 +92,7 @@ var specSeries = []string{
 	"rp_policy_reload_errors_total", "rp_decision_log_dropped_total", "rp_accounting_write_errors_total",
 }
 
-func TestExactlyTheSpecSeries(t *testing.T) {
+func TestExactlyTheExpectedSeries(t *testing.T) {
 	m, reg := newTestMetrics("tenant-a")
 	m.SetSources(Sources{
 		BreakerStates:        func() map[string]int { return map[string]int{"dep-a": BreakerClosed} },
@@ -109,7 +109,7 @@ func TestExactlyTheSpecSeries(t *testing.T) {
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	want := slices.Clone(specSeries)
+	want := slices.Clone(expectedSeries)
 	sort.Strings(want)
 	if !slices.Equal(names, want) {
 		t.Errorf("series = %v\nwant     %v", names, want)

@@ -29,7 +29,7 @@ performance benchmarking for the default 10k input token workload."
 displays. For Intern-S1 the model listing (716 model pages) was searched for the name and the
 slugs `intern-s1` and a few variants returned 404, so there is no page to read.
 
-## How the profile values follow from the table (Ruling V1-R25)
+## How the profile values follow from the table
 
 - `tpot_median_ms` = 1000 / output speed. A model with no displayed speed (claude-sonnet-4,
   gpt-5-chat, intern-s1) gets the median of the nine displayed ones, 9.6618357 ms

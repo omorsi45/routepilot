@@ -10,7 +10,7 @@ import (
 // notFlushable is a ResponseWriter with no Flush, like a wrapper that hides it.
 type notFlushable struct{ http.ResponseWriter }
 
-// TestWriteErrorFlushesACompleteResponse (Ruling V1-R30): the error is flushed with its
+// TestWriteErrorFlushesACompleteResponse: the error is flushed with its
 // length declared, so a client has the whole response before the handler returns.
 func TestWriteErrorFlushesACompleteResponse(t *testing.T) {
 	rec := httptest.NewRecorder()

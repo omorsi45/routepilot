@@ -12,7 +12,7 @@ and reports the ratio ``prompt_tokens / in_upper``: its maximum, the 50th, 99th 
 percentiles, and how many records exceed 1, overall, per dataset and per model. A ratio
 above 1 means the bound was too low for that record.
 
-Ruling V1-R24 lets a model declare the hidden prompt tokens its provider adds, so the bound
+A model can declare the hidden prompt tokens its provider adds, so the bound
 the gateway holds a model to is ``in_upper + prompt_overhead_tokens(model)``. The overheads
 are read from ``pools/<pool>.json`` (fitted on train and calibration records only). The
 adjusted ratio ``prompt_tokens / (in_upper + overhead)`` is reported per split; the test and

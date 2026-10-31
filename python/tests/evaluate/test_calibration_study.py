@@ -107,7 +107,7 @@ def test_run_cell_records_the_type_each_method_fitted():
         "platt": {"platt"},
         "isotonic": {"isotonic"},
         "histogram": {"histogram"},
-        "switch": {"platt"},  # 300 samples: below the 1000 of the spec rule
+        "switch": {"platt"},  # 300 samples: below the 1000 of the fixed calibration rule
     }
 
 

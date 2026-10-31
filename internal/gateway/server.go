@@ -304,7 +304,7 @@ type reqState struct {
 	retryAfter  time.Duration
 
 	// The fields below are set when the request reaches the learned policy and are what
-	// the decision log (Task 22) reads.
+	// the decision log reads.
 
 	// policyRole is the role of the slot that decided the request, "stable" or
 	// "canary"; empty when the learned policy did not decide it.
@@ -321,7 +321,7 @@ type reqState struct {
 	// x-routepilot-estimated-cost-usd.
 	estCost map[string]money.PicoUSD
 
-	// The fields below are the budget accounting of the request (Task 20).
+	// The fields below are the budget accounting of the request.
 
 	// reqs are the request's derived requirements: the input bound and the cap an attempt is
 	// priced with.
@@ -473,7 +473,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case adminPoliciesPath, adminRollbackPath:
 		s.handleAdmin(sw, rs, r)
 	case "/metrics":
-		// Unauthenticated, like the health routes (Ruling V1-R18): the series carry
+		// Unauthenticated, like the health routes: the series carry
 		// identifiers, numbers and outcome names, never a prompt or a key. The endpoint is
 		// for the internal network, and is not itself a request in the request series.
 		if r.Method != http.MethodGet {

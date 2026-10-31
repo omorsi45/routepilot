@@ -45,7 +45,7 @@ SHOWN = ("current", "also")
 EM_DASH = "\u2014"
 EN_DASH = "\u2013"
 
-# References to the project's decision log and plan ("Ruling V1-R42", "Rulings V1-R2 and V1-R3",
+# References to the project's decision log and plan ("Ruling V9-R99", "Rulings V9-R98 and V9-R99",
 # "Task 3"). They mean nothing to a reader of the repository, so copied text loses them.
 _ID = r"[VM]\d+-R\d+"
 _ID_LIST = rf"{_ID}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+){_ID})*"
@@ -61,8 +61,18 @@ _PAREN_REF = re.compile(
 _COLON_REF = re.compile(rf"{_REF}[ \t]*:[ \t]*(?P<next>\S)")
 _LEAD_REF = re.compile(rf"(?P<pre>[ \t]*,?[ \t]*)\b{_LEAD}[ \t]+{_REF}(?P<post>[ \t]*)")
 _BARE_REF = re.compile(rf"(?P<pre>[ \t]*){_REF}(?P<post>[ \t]*)")
+# Wording that points at the design documents rather than at anything in the repository.
+_PHRASES = (
+    ("spec operating point", "chosen operating point"),
+    ("the plan's 0.8", "a floor of 0.8"),
+)
 # What the output must not contain once the copied text is scrubbed (the guard in `_finish`).
-INTERNAL_REFERENCE = re.compile(r"Rulings?\b|\bTasks? \d|\b[VM]\d+-R\d+")
+INTERNAL_REFERENCE = re.compile(
+    r"Rulings?\b|\bTasks? \d|\b[VM]\d+-R\d+"
+    r"|\bspec \d|\bspec (?:operating point|rule|lambda)\b|\bthe plan\b|\bbriefed\b|\bthe brief\b"
+)
+# A home directory at the start of a path in a recorded command (`/home/<user>/x` is `~/x`).
+_HOME_PREFIX = re.compile(r"(^|=)/home/[^/\s]+/")
 
 
 class RenderError(Exception):
@@ -603,7 +613,7 @@ def render_headline(run: Run) -> list[str]:
     )
     if r.get("target_statements"):
         out += heading("Were the targets met? (the run's own statements)")
-        out += [f"- {s}" for s in r["target_statements"]] + [""]
+        out += [f"- {scrub_internal_references(s)}" for s in r["target_statements"]] + [""]
     out += heading("Static baselines on the test split")
     out += table(
         POLICY_HEADERS, [policy_row(n, b) for n, b in r.get("baselines", {}).items()]
@@ -1019,10 +1029,10 @@ def render_bandits(run: Run) -> list[str]:
         )
     if r.get("statements"):
         out += heading("The run's own statements against the supervised policy")
-        out += [f"- {s}" for s in r["statements"]] + [""]
+        out += [f"- {scrub_internal_references(s)}" for s in r["statements"]] + [""]
     if r.get("reference_statements"):
         out += heading("The run's own statements against the best single arm by reward")
-        out += [f"- {s}" for s in r["reference_statements"]] + [""]
+        out += [f"- {scrub_internal_references(s)}" for s in r["reference_statements"]] + [""]
     return out
 
 
@@ -1113,7 +1123,7 @@ def render_ablations(run: Run) -> list[str]:
     )
     if r.get("statements"):
         out += heading("The run's own statements")
-        out += [f"- {s}" for s in r["statements"]] + [""]
+        out += [f"- {scrub_internal_references(s)}" for s in r["statements"]] + [""]
     if r.get("not_run"):
         out.append(
             "Not run: a PyTorch MLP on local embeddings. It is listed in the known limitations."
@@ -2349,8 +2359,9 @@ def _sentence_start(text: str, at: int) -> bool:
 def scrub_internal_references(text: str) -> str:
     """Remove ruling and plan-task references from copied text, keeping the rest of the sentence.
 
-    Handles ``(Ruling V1-R5)``, ``Rulings V1-R2 and V1-R3``, ``Ruling V1-R36: the rest``,
-    ``per``/``see``/``in`` before a reference, ``(Task 3)`` and a bare ``Task 3``.
+    Handles ``(Ruling V9-R99)``, ``Rulings V9-R98 and V9-R99``, ``Ruling V9-R99: the rest``,
+    ``per``/``see``/``in`` before a reference, ``(Task 3)`` and a bare ``Task 3``, and
+    rewords the few phrases that name the design documents (``_PHRASES``).
     """
     text = _PAREN_REF.sub(_gap, text)
 
@@ -2360,7 +2371,10 @@ def scrub_internal_references(text: str) -> str:
 
     text = _COLON_REF.sub(colon, text)
     text = _LEAD_REF.sub(_gap, text)
-    return _BARE_REF.sub(_gap, text)
+    text = _BARE_REF.sub(_gap, text)
+    for phrase, replacement in _PHRASES:
+        text = text.replace(phrase, replacement)
+    return text
 
 
 def _own_labels_line(run: Run) -> str | None:
@@ -2435,7 +2449,7 @@ def render_run(section: Section, run: Run, link_prefix: str) -> list[str]:
     if run.reason:
         out += [f"Status: {run.status}. {run.reason}", ""]
     info = run.info
-    command = " ".join(str(c) for c in info.get("command", []))
+    command = " ".join(_HOME_PREFIX.sub(r"\1~/", str(c)) for c in info.get("command", []))
     facts = [f"commit {str(info['git_sha'])[:7]}" if info.get("git_sha") else None]
     if info.get("started_at"):
         facts.append(f"started {info['started_at']}")

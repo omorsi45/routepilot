@@ -21,7 +21,7 @@ the version pinned in `requirements.txt`.
 
 ## Install
 
-On Linux (the latency numbers are measured there, Ruling V1-R34), outside the repo:
+On Linux (the latency numbers are measured there), outside the repo:
 
 ```
 uv venv ~/rp-tools/litellm-venv --python 3.14
@@ -70,10 +70,10 @@ saturate earlier, more compete harder with the generator. Only 8 was measured.
 
 ### No master key
 
-The ruling is that the proxy runs without a master key: it listens on `127.0.0.1` only, so there is
+The proxy runs without a master key: it listens on `127.0.0.1` only, so there is
 nothing to protect. LiteLLM 1.106.6 refuses to start without one unless it is told the absence is
-intended, which `general_settings.dangerously_permit_weak_or_unset_master_key: true` does; that is
-the only setting in `config.yaml` beyond the briefed ones, and it is there only so the proxy starts.
+intended, which `general_settings.dangerously_permit_weak_or_unset_master_key: true` does; that
+setting is in `config.yaml` only so the proxy starts.
 The proxy logs a critical line about the missing key at startup for the same reason.
 
 Without a key the proxy does no key lookup per request, while RoutePilot checks the tenant key on

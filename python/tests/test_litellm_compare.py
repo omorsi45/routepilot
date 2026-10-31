@@ -137,7 +137,7 @@ def test_litellm_config_routes_one_model_to_the_mock(lc: ModuleType) -> None:
     assert model["litellm_params"]["api_base"] == "http://127.0.0.1:19191/v1"
     assert model["litellm_params"]["api_key"].startswith("test-key-")
     assert cfg["litellm_settings"] == {"telemetry": False, "drop_params": True}
-    # No master key (Ruling V1-R37); 1.106.6 only starts that way when told it is intended.
+    # No master key; 1.106.6 only starts that way when told it is intended.
     assert "master_key" not in cfg["general_settings"]
     assert cfg["general_settings"]["dangerously_permit_weak_or_unset_master_key"] is True
 

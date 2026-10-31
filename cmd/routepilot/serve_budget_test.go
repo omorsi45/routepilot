@@ -194,7 +194,7 @@ func TestServeUsesTheRedisBudgetLedgerAndSweepsIt(t *testing.T) {
 	if code, body := postChat(t, url, "test-key-capped"); code != http.StatusOK {
 		t.Fatalf("status %d body %s, want 200", code, body)
 	}
-	// The response is flushed before the budget commit (Ruling V1-R30), so the spent key
+	// The response is flushed before the budget commit, so the spent key
 	// appears a moment after the client has its answer.
 	var spent string
 	for deadline := time.Now().Add(5 * time.Second); spent == "" && time.Now().Before(deadline); {

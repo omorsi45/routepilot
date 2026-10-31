@@ -447,7 +447,7 @@ Lambda of the dual mode (config): 6.72. It is chosen on the calibration split, w
 
 #### Were the targets met? (the run's own statements)
 
-- learned dual (spec operating point): cost reduction 93.5% (meets the 25% target), success -4.55 points against always_strongest (outside the 1 point target): targets NOT met.
+- learned dual (chosen operating point): cost reduction 93.5% (meets the 25% target), success -4.55 points against always_strongest (outside the 1 point target): targets NOT met.
 - learned min_cost: cost reduction 68.7% (meets the 25% target), success -3.00 points against always_strongest (outside the 1 point target): targets NOT met.
 - RouteLLM MF: cost reduction 2.7% (misses the 25% target), success -0.69 points against always_strongest (within the 1 point target): targets NOT met.
 - learned dual, cross-fitted: cost reduction 97.1% (meets the 25% target), success -5.07 points against always_strongest (outside the 1 point target): targets NOT met.
@@ -540,7 +540,7 @@ Lambda of the dual mode (tune): 0.7028. It is chosen on the calibration split, w
 
 #### Were the targets met? (the run's own statements)
 
-- learned dual (spec operating point): cost reduction 23.9% (misses the 25% target), success +0.00 points against always_strongest (within the 1 point target): targets NOT met.
+- learned dual (chosen operating point): cost reduction 23.9% (misses the 25% target), success +0.00 points against always_strongest (within the 1 point target): targets NOT met.
 - learned min_cost: cost reduction 26.2% (meets the 25% target), success -3.32 points against always_strongest (outside the 1 point target): targets NOT met.
 - RouteLLM MF: cost reduction 1.3% (misses the 25% target), success -0.28 points against always_strongest (within the 1 point target): targets NOT met.
 
@@ -761,7 +761,7 @@ Pool flagship, artifact `dea4486d7575`. Held-out datasets arenahard_coding (253 
 
 Run facts: commit 86f6519, started 2026-10-28T21:07:06Z, AMD Ryzen 9 7900X 12-Core Processor (24 threads), 31.2 GB RAM, Windows-11-10.0.26300-SP0, go1.27.2. Command: `python bench/scripts/ope_validation.py --pool flagship`.
 
-**Labels:** no latency is measured or simulated in this experiment; costs are the recorded costs of each model on each item; the true value of a target policy is its own deterministic full-information replay on the same test items the estimators see (success rate and mean recorded cost); each interval is a 95% percentile bootstrap with 500 bootstrap resamples of the items, seeded by the logging seed; the SNIPS interval resamples the weighted ratio; the logging seed changes only the exploration draws: the test items are fixed, so the spread across seeds is exploration noise while each interval also resamples the items and is wider than that spread; coverage is measured against the in-sample true value; the learned target is min_cost at floor 0.3; the plan's 0.8 relaxes nearly every flagship decision to quality; support coverage is the share of items where the target's action had positive logging propensity; epsilon exploration covers only the safe set and a decision that relaxed a constraint does not explore, so IPS cannot estimate an action outside it; DR uses one outcome model, the logging policy's own predictions, so its bias includes that model's calibration error.
+**Labels:** no latency is measured or simulated in this experiment; costs are the recorded costs of each model on each item; the true value of a target policy is its own deterministic full-information replay on the same test items the estimators see (success rate and mean recorded cost); each interval is a 95% percentile bootstrap with 500 bootstrap resamples of the items, seeded by the logging seed; the SNIPS interval resamples the weighted ratio; the logging seed changes only the exploration draws: the test items are fixed, so the spread across seeds is exploration noise while each interval also resamples the items and is wider than that spread; coverage is measured against the in-sample true value; the learned target is min_cost at floor 0.3; a floor of 0.8 relaxes nearly every flagship decision to quality; support coverage is the share of items where the target's action had positive logging propensity; epsilon exploration covers only the safe set and a decision that relaxed a constraint does not explore, so IPS cannot estimate an action outside it; DR uses one outcome model, the logging policy's own predictions, so its bias includes that model's calibration error.
 
 Pool flagship, artifact `dea4486d7575`, test split, 1735 items. The logging policy is the dual mode at lambda 6.72 with exploration epsilon 0.1, replayed with 50 logging seeds. The learned target is min_cost at floor 0.3. Bootstrap intervals: 500 resamples, alpha 0.05.
 

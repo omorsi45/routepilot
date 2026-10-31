@@ -1,7 +1,7 @@
 """Lower confidence bound tables: a conservative success probability per calibrated bin.
 
 ``fit_lcb`` takes calibrated probabilities ``p`` and 0/1 outcomes ``y`` from the
-calibration split only (the Task 13 pipeline enforces the split with ``require_splits``).
+calibration split only (the pipeline enforces the split with ``require_splits``).
 It cuts the samples into equal-mass bins by ``p``, merges bins that are too small, and
 stores the one-sided Clopper-Pearson lower bound of each bin's success rate. The router
 looks up the bound for a request's ``p`` and uses it as ``l``.

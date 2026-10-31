@@ -125,7 +125,7 @@ func (g *guardEnv) stats(role string) policy.GuardStats { return g.gw.guard.Stat
 var rejectCanary = policyYAML(0.99, 0, "reject")
 
 // TestGuardObservesLearnedRequests: every request the learned policy decided is observed
-// under the role of the slot that decided it, with the outcome the brief defines.
+// under the role of the slot that decided it, with the outcome the guard defines.
 func TestGuardObservesLearnedRequests(t *testing.T) {
 	t.Run("a clean answer", func(t *testing.T) {
 		g := newGuardEnv(t, learnedOpts{canary: policyYAML(0, 0, "best_effort"), canaryPct: 100}, nil)
@@ -447,7 +447,7 @@ func TestEvaluateGuardrailsWithoutALearnedPolicy(t *testing.T) {
 	e.gw.EvaluateGuardrails()
 }
 
-// ---- feedback to the guard (Ruling V1-R31) ----
+// ---- feedback to the guard ----
 
 // post a request as tenant-a and return the decision ID of its answer.
 func (g *guardEnv) decisionID(t *testing.T) string {

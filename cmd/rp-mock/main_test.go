@@ -35,7 +35,7 @@ func TestParseFailRates(t *testing.T) {
 	}
 }
 
-// TestParseFailRateDisconnect (Ruling V1-R40): --fail-rate-disconnect is the probability that a
+// TestParseFailRateDisconnect: --fail-rate-disconnect is the probability that a
 // stream is cut after its second chunk (a non-streaming request is reset), and it counts
 // toward the sum of the rates.
 func TestParseFailRateDisconnect(t *testing.T) {

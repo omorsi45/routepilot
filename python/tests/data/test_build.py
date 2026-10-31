@@ -171,7 +171,7 @@ def test_flagship_replay_keeps_recorded_costs_and_heldout_items(derived: Path):
 
 
 def test_pool_json_and_config_carry_the_prompt_overheads(derived: Path):
-    """Ruling V1-R24: per model, the largest train+calib excess over bytes + 24, minus outliers."""
+    """Per model, the largest train+calib excess over bytes + 24, minus outliers."""
     build.build(derived)
     outcomes = pd.read_parquet(derived / "outcomes.parquet")
     prompts = pd.read_parquet(derived / "prompts.parquet")

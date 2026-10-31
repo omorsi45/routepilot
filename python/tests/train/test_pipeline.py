@@ -294,7 +294,7 @@ def calibrator_types(summary) -> set[str]:
 
 
 def test_calibrator_option_forces_the_type_and_the_default_is_the_spec_rule(derived, tmp_path):
-    # 90 calibration items per model: the spec rule (isotonic from 1000 samples) gives Platt
+    # 90 calibration items per model: the fixed rule (isotonic from 1000 samples) gives Platt
     assert calibrator_types(run_toy(derived, tmp_path / "default")) == {"platt"}
     assert calibrator_types(run_toy(derived, tmp_path / "switch", calibrator="switch")) == {"platt"}
     assert calibrator_types(run_toy(derived, tmp_path / "iso", calibrator="isotonic")) == {

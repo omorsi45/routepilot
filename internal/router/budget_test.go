@@ -134,7 +134,7 @@ func TestBudgetRejectsWhenNothingIsAffordable(t *testing.T) {
 
 // TestExplicitCapIsNeverShrunk: a request that sets max_tokens is admitted at that cap or
 // not at all. When no capable model can afford it the answer is 429 insufficient_quota,
-// not a 400 (spec 7.3.2).
+// not a 400.
 func TestExplicitCapIsNeverShrunk(t *testing.T) {
 	rt, _ := newRouter(t, config.RoutingConfig{Policy: config.PolicyCheapest})
 	req := catalog.Requirements{InUpper: 100, MaxTokens: 1000, HasMaxTokens: true}

@@ -54,9 +54,9 @@ def refit_artifact(
     ``calib_items`` has one row per calibration item (its ``split`` column must hold
     ``calib`` only), ``raw[model]`` the model's raw quality scores and ``success[model]`` its
     0/1 outcomes on those items, and ``fit_mask`` marks the rows to fit on. Each model gets
-    ``calibrate.fit_calibrator`` (the spec rule: isotonic from 1000 samples, else Platt) on
-    its masked scores and ``lcb.fit_lcb`` on the resulting probabilities. Everything else of
-    the artifact is kept, so ``weights.bin`` is byte for byte the original. Returns the
+    ``calibrate.fit_calibrator`` (the fixed calibration rule: isotonic from 1000 samples, else
+    Platt) on its masked scores and ``lcb.fit_lcb`` on the resulting probabilities. Everything
+    else of the artifact is kept, so ``weights.bin`` is byte for byte the original. Returns the
     directory ``<out_root>/<name>/<version>``.
 
     Raises ``ValueError`` before writing anything when a row of ``calib_items`` is not a

@@ -17,7 +17,7 @@ Two arms, each against its own fresh mocks and gateway:
   Retry-After 1 s and 5% connection resets (20% in all). The script reports the eligible failures
   on A, the requests whose first attempt failed that way, how many of those were answered by B (the
   per-request recovery rate, against the target of 99%), the requests that never tried A because
-  its breaker was open (Ruling M2-R21: the breaker stops sending to a failing deployment, so these
+  its breaker was open (the breaker stops sending to a failing deployment, so these
   requests are not part of the recovery rate), and every request that failed overall with its
   reason.
 * mid-stream: 2,000 streaming requests at 50 requests per second. Deployment A's mock is started
@@ -171,7 +171,7 @@ def classify_attempts(
       ``recovery_rate`` is recovered over the requests whose first attempt failed eligibly (None
       when none did).
     * ``started_on_b`` are the requests whose first attempt went to B: A was not tried, which with
-      this config only happens when A's breaker refused it (Ruling M2-R21).
+      this config only happens when A's breaker refused it.
     * ``committed_then_failed`` are the requests that got status 200 and whose last attempt did
       not end ``ok``: a stream that broke after the response was committed.
     """
@@ -801,7 +801,7 @@ def _prestream_section(arm: Mapping[str, Any], settings: Mapping[str, Any]) -> l
                 ],
                 [f"target >= {TARGET_RECOVERY * 100:g}%", _verdict(c["recovery_rate"])],
                 [
-                    "requests routed straight to B (A's breaker refused them, Ruling M2-R21)",
+                    "requests routed straight to B (A's breaker refused them)",
                     f"{straight} ({_pct(straight / total if total else None)} of requests)",
                 ],
                 ["A's breaker opened (polled every 100 ms)", f"{breaker['opens']} times"],

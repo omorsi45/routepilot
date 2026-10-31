@@ -1,6 +1,6 @@
 """Which (dataset, split) groups and models of the LLMRouterBench release are used.
 
-Ruling V1-R2, measured on the release tarball on 2026-10-27: it holds 30
+The release tarball, measured on 2026-10-27, holds 30
 (dataset, split) groups and 40 model names. Everything here is fixed before any
 model is trained.
 """

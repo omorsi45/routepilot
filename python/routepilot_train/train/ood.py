@@ -6,7 +6,7 @@ and scans those sparse centroids, and the score is computed against the stored v
 so Python and Go agree. A request scores ``1 - max_j cos(x, c_j)``; the threshold is the
 ``Q`` quantile of the calibration split's scores, so about 1% of in-distribution
 requests are flagged. ``H_train`` must be train-split rows and ``H_calib`` calibration-split
-rows; the Task 13 pipeline enforces this with ``require_splits`` before calling ``fit_ood``.
+rows; the pipeline enforces this with ``require_splits`` before calling ``fit_ood``.
 """
 
 import numpy as np

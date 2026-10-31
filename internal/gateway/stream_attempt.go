@@ -243,7 +243,7 @@ func (a *streamAttempt) settle(err error) {
 }
 
 // resolveProbeAtCommit settles a half-open probe as a success the moment the response
-// commits (Ruling V1-R13): the deployment has produced its first committing chunk, which is
+// commits: the deployment has produced its first committing chunk, which is
 // all a probe asks, and a long answer must not keep the deployment half-open for its whole
 // length. The ticket is spent, so neither the end of the stream nor a later failure or
 // disconnect reports for this attempt again. A closed-state attempt keeps reporting at the
@@ -288,7 +288,7 @@ func (a *streamAttempt) fail(err error) attemptResult {
 	a.usage.finish(c.s.now(), attemptEndStatus(err, c.r.Context().Err() != nil, a.timedOut() && timeoutOrCancel(err)))
 	if !c.started {
 		// No attempt has answered, so usage seen on this one is not the
-		// usage of a response and must not drive a refund (M2-R18).
+		// usage of a response and must not drive a refund.
 		c.rs.usage = nil
 	}
 	if c.r.Context().Err() != nil {

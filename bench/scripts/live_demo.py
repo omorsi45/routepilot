@@ -8,7 +8,7 @@ Starts ``routepilot serve`` with the learned policy of ``policies/live-ollama`` 
 estimator, which learns from the traffic it serves. It sends live test items (a seeded subset of
 at most 120, one request at a time, the same items in the same order every round) in nine rounds:
 ``min_quality`` in {0, q_mid, q_high} times ``slo_e2e_ms`` in {none, tight, loose}. The floors
-come from the calibration items alone (Ruling V1-R44): over those items ``best_L(x)`` is the
+come from the calibration items alone: over those items ``best_L(x)`` is the
 largest lower bound across the models from the live artifact, ``q_mid`` its median and ``q_high``
 its 90th percentile, each rounded down to 3 decimals (``live_train.calibration_floors``; they are
 the floors the live replay used). Every request is sent under the protocol the training data was
@@ -24,7 +24,7 @@ is chosen from the measured speeds so that the demo fits its time budget (25 min
 
 Outputs stay in ``data/derived/live`` (raw answers, decision log); what is written under
 ``bench/results/live_demo/<run-id>`` holds counts, rates, latencies and item IDs only. Prices are
-an ASSUMPTION (Ruling V1-R42); latency is measured.
+an ASSUMPTION; latency is measured.
 """
 
 import argparse
@@ -64,7 +64,7 @@ MIN_ITEMS = 20
 
 LABELS = (
     "latency is measured through RoutePilot on this machine (the decision log), never simulated",
-    "prices are an ASSUMPTION (Ruling V1-R42); the policy chooses on its own predictions",
+    "prices are an ASSUMPTION; the policy chooses on its own predictions",
     "the tight SLO is the fastest model's measured p50 end-to-end time and the loose SLO the "
     "slowest model's measured p95, both over the train and calibration requests",
     "the quality floors are 0, the median and the 90th percentile of the best lower bound over "
@@ -557,7 +557,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out-root", type=Path, default=RESULTS_ROOT)
     parser.add_argument("--budget-minutes", type=float, default=BUDGET_MINUTES)
     parser.add_argument("--max-items", type=int, default=MAX_ITEMS)
-    parser.add_argument("--items-per-round", type=int, default=None, help="override the plan")
+    parser.add_argument(
+        "--items-per-round", type=int, default=None, help="override the computed items per round"
+    )
     args = parser.parse_args(argv)
     command = ["python", SCRIPT, *(argv if argv is not None else sys.argv[1:])]
     out = run_demo(

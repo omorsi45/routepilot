@@ -505,7 +505,7 @@ func TestDecisionLogCostIsTheBudgetCommit(t *testing.T) {
 	}
 }
 
-// TestDecisionLogCountersAreExposed: Task 23's metrics read these.
+// TestDecisionLogCountersAreExposed: the metrics read these.
 func TestDecisionLogCountersAreExposed(t *testing.T) {
 	e := newAttemptEnv(t, attemptOpts{models: failoverModels(), policy: config.PolicyCheapest})
 	if e.gw.DecisionLogDropped() != 0 || e.gw.DecisionLogErrors() != 0 {

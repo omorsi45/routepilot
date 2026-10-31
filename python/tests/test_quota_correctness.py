@@ -270,7 +270,7 @@ def test_wait_for_ledger_rows(qc: ModuleType, tmp_path: Path) -> None:
 
 
 def test_the_mock_answers_with_the_length_each_request_allows(qc: ModuleType) -> None:
-    # Ruling V1-R39: the mock caps its answer at max_tokens, so with a default length above every
+    # The mock caps its answer at max_tokens, so with a default length above every
     # max_tokens and no tokens= directive each answer has exactly max_tokens completion tokens
     # and what a request costs is what was reserved for it.
     assert qc.MOCK_TOKENS > qc.MAX_TOKENS_RANGE[1]
@@ -540,7 +540,7 @@ def test_render_report(qc: ModuleType) -> None:
     assert "memory" in text and "redis" in text
     assert "unused budget" in text.lower()
     assert "reconcile" in text
-    # The mock caps its answer at each request's max_tokens (Ruling V1-R39): no directive, and a
+    # The mock caps its answer at each request's max_tokens: no directive, and a
     # default length above every max_tokens, so what is spent is what was reserved.
     assert "tokens=8" not in text
     assert "equal" in text and "max_tokens" in text and "--tokens 600" in text

@@ -192,7 +192,7 @@ func (m *Model) EffectiveK(r Requirements, tenantDefault int) int {
 }
 
 // InUpper is the upper bound on prompt tokens for m: the request-level bound
-// plus the hidden prompt tokens m's provider adds (Ruling V1-R24). It
+// plus the hidden prompt tokens m's provider adds. It
 // saturates at the maximum int. Everything that judges a request against one
 // specific model (context window, worst-case cost, admission) uses it;
 // Requirements.InUpper stays the request-level bound.

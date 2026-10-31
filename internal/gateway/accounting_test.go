@@ -387,7 +387,7 @@ func TestGatewayLedgerFailureNeverFailsTheRequest(t *testing.T) {
 	}
 }
 
-// TestGatewayResponseDoesNotWaitForTheLedger (Ruling V1-R38): a store that never answers
+// TestGatewayResponseDoesNotWaitForTheLedger: a store that never answers
 // delays no response, because the rows are queued and the request returns at once. Nothing is
 // lost while the queue has room, and the rows are written when the store recovers.
 func TestGatewayResponseDoesNotWaitForTheLedger(t *testing.T) {

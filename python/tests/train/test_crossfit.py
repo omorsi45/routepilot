@@ -95,7 +95,7 @@ def test_refit_keeps_every_weight_and_replaces_calibrators_and_tables(calib, tmp
         assert new[key] == manifest[key], key
     for old_model, model in zip(manifest["models"], new["models"], strict=True):
         assert model["quality"] == old_model["quality"] and model["length"] == old_model["length"]
-        # A holds fewer than 1000 items, so the spec rule picks Platt for every model
+        # A holds fewer than 1000 items, so the fixed rule picks Platt for every model
         expected = calibrate.fit_calibrator(raw[model["id"]][mask], y[model["id"]][mask])
         assert expected["type"] == "platt" and model["calibrator"] == expected
         table = lcb.fit_lcb(
@@ -168,8 +168,8 @@ def test_bundle_round_trip_reproduces_the_artifact(calib, tmp_path: Path):
     fresh = json.loads((out / "manifest.json").read_bytes())
     kept = json.loads((TINY / "manifest.json").read_bytes())
     # Export recomputes the golden predictions. On another platform's libm their last bits
-    # can differ, which changes the manifest bytes and so the content version (Ruling
-    # V1-R27); everything else must come back exactly.
+    # can differ, which changes the manifest bytes and so the content version;
+    # everything else must come back exactly.
     if (out / "manifest.json").read_bytes() == (TINY / "manifest.json").read_bytes():
         assert out.name == manifest["version"]
     fresh_golden, kept_golden = fresh.pop("golden"), kept.pop("golden")

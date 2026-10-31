@@ -42,7 +42,7 @@ REPLAY_CAPABILITIES = ("streaming", "tools", "json_object", "json_schema", "visi
 # The router bounds the prompt tokens of a one-message request by its text bytes plus this
 # framing (8 per message and 16 per request, catalog.perMessageOverhead and fixedOverhead).
 PROMPT_FRAMING_TOKENS = 24
-# A recorded prompt count is an anomaly (Ruling V1-R24a), not a hidden per-model overhead,
+# A recorded prompt count is an anomaly, not a hidden per-model overhead,
 # when it is above this many times the median of the other models' counts for the same item
 # and also more than ANOMALY_MIN_EXCESS tokens above that median. The second condition keeps
 # a constant hidden system prompt (about 150 tokens on intern-s1), which is many times the
@@ -153,7 +153,7 @@ def build_pool(
     the documented pool JSON keys; the replay config needs it.
 
     ``cheapest`` is the model with the lowest mean cost per item on the train and
-    calibration items, ties by name (Ruling V1-R23): the cost the replay charges,
+    calibration items, ties by name: the cost the replay charges,
     which is the recorded cost, except for ``fitted_cost_models``, whose cost is
     their fitted prices times the recorded token counts (as in ``export_replay``).
     It is neither the lowest fitted price nor the gateway's worst-case ordering.
@@ -249,7 +249,7 @@ def prompt_overheads(
     splits: pd.DataFrame,
     models: Sequence[str],
 ) -> tuple[dict[str, int], list[dict[str, Any]]]:
-    """Hidden prompt tokens per model (Ruling V1-R24) and the records excluded from the fit.
+    """Hidden prompt tokens per model and the records excluded from the fit.
 
     Some providers add prompt tokens the router cannot see. For each model this is the
     largest ``max(0, prompt_tokens - (prompt_bytes + PROMPT_FRAMING_TOKENS))`` over its
@@ -352,7 +352,7 @@ def write_pool_config(
         "# to 6 fractional digits. rank is 1 + position in ascending train+calib success.\n"
         "# context_window and max_output_tokens are placeholders:\n"
         "# replay does not test context feasibility.\n"
-        "# prompt_overhead_tokens (Ruling V1-R24) is the largest excess of a recorded prompt\n"
+        "# prompt_overhead_tokens is the largest excess of a recorded prompt\n"
         "# count over prompt bytes + 24 on the train and calib items, outliers left out.\n",
         _dump({"models": models}),
         "\n",

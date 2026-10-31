@@ -167,8 +167,8 @@ func (sc *scrape) labelValues(name, label string) []string {
 	return out
 }
 
-// specSeries are the series of spec 7.7 and the three the plan adds.
-var specSeries = []string{
+// expectedSeries are the series the gateway exposes.
+var expectedSeries = []string{
 	"rp_accounting_write_errors_total", "rp_breaker_state", "rp_budget_overshoot_picousd_total",
 	"rp_budget_rejections_total", "rp_cost_actual_picousd_total", "rp_cost_estimated_picousd_total",
 	"rp_decision_duration_seconds", "rp_decision_log_dropped_total", "rp_deployment_error_rate",
@@ -179,7 +179,7 @@ var specSeries = []string{
 }
 
 // TestMetricsSeriesNames: after one routed request on the learned policy, the scrape holds
-// exactly the spec 7.7 series, each with at least one sample.
+// exactly the exposed series, each with at least one sample.
 func TestMetricsSeriesNames(t *testing.T) {
 	e := newLearnedEnv(t, learnedOpts{})
 	if rec := e.post(chatBody("auto", learnedPrompt), nil); rec.Code != http.StatusOK {
@@ -194,10 +194,10 @@ func TestMetricsSeriesNames(t *testing.T) {
 		}
 	}
 	sort.Strings(names)
-	if fmt.Sprint(names) != fmt.Sprint(specSeries) {
-		t.Errorf("series\n got %v\nwant %v", names, specSeries)
+	if fmt.Sprint(names) != fmt.Sprint(expectedSeries) {
+		t.Errorf("series\n got %v\nwant %v", names, expectedSeries)
 	}
-	for _, n := range specSeries {
+	for _, n := range expectedSeries {
 		sample := n
 		if sc.types[n] == "histogram" {
 			sample = n + "_count"
@@ -285,7 +285,7 @@ func TestRequestLabels(t *testing.T) {
 	}
 }
 
-// TestMetricsEndpoint: GET /metrics needs no key (Ruling V1-R18), is plain Prometheus text,
+// TestMetricsEndpoint: GET /metrics needs no key, is plain Prometheus text,
 // refuses other methods, and is not itself a request in the request series.
 func TestMetricsEndpoint(t *testing.T) {
 	e := newAttemptEnv(t, attemptOpts{models: []modelSpec{{id: "m", deps: []depSpec{{"dep-a", "ua"}}}}})

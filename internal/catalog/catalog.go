@@ -109,8 +109,7 @@ type Deployment struct {
 
 // Model is a public model with its limits, capabilities, prices, and
 // deployments. Prices are picodollars per token. PromptOverhead is the hidden
-// prompt tokens the provider adds to every request of this model (Ruling
-// V1-R24); see InUpper.
+// prompt tokens the provider adds to every request of this model; see InUpper.
 type Model struct {
 	ID              string
 	ContextWindow   int

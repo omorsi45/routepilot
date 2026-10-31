@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// The guardrail thresholds (spec 8). The canary is judged against the stable policy over a
+// The guardrail thresholds. The canary is judged against the stable policy over a
 // window of the last ten minutes, kept in one-minute buckets.
 const (
 	guardWindowMinutes = 10

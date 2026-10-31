@@ -304,7 +304,7 @@ def test_outputs_operating_points_and_the_crossfit_row(tmp_path: Path, binary: P
     assert xf["salt"] == "routepilot-crossfit-v1"
     assert xf["artifact_version"] != results["artifact_version"]
     assert xf["success_b_at_lambda"] >= xf["target_b"]
-    assert xf["calibrator_types"] == {"platt": 2}  # half of 80 items: the spec rule is Platt
+    assert xf["calibrator_types"] == {"platt": 2}  # half of 80 items: the fixed rule is Platt
     assert ops["crossfit_dual"]["param"] == xf["lambda"]
 
     quality = results["calibration_quality"]

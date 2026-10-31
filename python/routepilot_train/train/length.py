@@ -4,9 +4,9 @@ A ridge regression on ``log1p(completion_tokens)`` over the shared design matrix
 router needs the expected length (for ``cost_exp``) and an upper quantile (for
 ``cost_max``). Exponentiating a log-scale mean underestimates the mean, so the expected
 value uses Duan's smearing factor, and the quantiles are shifts of the log prediction by
-residual quantiles. Both come from calibration-split residuals (Ruling V1-R7), so neither
+residual quantiles. Both come from calibration-split residuals, so neither
 is fitted in-sample. ``X_train`` and the train arrays must be train-split rows, the
-``*_calib`` arrays calibration-split rows; the Task 13 pipeline enforces this with
+``*_calib`` arrays calibration-split rows; the pipeline enforces this with
 ``require_splits`` before calling ``fit_length``.
 """
 

@@ -1,4 +1,4 @@
-"""Off-policy evaluation and the offline promotion gate (spec 8).
+"""Off-policy evaluation and the offline promotion gate.
 
 A candidate routing policy is judged on what an exploring policy logged: for every item the
 logging policy chose a model with a known probability (its propensity), and the recorded
@@ -11,7 +11,7 @@ have earned on these items?" without running it.
   a little, much steadier.
 * ``dr``: doubly robust. The target's predicted reward plus an IPS correction of the
   prediction error on the logged model. One outcome model, the logging policy's own
-  predictions over all candidates (Ruling V1-R32): ``q(x, a)`` is the logged record's
+  predictions over all candidates: ``q(x, a)`` is the logged record's
   candidate ``p`` for model ``a`` (success) and ``cost_exp_picousd`` (cost).
 
 Rewards are the success of the logged model (0 or 1) and its cost in picodollars (reported in
@@ -50,9 +50,9 @@ from routepilot_train.evaluate.metrics import bootstrap_ci
 from routepilot_train.logs import load_decisions
 
 PICO = 1e12
-# The promotion rule (spec 8): the candidate's DR lower bound on success must reach the
-# incumbent's DR point estimate less SUCCESS_MARGIN, and its DR cost may be at most COST_RATIO
-# times the incumbent's.
+# The promotion rule: the 95% lower bound of the paired per-item DR difference in success
+# (candidate less incumbent) must be at least -SUCCESS_MARGIN, and the candidate's DR cost may
+# be at most COST_RATIO times the incumbent's.
 SUCCESS_MARGIN = 0.005
 COST_RATIO = 1.02
 # Rates and costs come from float arithmetic: a value exactly on a limit must pass.
@@ -503,7 +503,7 @@ def gate(
     n_boot: int = 1000,
     seed: int = 0,
 ) -> dict[str, Any]:
-    """The offline promotion gate (spec 8).
+    """The offline promotion gate.
 
     ``logged`` holds the exploring logging policy's records with their candidate scores, and
     ``candidate`` and ``incumbent`` the deterministic replays of the two policies on the same

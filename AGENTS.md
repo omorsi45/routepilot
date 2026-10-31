@@ -26,9 +26,6 @@ request.
   `routepilot_train`, tests in `python/tests`). `make py-setup` creates the
   repo-root `.venv`; `make py-check` runs ruff and pytest.
 
-The planned directory layout is described in section 11 of the design spec.
-Add a directory only when the task that needs it lands.
-
 ## Working rules
 
 - The Go version is whatever `go.mod` declares. Do not change it casually.

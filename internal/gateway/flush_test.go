@@ -44,7 +44,7 @@ func (s *slowStore) RecordAttempts(ctx context.Context, rows []accounting.UsageR
 	return s.RecordAttempt(ctx, rows[0])
 }
 
-// TestCompleteResponseIsFlushedBeforeBookkeeping (Ruling V1-R30): the client has the whole
+// TestCompleteResponseIsFlushedBeforeBookkeeping: the client has the whole
 // response, status and body, long before the post-response work is done. The ledger write
 // takes 300 ms; the client must not wait for it, for an answer or for an error.
 func TestCompleteResponseIsFlushedBeforeBookkeeping(t *testing.T) {

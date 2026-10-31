@@ -164,7 +164,7 @@ func wantOnlyAllowedAttributes(t *testing.T, exp *tracetest.InMemoryExporter) {
 
 // TestSpansAndAttributes: one request on the learned policy for a tenant with a budget is
 // the root chat.completions span with the stages under it, and each carries the attributes
-// the plan names.
+// of its stage.
 func TestSpansAndAttributes(t *testing.T) {
 	e := newLearnedEnv(t, learnedOpts{})
 	e.cfg.Tenants[0].BudgetUSD, e.cfg.Tenants[0].BudgetPeriod = "10", "monthly"

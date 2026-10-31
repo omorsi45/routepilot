@@ -250,7 +250,7 @@ func TestDashboardQueriesUseExposedSeries(t *testing.T) {
 		t.Fatal("the dashboard has no queries")
 	}
 
-	// The panels the compose stack promises (plan Task 34), each by a word of its title.
+	// The panels the compose stack promises, each by a word of its title.
 	sort.Strings(titles)
 	for _, want := range []string{
 		"request rate", "latency", "ttft", "overhead", "routing decisions", "relaxed", "ood",

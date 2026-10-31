@@ -4,12 +4,12 @@ Run from the repository root after ``make data`` and ``make train``:
 
     python bench/scripts/shift_ood.py --pool flagship
 
-The held-out datasets were fixed before training (they are the datasets of a domain the
-training, calibration and test splits never contain) and appear only in this experiment. The
-OOD threshold of the artifact comes from the calibration split. Everything goes through the Go
-``routepilot replay`` command.
+The held-out datasets are whole datasets, at most one per domain, never in train, calibration
+or test. They were fixed before training and appear only in this experiment, so the shift is a
+dataset shift within known domains, not a new domain. The OOD threshold of the artifact comes
+from the calibration split. Everything goes through the Go ``routepilot replay`` command.
 
-Policy. The learned policy at the spec operating point (``--policy-config``, default
+Policy. The learned policy at the chosen operating point (``--policy-config``, default
 ``bench/policies/flagship.yaml``): ``dual`` at that file's lambda, and ``min_cost`` at the
 fixed floor 0.3. Each is replayed on the held-out split twice: with the shipped OOD action
 (``ood_action`` of the policy config) and with ``--ood off``, which makes the optimizer ignore
@@ -19,7 +19,7 @@ held-out items.
 
 Per arm: success and mean cost, paired deltas against always_strongest, the share of items the
 OOD detector flagged, the share of decisions whose floor was relaxed, and, for the ``min_cost``
-arms, floor compliance (Ruling V1-R5: the realized success among the decisions that were not
+arms, floor compliance (the realized success among the decisions that were not
 relaxed, at least the floor). The paired difference between the two OOD arms says what the OOD
 action bought. A per held-out dataset table repeats this by dataset.
 
@@ -419,7 +419,7 @@ def run_shift_ood(
 
 def _labels(ood_action: str | None) -> list[str]:
     return [
-        "held-out datasets were fixed before training (Task 3) and appear only in the shift and "
+        "held-out datasets were fixed before training and appear only in the shift and "
         "OOD experiments; the OOD threshold comes from calibration",
         "no latency is measured or simulated in this experiment",
         "costs are the recorded costs of each model on each item",
@@ -428,7 +428,7 @@ def _labels(ood_action: str | None) -> list[str]:
         "the OOD verdict and score are request-level and computed by the artifact, so they are "
         "the same in every arm; the off arm computes them and does not act on them",
         "the test split is replayed once, only for its OOD scores (the negatives of the AUROC)",
-        "floor compliance counts only the decisions whose floor was not relaxed (Ruling V1-R5)",
+        "floor compliance counts only the decisions whose floor was not relaxed",
     ]
 
 
@@ -599,7 +599,7 @@ def _tables(results: Mapping[str, Any]) -> dict[str, pd.DataFrame]:
         "OOD action effect (shipped against off, paired on the same held-out items)": (
             _effect_table(results)
         ),
-        f"Floor compliance on the held-out split (min_cost, floor {floor}, Ruling V1-R5)": (
+        f"Floor compliance on the held-out split (min_cost, floor {floor})": (
             _compliance_table(results)
         ),
         "OOD detection: AUROC of ood_score, held-out items as positives, test items as negatives": (

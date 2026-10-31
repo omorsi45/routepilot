@@ -4,6 +4,7 @@ The result trees here are invented and tiny. They contain the files a real run h
 (run.json, results.json, report.md) and nothing else.
 """
 
+import dataclasses
 import json
 import re
 import sys
@@ -250,38 +251,38 @@ def test_a_run_without_a_labels_line_uses_the_results_labels_or_says_nothing(
             "held-out datasets were fixed before training and appear only in shift",
         ),
         (
-            "the share of decisions whose floor was not relaxed (Ruling V1-R5).",
+            "the share of decisions whose floor was not relaxed (Ruling V9-R5).",
             "the share of decisions whose floor was not relaxed.",
         ),
         (
-            "prices are an ASSUMPTION (Ruling V1-R42): proportional to the parameter count",
+            "prices are an ASSUMPTION (Ruling V9-R42): proportional to the parameter count",
             "prices are an ASSUMPTION: proportional to the parameter count",
         ),
         (
-            "against the true value; Ruling V1-R36: the learned target is min_cost",
+            "against the true value; Ruling V9-R36: the learned target is min_cost",
             "against the true value; the learned target is min_cost",
         ),
         (
-            "the logging policy's own predictions (Ruling V1-R32), so its bias includes this",
+            "the logging policy's own predictions (Ruling V9-R32), so its bias includes this",
             "the logging policy's own predictions, so its bias includes this",
         ),
         (
-            "prices are fitted (Rulings V1-R2 and V1-R3) from the recorded costs",
+            "prices are fitted (Rulings V9-R2 and V9-R3) from the recorded costs",
             "prices are fitted from the recorded costs",
         ),
         (
-            "the bound counts every byte (Ruling M2-R11) and is an allowance",
+            "the bound counts every byte (Ruling M9-R11) and is an allowance",
             "the bound counts every byte and is an allowance",
         ),
         (
-            "the bound is decided per Ruling M2-R11 and kept",
+            "the bound is decided per Ruling M9-R11 and kept",
             "the bound is decided and kept",
         ),
-        ("The bound holds, see Ruling M2-R11.", "The bound holds."),
+        ("The bound holds, see Ruling M9-R11.", "The bound holds."),
         ("It is fixed per Task 12 and kept", "It is fixed and kept"),
         ("Splits come from Tasks 3 and 4 and are kept", "Splits come and are kept"),
-        ("Ruling V1-R5: the floor was relaxed.", "The floor was relaxed."),
-        ("Ruling V1-R5, V1-R6 and V1-R7: three rules", "Three rules"),
+        ("Ruling V9-R5: the floor was relaxed.", "The floor was relaxed."),
+        ("Ruling V9-R5, V9-R6 and V9-R7: three rules", "Three rules"),
         (
             "a plain sentence about a task force and 3 tasks",
             "a plain sentence about a task force and 3 tasks",
@@ -298,8 +299,8 @@ def test_labels_and_limitations_lose_their_internal_references(results_dir: Path
         "alpha",
         NEW,
         "NEW-VALUE",
-        labels="fixed before training (Task 3); prices are an ASSUMPTION (Ruling V1-R42): fitted",
-        limitation="the floor was not relaxed (Ruling V1-R5)",
+        labels="fixed before training (Task 3); prices are an ASSUMPTION (Ruling V9-R42): fitted",
+        limitation="the floor was not relaxed (Ruling V9-R5)",
     )
 
     text = build(results_dir)
@@ -315,10 +316,64 @@ def test_labels_and_limitations_lose_their_internal_references(results_dir: Path
 def test_an_internal_reference_in_any_other_text_fails_instead_of_shipping(
     results_dir: Path,
 ) -> None:
-    make_run(results_dir, "alpha", NEW, "see Ruling V1-R9 for why")
+    make_run(results_dir, "alpha", NEW, "see Ruling V9-R99 for why")
 
     with pytest.raises(rd.RenderError, match="internal reference"):
         build(results_dir)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            "- learned dual (spec operating point): cost reduction 93.5%",
+            "- learned dual (chosen operating point): cost reduction 93.5%",
+        ),
+        (
+            "min_cost at floor 0.3; the plan's 0.8 relaxes nearly every flagship decision",
+            "min_cost at floor 0.3; a floor of 0.8 relaxes nearly every flagship decision",
+        ),
+    ],
+)
+def test_spec_and_plan_phrases_are_reworded_in_copied_text(text: str, expected: str) -> None:
+    assert rd.scrub_internal_references(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text", ["the spec lambda", "see spec 7.7", "as the plan says", "the briefed range"]
+)
+def test_a_spec_or_plan_phrase_in_other_text_fails_instead_of_shipping(
+    results_dir: Path, text: str
+) -> None:
+    make_run(results_dir, "alpha", NEW, text)
+
+    with pytest.raises(rd.RenderError, match="internal reference"):
+        build(results_dir)
+
+
+def test_a_home_directory_in_a_recorded_command_is_shown_as_a_tilde() -> None:
+    run = dataclasses.replace(
+        run_of("alpha", {"value": "x"}),
+        info={
+            "command": [
+                "python",
+                "bench/scripts/overhead.py",
+                "--scratch-root",
+                "/home/someone/rp-scratch",
+                "--out",
+                "/tmp/home/keep",
+            ]
+        },
+    )
+    section = alpha_section()
+
+    text = "\n".join(rd.render_run(section, run, "../bench/results"))
+
+    assert (
+        "Command: `python bench/scripts/overhead.py --scratch-root ~/rp-scratch --out "
+        "/tmp/home/keep`"
+    ) in text
+    assert "/home/someone" not in text
 
 
 # --- renderers, on small invented results ---------------------------------------------------

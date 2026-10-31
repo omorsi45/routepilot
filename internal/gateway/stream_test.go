@@ -1071,7 +1071,8 @@ func (s *lateStream) Recv() (*openai.ChatCompletionChunk, error) {
 
 func (s *lateStream) Close() error { return nil }
 
-// TestStreamDeadlineBeforeTTFTThenLateContentIsTimeout covers Ruling M2-R15.
+// TestStreamDeadlineBeforeTTFTThenLateContentIsTimeout covers a stream whose content
+// arrives after both timers have expired.
 // The request deadline (100 ms) is shorter than the TTFT budget (300 ms), so
 // the deadline cancels the attempt first. The provider then returns content
 // after both have expired. The watchdog could not be stopped, so the TTFT

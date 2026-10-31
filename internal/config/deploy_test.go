@@ -109,8 +109,8 @@ func TestComposeConfig(t *testing.T) {
 	if tn.RPM != 600 || tn.TPM != 200000 || tn.MaxConcurrency != 32 || tn.BudgetUSD != "1" || tn.BudgetPeriod != "total" {
 		t.Errorf("demo tenant = %+v", tn)
 	}
-	if tn.TPMBurst < tn.DefaultMaxTokens+n3MinInputBound {
-		t.Errorf("tpm_burst %d is below default_max_tokens + %d", tn.TPMBurst, n3MinInputBound)
+	if tn.TPMBurst < tn.DefaultMaxTokens+minInputBound {
+		t.Errorf("tpm_burst %d is below default_max_tokens + %d", tn.TPMBurst, minInputBound)
 	}
 }
 

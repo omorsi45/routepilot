@@ -174,7 +174,7 @@ type optCand struct {
 	priorE2E, priorTTFT bool
 }
 
-// Choose implements Learned. The selection follows Ruling V1-R10:
+// Choose implements Learned. The selection follows these steps:
 //
 //  1. The budget set keeps the models that can be admitted within the remaining budget: with
 //     no explicit max_tokens each model gets the output budget the budget pays for (see

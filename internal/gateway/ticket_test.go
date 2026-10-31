@@ -13,7 +13,7 @@ import (
 )
 
 // TestStreamProbeResolvesAtCommit: a stream that holds the half-open probe settles it as a
-// success the moment its response commits (Ruling V1-R13), not when the stream ends, so a
+// success the moment its response commits, not when the stream ends, so a
 // long answer does not keep the deployment half-open for its whole length. Nothing is
 // recorded again at the end of the stream.
 func TestStreamProbeResolvesAtCommit(t *testing.T) {

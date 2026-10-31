@@ -189,7 +189,7 @@ func TestTokenReservationUsesTheLargestCandidateBudget(t *testing.T) {
 	}
 }
 
-// TestTPMReservesLargestModelBound pins Ruling V1-R24: a failover may land on
+// TestTPMReservesLargestModelBound pins that a failover may land on
 // any candidate, and each candidate's bound is the request bound plus its own
 // hidden prompt overhead plus its own K. The reservation is the largest of
 // those sums, not the largest overhead plus the largest K.

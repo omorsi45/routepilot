@@ -66,7 +66,7 @@ func (b *redisBackend) reserve(ctx context.Context, kind, key string, lim RateLi
 		return Result{Allowed: true}, nil
 	}
 	if n > max(lim.Burst, 1) {
-		// Can never be allowed (M2-R8). Decided here: no round trip, no state.
+		// Can never be allowed. Decided here: no round trip, no state.
 		return Result{}, nil
 	}
 	cost, limit = min(cost, redisMaxExact), min(limit, redisMaxExact)

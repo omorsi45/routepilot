@@ -5,7 +5,7 @@
 # direct and RoutePilot paths use, through LiteLLM's OpenAI-compatible provider.
 #
 # There is no master key and no database: the proxy listens on 127.0.0.1 only and nothing else
-# runs on this machine's loopback that is not part of the experiment (Ruling V1-R37). LiteLLM
+# runs on this machine's loopback that is not part of the experiment. LiteLLM
 # 1.106.6 refuses to start without a master key unless it is told that this is intended, which
 # is what general_settings.dangerously_permit_weak_or_unset_master_key does. Because there is
 # no key, the proxy does no key lookup per request; RoutePilot does check the tenant key on every

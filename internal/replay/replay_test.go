@@ -347,7 +347,7 @@ func TestReplayRecordFields(t *testing.T) {
 	}
 }
 
-// TestReplayRecordsPromptOverhead pins Ruling V1-R24 in the replay: in_upper
+// TestReplayRecordsPromptOverhead pins that in_upper
 // stays the request-level bound, prompt_overhead is the chosen model's own
 // value, and cost_max_picousd is the model's CostMax with that overhead.
 func TestReplayRecordsPromptOverhead(t *testing.T) {

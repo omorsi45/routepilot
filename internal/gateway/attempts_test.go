@@ -352,7 +352,7 @@ func TestRetryAfterQuarantineIsCapped(t *testing.T) {
 
 // The blame budget is the deadline a request gets without a client timeout_ms,
 // so a tenant whose max_timeout_ms is below the server default still feeds
-// deadline expiries to the breaker (M2-R14c).
+// deadline expiries to the breaker.
 func TestDeadlineBlameUsesTenantEffectiveDefault(t *testing.T) {
 	e := newAttemptEnv(t, attemptOpts{
 		defaultTimeoutMs:   400,

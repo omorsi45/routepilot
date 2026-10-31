@@ -151,7 +151,7 @@ class Tally:
 
 
 def max_tokens_stream(seed: int, client: int) -> Iterator[int]:
-    """An endless, seeded stream of ``max_tokens`` values in the briefed range for one client.
+    """An endless, seeded stream of ``max_tokens`` values in the main run's range for one client.
 
     Each client has its own generator, so the run does not touch the global ``random`` state.
     """
@@ -933,9 +933,9 @@ def render_report(
     ]
     if s["clients"] != CLIENTS:
         out[2:2] = [
-            f"Control run: {s['clients']} clients instead of the briefed {CLIENTS}, to see whether "
-            "what differs in the briefed run depends on the concurrency. It is not the briefed "
-            "run.",
+            f"Control run: {s['clients']} clients instead of the main run's {CLIENTS}, to see "
+            "whether what differs in the main run depends on the concurrency. It is not the "
+            "main run.",
             "",
         ]
     if full:

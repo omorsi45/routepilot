@@ -14,7 +14,7 @@ split and, for reference, on the calibration split.
 Per floor and arm the script reports the share of decisions that were not relaxed (a decision
 whose floor the router had to give up made no promise), the realized success among the decisions
 that were not relaxed with a Wilson 95% interval, whether it is at least the floor (floor
-compliance, Ruling V1-R5), the mean cost over all decisions and the share relaxed. A reliability
+compliance), the mean cost over all decisions and the share relaxed. A reliability
 table of the chosen model's L against the realized success is pooled over the floors. The
 calibration rows are in-sample for the calibrators and tables, so only the test rows are
 evidence of compliance.

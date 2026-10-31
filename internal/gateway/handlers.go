@@ -255,7 +255,7 @@ func (s *Server) readBodyLimit(w http.ResponseWriter, r *http.Request, limit int
 	return nil, openai.ErrInvalidRequest("cannot read request body", "")
 }
 
-// Header names for the per-request routing controls (spec 7.1).
+// Header names for the per-request routing controls.
 const (
 	headerMinQuality = "x-routepilot-min-quality"
 	headerSLOTTFTMs  = "x-routepilot-slo-ttft-ms"
@@ -394,7 +394,7 @@ func (s *Server) deadline(tenant *config.TenantConfig, req *openai.ChatCompletio
 // blameBudget is the deadline a request of the tenant gets when the client
 // sets no timeout_ms: the server default, clamped to the tenant maximum when
 // set, else the server's. A deadline expiry blames a deployment only once an
-// attempt has used 90% of it (M2-R14c).
+// attempt has used 90% of it.
 func (s *Server) blameBudget(tenant *config.TenantConfig) time.Duration {
 	return min(time.Duration(s.cfg.Server.DefaultTimeoutMs)*time.Millisecond, s.maxDeadline(tenant))
 }
@@ -413,7 +413,7 @@ func promptBytes(req *openai.ChatCompletionRequest) int {
 // client that stops reading cannot hold the handler. A server that cannot set
 // deadlines (such as a test recorder) just writes.
 //
-// The response is flushed with its length declared (Ruling V1-R30), so the client has all of
+// The response is flushed with its length declared, so the client has all of
 // it right away. The work that follows the handler's write, such as the budget commit, the
 // usage ledger and the decision log, then happens after the client is served and no longer
 // adds to the latency it sees.

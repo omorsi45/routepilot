@@ -74,7 +74,7 @@ type Item struct {
 // Record is one line of the replay output. Fields that do not apply to the
 // policy that ran are null. It holds no prompt text. InUpper is the
 // request-level bound; PromptOverhead is the chosen model's hidden prompt
-// tokens (Ruling V1-R24, null when no model was chosen), so the model's own
+// tokens (null when no model was chosen), so the model's own
 // bound is InUpper plus PromptOverhead.
 type Record struct {
 	ItemID         string   `json:"item_id"`
@@ -108,7 +108,7 @@ type Record struct {
 	// then counts as a failure at zero cost.
 	Error string `json:"error"`
 	// Candidates is the learned policy's score for every model the tenant may use, in
-	// catalog order. It is written only with Options.EmitCandidates (Ruling V1-R32).
+	// catalog order. It is written only with Options.EmitCandidates.
 	Candidates []Candidate `json:"candidates,omitempty"`
 }
 

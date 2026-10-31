@@ -37,7 +37,7 @@ def test_the_design_is_fixed_in_advance():
     script = load_script()
     assert tuple(script.SEEDS) == tuple(range(50))
     assert script.EPSILON == 0.1
-    assert script.FLOOR == 0.3  # Ruling V1-R36: the plan's 0.8 relaxes nearly every decision
+    assert script.FLOOR == 0.3  # a floor of 0.8 relaxes nearly every decision
     assert script.BOOTSTRAP == 500
     assert script.ESTIMATORS == ("ips", "snips", "dr")
     assert script.METRICS == ("success", "cost_usd")
@@ -496,7 +496,7 @@ def test_the_report_states_the_design_and_the_caveats(
     out = run(derived, binary, tmp_path / "out", policy_config)
     report = (out / "report.md").read_text(encoding="utf-8")
 
-    assert "Ruling V1-R36" in report
+    assert "the learned target is min_cost at floor 0.3" in report
     assert "60 bootstrap resamples" in report  # the number used, stated
     assert "full-information replay" in report
     assert "support coverage" in report.lower()

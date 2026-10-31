@@ -1,6 +1,6 @@
 """RoutePilot and LiteLLM against the same mock, with the direct mock path as the baseline.
 
-Run on Linux (the latency numbers are measured there, Ruling V1-R34) from the repository root with
+Run on Linux (the latency numbers are measured there) from the repository root with
 the repo venv, after installing the pinned LiteLLM into its own venv (bench/litellm/README.md):
 
     python bench/scripts/litellm_compare.py --scratch-root ~/rp-scratch

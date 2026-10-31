@@ -53,7 +53,7 @@ func (e *APIError) Body() []byte {
 
 // WriteError writes e as a JSON response with its HTTP status, and flushes it. The body
 // length is declared, so a client has the complete response as soon as the flush reaches
-// it and does not wait for the handler to return (Ruling V1-R30): whatever the handler
+// it and does not wait for the handler to return: whatever the handler
 // does afterwards, such as accounting, cannot delay it.
 func WriteError(w http.ResponseWriter, e *APIError) {
 	body := e.Body()

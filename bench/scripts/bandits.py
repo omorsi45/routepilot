@@ -23,7 +23,7 @@ calibration rows in a seeded random order (bandit feedback, not evaluated) and t
 test rows in two orders, from copies of the same warm state: ``random`` (a seeded shuffle) and
 ``shift`` (sorted by domain, math, code, knowledge, reasoning, writing, then by ``item_id``; the
 learner keeps updating during the stream). They are compared, on the same items and orders, with
-the supervised learned policy at the spec operating point (a Go ``routepilot replay`` of
+the supervised learned policy at the chosen operating point (a Go ``routepilot replay`` of
 ``--policy learned`` with the policy config's ``dual`` lambda), always_strongest (Best Single, a
 Go replay), the oracle by reward and, as an extra reference, the best single arm by mean
 reward on train and calibration. Per learner and order: mean reward per item, success rate,
@@ -70,7 +70,7 @@ LEARNERS = {
 }
 METRICS = ("mean_reward", "success_rate", "mean_cost_usd", "cumulative_regret")
 COMPARATORS = (
-    ("supervised", "supervised learned policy (dual, spec operating point)"),
+    ("supervised", "supervised learned policy (dual, chosen operating point)"),
     ("always_strongest", "always_strongest (Best Single)"),
     ("best_constant", "best single arm by reward on train+calib (extra reference)"),
     ("oracle", "oracle by reward (upper bound)"),

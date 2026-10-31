@@ -10,7 +10,7 @@ import (
 // notFlushableWriter is a ResponseWriter with no Flush, like a wrapper that hides it.
 type notFlushableWriter struct{ http.ResponseWriter }
 
-// TestWriteJSONFlushesWithItsLength (Ruling V1-R30): the response is flushed and carries its
+// TestWriteJSONFlushesWithItsLength: the response is flushed and carries its
 // own length, the pair that lets a client finish reading before the handler returns.
 func TestWriteJSONFlushesWithItsLength(t *testing.T) {
 	rec := httptest.NewRecorder()

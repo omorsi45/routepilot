@@ -15,7 +15,7 @@ seeds are identical), and each of four calibrators is fitted per model on them:
 - ``isotonic``: isotonic regression on the sigmoid of the raw score;
 - ``histogram``: 15 equal-mass bins of the raw score, each holding its empirical success rate
   (experiment only, never exported);
-- ``switch``: the spec rule, isotonic from 1000 samples and Platt below.
+- ``switch``: the fixed calibration rule, isotonic from 1000 samples and Platt below.
 
 The test ECE (15 equal-mass bins) is computed per model and pooled over all models' test
 forecasts, and reported as a mean and standard deviation over the seeds. A size that is not

@@ -18,7 +18,7 @@ const maxFeedbackBytes = 4096
 
 // decisionIDPattern is the shape of a decision ID: "dec_" and a request ID. Any ID of this
 // shape is accepted. Whether it names a decision of the caller is settled offline, where
-// feedback is joined to decisions of the same tenant only (Ruling V1-R17).
+// feedback is joined to decisions of the same tenant only.
 var decisionIDPattern = regexp.MustCompile(`^dec_[A-Za-z0-9_-]{8,64}$`)
 
 // maxEchoedFieldBytes caps how much of a client-supplied field name an error repeats.

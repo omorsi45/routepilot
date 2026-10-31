@@ -15,9 +15,9 @@ scores, ``fit_length`` with ``in_upper_model = prompt_bytes + 24 + prompt_overhe
 Then ``fit_ood`` once on the hashed block. The artifact lands in ``<out>/<pool>/<version>/``
 and the run in ``bench/results/train/<run-id>/``.
 
-``--calibrator`` picks the calibrator: ``switch`` (the default and the spec rule: isotonic from
-1000 calibration samples, else Platt), ``isotonic`` or ``platt``. ``histogram`` exists for the
-calibration study only and is refused here, since an artifact cannot hold it.
+``--calibrator`` picks the calibrator: ``switch`` (the default and the fixed calibration rule:
+isotonic from 1000 calibration samples, else Platt), ``isotonic`` or ``platt``. ``histogram``
+exists for the calibration study only and is refused here, since an artifact cannot hold it.
 
 ``--features`` picks the columns the quality and length models are fitted on (the ablation):
 ``both`` (the default), ``hashed`` or ``dense``. A restricted model is fitted on the restricted
@@ -194,8 +194,9 @@ def fit_pool(
 
     Raises ``ValueError`` before any fit when ``train.items`` holds a row whose split is not
     ``train`` or ``calib.items`` a row whose split is not ``calib``. ``progress`` is called
-    with one short line per fitted model. ``calibrator`` is ``switch`` (the spec rule, the
-    default), ``isotonic`` or ``platt``; ``histogram`` is refused (see ``check_calibrator``).
+    with one short line per fitted model. ``calibrator`` is ``switch`` (the fixed calibration
+    rule, the default), ``isotonic`` or ``platt``; ``histogram`` is refused (see
+    ``check_calibrator``).
     ``feature_set`` is ``both`` (the default), ``hashed`` or ``dense``: the quality and length
     models are fitted on those columns only and their weights are expanded to full length with
     zeros in the dropped block; the OOD detector always sees the hashed part.
@@ -323,8 +324,8 @@ def _tables(
 def check_calibrator(method: str) -> None:
     """Raise ``ValueError`` unless ``method`` is a calibrator an artifact can hold.
 
-    ``switch`` (the spec rule), ``isotonic`` and ``platt`` can be exported. ``histogram`` is a
-    calibration-study experiment and the artifact format has no place for it.
+    ``switch`` (the fixed calibration rule), ``isotonic`` and ``platt`` can be exported.
+    ``histogram`` is a calibration-study experiment and the artifact format has no place for it.
     """
     if method == "histogram":
         raise ValueError(
@@ -354,8 +355,9 @@ def run(
     ``results_root`` defaults to ``bench/results`` of this checkout; the run goes to
     ``<results_root>/train/<run-id>/``. ``created_at`` (UTC ISO text) is recorded in the
     manifest and is the only input the artifact depends on besides the data; it defaults to
-    now. ``calibrator`` is ``switch`` (the spec rule: isotonic from 1000 calibration samples,
-    else Platt), ``isotonic`` or ``platt``. ``feature_set`` is ``both``, ``hashed`` or ``dense``
+    now. ``calibrator`` is ``switch`` (the fixed calibration rule: isotonic from 1000
+    calibration samples, else Platt), ``isotonic`` or ``platt``. ``feature_set`` is ``both``,
+    ``hashed`` or ``dense``
     (see ``fit_pool``). ``prompts_file`` names the prompts table in ``derived`` (see
     ``load_fit_data``). Returns the version, the artifact and results directories and the wall
     time.
@@ -444,9 +446,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--calibrator",
         choices=calibrate.METHODS,
         default="switch",
-        help="switch (default) is the spec rule: isotonic from 1000 calibration samples, else "
-        "Platt; isotonic and platt force one; histogram is a study-only experiment and is "
-        "refused here",
+        help="switch (default) is the fixed calibration rule: isotonic from 1000 calibration "
+        "samples, else Platt; isotonic and platt force one; histogram is a study-only "
+        "experiment and is refused here",
     )
     parser.add_argument(
         "--features",

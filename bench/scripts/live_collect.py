@@ -31,7 +31,7 @@ The prompts, the models' outputs and the decision log stay in the gitignored ``d
 them). What is written under ``bench/results/live_collect/<run-id>`` holds counts, rates,
 latencies and item IDs only.
 
-Prices are an ASSUMPTION (Ruling V1-R42): per-token prices proportional to the parameter count,
+Prices are an ASSUMPTION: per-token prices proportional to the parameter count,
 0.02 USD per million input tokens and 0.06 per million output tokens for each billion
 parameters. They are not the price of anything.
 """
@@ -86,14 +86,14 @@ MEASURE_MAX_TOKENS = 256
 AS_WRITTEN, ANSWER_ONLY, ANSWER_ONLY_USER = "as-written", "answer-only", "answer-only-user"
 PROTOCOLS = (AS_WRITTEN, ANSWER_ONLY, ANSWER_ONLY_USER)
 ANSWER_ONLY_SYSTEM = "Reply with only the letter of the correct option."
-# answer-only-user (Ruling V1-R44): the same instruction, appended to the end of the user message
+# answer-only-user: the same instruction, appended to the end of the user message
 ANSWER_ONLY_USER_SUFFIX = "\n\n" + ANSWER_ONLY_SYSTEM
 ANSWER_ONLY_MAX_TOKENS = 16
 PROTOCOL_FILE = "protocol.json"
 BUDGET_MINUTES = 90.0
 MMLUPRO_CAP = 600
 SEED = 0
-# Input and output price per million tokens for each billion parameters (ASSUMPTION, V1-R42).
+# Input and output price per million tokens for each billion parameters (ASSUMPTION).
 PRICE_IN_PER_B, PRICE_OUT_PER_B = Decimal("0.02"), Decimal("0.06")
 MAX_CONSECUTIVE_FAILURES = 20
 DECISION_WAIT_S = 60.0
@@ -121,7 +121,7 @@ MEASURE_PROMPTS: tuple[tuple[str, str], ...] = (
 
 LABELS = (
     "latency and token counts are measured on this machine through RoutePilot (decision log)",
-    "prices are an ASSUMPTION (Ruling V1-R42): proportional to the parameter count, "
+    "prices are an ASSUMPTION: proportional to the parameter count, "
     "0.02 USD per million input tokens and 0.06 per million output tokens per billion parameters",
     "answers are graded by the last standalone option letter after an answer cue, else the last "
     "standalone option letter, against the ground truth of the release",
@@ -435,7 +435,7 @@ class Protocol:
     ``as-written`` sends the dataset prompt alone with room to reason (the first collection).
     ``answer-only`` prepends a system message asking for the option letter alone and allows
     16 tokens, so the grade measures the answer and not whether the reasoning fit in the cap;
-    the small models ignored that system message. ``answer-only-user`` (Ruling V1-R44) sends
+    the small models ignored that system message. ``answer-only-user`` sends
     no system message and appends the same instruction to the end of the user message
     (``user_suffix``), with the same 16 tokens.
     """
