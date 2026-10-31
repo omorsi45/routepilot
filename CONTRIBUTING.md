@@ -19,8 +19,9 @@ there when you add one.
 
 - The Go version is whatever `go.mod` declares. Do not change it casually.
 - Run `make verify` before every commit. It runs the checks CI runs: gofmt,
-  vet, build, tests and the race detector for Go, and ruff and pytest for
-  Python. `make py-setup` creates the repo-root `.venv` the Python targets use.
+  vet, build, tests, the race detector and the `go mod tidy` check for Go, ruff
+  and pytest for Python, and the benchmark smoke. `make py-setup` creates the
+  repo-root `.venv` the Python targets use.
 - Work test-first: write a failing test, watch it fail for the expected
   reason, then write the minimal code to pass.
 - Tests are hermetic: loopback `httptest` only, no internet, no API keys, no

@@ -34,16 +34,30 @@ test: ## run the hermetic test suite (loopback only, no network)
 test-race: ## run the suite under the race detector
 	go test -race -count=1 ./...
 
+.PHONY: tidy-check
+tidy-check: ## go.mod and go.sum are what go mod tidy writes, the way CI checks it
+	@set -e; \
+	cp go.mod go.mod.orig; \
+	if [ -f go.sum ]; then cp go.sum go.sum.orig; fi; \
+	trap 'rm -f go.mod.orig go.sum.orig' EXIT; \
+	go mod tidy; \
+	diff -u go.mod.orig go.mod; \
+	if [ -f go.sum.orig ]; then diff -u go.sum.orig go.sum; fi
+
 # Python training pipeline. The venv lives at the repo root; its interpreter is
-# Scripts/python.exe on Windows and bin/python elsewhere. PY is recursive so it
-# is resolved when a recipe line runs, after py-setup has created the venv.
+# Scripts/python.exe on Windows and bin/python elsewhere. PY is recursive so it is
+# resolved when a recipe line is expanded. That is too early for py-setup: make expands
+# every line of a recipe before it runs the first one, so on a fresh clone the venv does
+# not exist yet when `$(PY)` would be looked up. py-setup therefore picks the interpreter
+# in its own shell line, after the venv has been created.
 PYTHON_BOOTSTRAP ?= python
 PY = $(shell if [ -f .venv/Scripts/python.exe ]; then echo .venv/Scripts/python.exe; else echo .venv/bin/python; fi)
 
 .PHONY: py-setup
 py-setup: ## create .venv and install the pinned Python dependencies
 	$(PYTHON_BOOTSTRAP) -m venv .venv
-	$(PY) -m pip install -e "python[dev]"
+	py=.venv/bin/python; if [ -f .venv/Scripts/python.exe ]; then py=.venv/Scripts/python.exe; fi; \
+	"$$py" -m pip install -e "python[dev]"
 
 .PHONY: py-check
 py-check: ## ruff lint, ruff format check and pytest for the Python project
@@ -86,7 +100,7 @@ demo: ## build and run the demo: routing headers, relaxation, a pinned model, a 
 	bash scripts/demo.sh
 
 .PHONY: verify
-verify: check test test-race py-check ## everything the CI lane runs
+verify: check tidy-check test test-race py-check bench-smoke ## everything the CI lanes run
 
 .PHONY: clean
 clean: ## remove build output

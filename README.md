@@ -304,14 +304,16 @@ throwaway values.
   py-setup               create .venv and install the pinned Python dependencies
   test-race              run the suite under the race detector
   test                   run the hermetic test suite (loopback only, no network)
+  tidy-check             go.mod and go.sum are what go mod tidy writes, the way CI checks it
   train                  train the flagship policy into policies/flagship/<version> and record the run in bench/results/train (needs make data)
-  verify                 everything the CI lane runs
+  verify                 everything the CI lanes run
 ```
 
-`make verify` is what CI runs: gofmt, vet, build, the tests, the race detector, and ruff and
-pytest for the Python project. The default tests are hermetic: loopback only, no network, no
-API keys, no Docker. The Redis and PostgreSQL suites run when `ROUTEPILOT_TEST_REDIS_URL` and
-`ROUTEPILOT_TEST_POSTGRES_DSN` are set, which the integration workflow does.
+`make verify` is what CI runs: gofmt, vet, build, the tests, the race detector, the `go mod tidy`
+check, ruff and pytest for the Python project, and the benchmark smoke. The default tests are
+hermetic: loopback only, no network, no API keys, no Docker. The Redis and PostgreSQL suites run
+when `ROUTEPILOT_TEST_REDIS_URL` and `ROUTEPILOT_TEST_POSTGRES_DSN` are set, which the
+integration workflow does.
 
 To rebuild the results, run `make py-setup`, `make data` (a 1.28 GB download, checked against
 its SHA-256), `make train` and `make bench-gate`, then the scripts under `bench/scripts/`;
