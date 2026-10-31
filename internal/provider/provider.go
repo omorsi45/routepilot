@@ -63,8 +63,13 @@ type Error struct {
 	Status     int
 	Retryable  bool
 	RetryAfter time.Duration
-	Message    string
-	Err        error
+	// Responded is set when the upstream had already answered with a 2xx status when the
+	// failure happened and its body or stream could not be read to the end (it was cut,
+	// timed out or reset). The provider ran the request and may have billed it, unlike a
+	// failure before any response.
+	Responded bool
+	Message   string
+	Err       error
 }
 
 // Error implements the error interface.
@@ -194,6 +199,16 @@ func ErrorFromResponse(resp *http.Response, now time.Time) *Error {
 		RetryAfter: ParseRetryAfter(resp.Header.Get("Retry-After"), now),
 		Message:    msg,
 	}
+}
+
+// ClassifyReadError is ClassifyTransportError for a failure while the body or stream of a
+// 2xx response is being read. The upstream has answered by then, so the error is marked
+// Responded: it is not the dial or reset before any response that a connect failure is
+// otherwise taken to be.
+func ClassifyReadError(ctx context.Context, err error) *Error {
+	perr := ClassifyTransportError(ctx, err)
+	perr.Responded = true
+	return perr
 }
 
 // ClassifyTransportError maps a transport-level failure to a provider Error.

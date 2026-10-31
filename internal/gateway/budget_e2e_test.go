@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -799,6 +800,74 @@ func TestBudgetCommitsOnEveryExit(t *testing.T) {
 			}
 			if res, com, rel, _ := e.ledger.counts(); res != 1 || com != 1 || rel != 0 {
 				t.Errorf("ledger reserve=%d commit=%d release=%d, want 1, 1, 0 (an attempt was sent)", res, com, rel)
+			}
+		})
+	}
+}
+
+// resetAfterStatusLine answers 200 and then loses the connection: a complete answer is cut
+// after part of its declared body, and a stream is reset before its first event. Either way
+// the upstream had accepted and begun to serve the request.
+func resetAfterStatusLine(stream bool) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if stream {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Length", "4000")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `{"id":"x","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"partial`)
+		}
+		w.(http.Flusher).Flush()
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			return
+		}
+		_ = conn.(*net.TCPConn).SetLinger(0) // RST instead of a clean FIN
+		_ = conn.Close()
+	})
+}
+
+// TestFailureAfterTheUpstreamAnsweredIsBilled: a call the provider accepted and began to
+// serve is not free just because the connection then died. A non-streaming answer cut in
+// transit has an unknown size and is charged its worst case; a stream reset before any
+// content is charged its input bound. Both are recorded in the budget, and a failure before
+// any response (TestBudgetCommitsOnEveryExit) stays free.
+func TestFailureAfterTheUpstreamAnsweredIsBilled(t *testing.T) {
+	budget := money.PicoUSD(1_000_000_000)
+	cases := []struct {
+		name   string
+		stream bool
+		want   money.PicoUSD
+	}{
+		{"a body cut after the 200 is charged its worst case", false, worstCase(t, stdIn, stdOut, 100)},
+		{"a stream reset after the 200 and before any content is charged its input bound", true, worstCase(t, stdIn, stdOut, 0)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newBudgetEnv(t, budgetOpts{budget: budget, policy: config.PolicyCheapest, models: []modelSpec{stdModel("ua")}, upstream: resetAfterStatusLine(tc.stream), maxAttempts: 1})
+			body := chatBody("auto", "hi")
+			if tc.stream {
+				body = streamBody("auto")
+			}
+
+			rec := e.post(body)
+
+			if rec.Code != http.StatusBadGateway {
+				t.Fatalf("status %d, want 502: %s", rec.Code, rec.Body.String())
+			}
+			if e.hit("ua") != 1 {
+				t.Errorf("upstream was called %d times, want 1", e.hit("ua"))
+			}
+			if got := e.spent(); got != tc.want {
+				t.Errorf("Spent = %d, want %d", got, tc.want)
+			}
+			if got := e.remaining(); got != budget-tc.want {
+				t.Errorf("Remaining = %d, want %d: the reservation must be gone", got, budget-tc.want)
+			}
+			if got := e.gw.BudgetOvershoot(); got != 0 {
+				t.Errorf("BudgetOvershoot = %d, want 0", got)
 			}
 		})
 	}

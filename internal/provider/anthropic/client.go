@@ -65,7 +65,7 @@ func (c *Client) Complete(ctx context.Context, req *openai.ChatCompletionRequest
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxCompletionBytes+1))
 	if err != nil {
-		return nil, provider.ClassifyTransportError(ctx, err)
+		return nil, provider.ClassifyReadError(ctx, err)
 	}
 	if len(raw) > maxCompletionBytes {
 		return nil, &provider.Error{Kind: provider.KindProtocol, Message: "response body exceeds size limit"}
@@ -189,11 +189,11 @@ func errStreamClosed() *provider.Error {
 func (s *stream) classifyRead(err error) *provider.Error {
 	switch {
 	case errors.Is(err, io.EOF):
-		return &provider.Error{Kind: provider.KindProtocol, Message: "stream ended before message_stop", Err: io.ErrUnexpectedEOF}
+		return &provider.Error{Kind: provider.KindProtocol, Responded: true, Message: "stream ended before message_stop", Err: io.ErrUnexpectedEOF}
 	case errors.Is(err, openai.ErrEventTooLarge):
 		return &provider.Error{Kind: provider.KindProtocol, Message: "stream event exceeds size limit", Err: err}
 	}
-	return provider.ClassifyTransportError(s.ctx, err)
+	return provider.ClassifyReadError(s.ctx, err)
 }
 
 // fail records a terminal error and returns it.

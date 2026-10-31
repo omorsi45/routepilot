@@ -343,7 +343,8 @@ The first reservation is the worst case of the first candidate only. The token l
 **What an attempt costs.** Each attempt sent gets a record (`attemptUsage` in `budget.go`), settled once:
 
 - if the provider reported usage, the attempt is charged those tokens at the model's prices;
-- an attempt that failed with an HTTP status or a connect error before any output is free;
+- an attempt that failed with an HTTP status or a connect error before any response is free;
+- an attempt that failed after the upstream answered 2xx (the body was cut, or the stream was reset) is never free, because the provider ran the request. A non-streaming answer cut in transit has an unknown size and is charged the model's input bound plus its whole output budget. A stream is charged like the next case (`TestFailureAfterTheUpstreamAnsweredIsBilled`);
 - any other attempt without usage (a timeout, a cancel, a failure mid-stream, an answer that ended without usage) is charged the model's input bound as prompt tokens and, as completion tokens, the bytes of content and tool-call deltas it received, never more than the output budget it was sent with. The record is flagged `usage_estimated` (`TestBudgetEstimatesUsageTheProviderDoesNotReport`).
 
 **Commit.** When the request ends, the sum of the attempt costs is committed: added to the period's spend, with the reservation removed. If no attempt was sent the reservation is released. The commit is idempotent by request ID (the result is remembered for 48 hours). The overshoot, the part of the commit above the reservation, is added to `rp_budget_overshoot_picousd_total` and logged with the request ID and the amounts (`TestBudgetOvershootIsCountedAndLogged`). The spend is recorded in full in every case; the counter says that a request cost more than was held.

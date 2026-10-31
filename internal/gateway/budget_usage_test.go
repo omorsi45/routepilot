@@ -114,6 +114,57 @@ func TestAttemptUsageFailuresBeforeAnyOutput(t *testing.T) {
 	}
 }
 
+// TestAttemptUsageFailureAfterTheUpstreamAnswered: a failure that came after the upstream
+// answered 2xx is never free, even when it is a connect error and nothing was streamed. A
+// stream is charged what it streamed, and a non-streaming answer cut in transit, whose size
+// is unknown, is charged its whole output budget.
+func TestAttemptUsageFailureAfterTheUpstreamAnswered(t *testing.T) {
+	cut := &provider.Error{Kind: provider.KindConnect, Responded: true}
+	inputOnly := money.PicoUSD(104 * 1000)
+
+	t.Run("a stream cut before any output is charged its input bound", func(t *testing.T) {
+		a := newTestAttempt(100, 50)
+		a.failed(cut)
+		if got := a.charge(); got != inputOnly {
+			t.Errorf("charge = %d, want %d", got, inputOnly)
+		}
+		a.resolve()
+		if !a.Estimated || a.Cost != inputOnly || a.Prompt != 104 || a.Completion != 0 {
+			t.Errorf("usage = %+v, want an estimate of the input bound", a)
+		}
+	})
+	t.Run("a non-streaming answer cut in transit is charged its worst case", func(t *testing.T) {
+		a := newTestAttempt(100, 50)
+		a.wholeAnswer = true
+		a.failed(cut)
+		want := inputOnly + 50*3000
+		if got := a.charge(); got != want {
+			t.Errorf("charge = %d, want %d", got, want)
+		}
+		a.resolve()
+		if !a.Estimated || a.Cost != want || a.Prompt != 104 || a.Completion != 50 {
+			t.Errorf("usage = %+v, want an estimate of the input bound plus the whole output budget", a)
+		}
+	})
+	t.Run("a non-streaming connect failure before any response stays free", func(t *testing.T) {
+		a := newTestAttempt(100, 50)
+		a.wholeAnswer = true
+		a.failed(&provider.Error{Kind: provider.KindConnect})
+		a.resolve()
+		if a.Cost != 0 || a.Estimated {
+			t.Errorf("usage = %+v, want a free attempt", a)
+		}
+	})
+	t.Run("an HTTP status stays free", func(t *testing.T) {
+		a := newTestAttempt(100, 50)
+		a.failed(&provider.Error{Kind: provider.KindHTTP, Status: 503})
+		a.resolve()
+		if a.Cost != 0 || a.Estimated {
+			t.Errorf("usage = %+v, want a free attempt", a)
+		}
+	})
+}
+
 func TestAttemptUsageSaturatesAndIgnoresNegatives(t *testing.T) {
 	a := newTestAttempt(100, 50)
 	a.reportUsage(&openai.Usage{PromptTokens: -5, CompletionTokens: -9})

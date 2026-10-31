@@ -171,8 +171,12 @@ func (h *budgetHold) finish() {
 // record the usage ledger writes once the request is over (resolve fills them in).
 //
 //   - Reported usage, when the provider gave it: the tokens it counted, priced exactly.
-//   - An attempt that failed with an HTTP status or a connect error before any output
+//   - An attempt that failed with an HTTP status or a connect error before any response
 //     costs nothing: providers do not bill rejected requests.
+//   - An attempt that failed after the upstream answered 2xx (its body or stream was cut)
+//     is never free, because the request ran. A stream is charged like the next case. A
+//     non-streaming answer cut in transit, whose size is unknown, is charged the input
+//     bound of its model plus its whole output budget.
 //   - Any other attempt without usage (a timeout, a cancel, a failure in the middle of a
 //     stream, an answer or a stream that ended without usage) is charged the input bound of
 //     its model as prompt tokens and the bytes of content and tool-call deltas it received
@@ -192,6 +196,11 @@ type attemptUsage struct {
 	inUpper, maxOut   int
 	streamed          int  // bytes of content and tool-call deltas received
 	settled           bool // Prompt, Completion, Estimated and Cost are final
+	// wholeAnswer is set for a non-streaming attempt, whose output arrives as one answer.
+	wholeAnswer bool
+	// cut is set when such an attempt failed after the upstream had answered 2xx, so the
+	// size of the output it produced is unknown.
+	cut bool
 
 	// The fields below feed the usage ledger (ledger.go).
 
@@ -239,13 +248,23 @@ func (a *attemptUsage) addStreamed(n int) {
 }
 
 // failed records that the attempt ended with err. An HTTP status or a connect error before
-// any output makes the attempt free; any other failure leaves it to be estimated.
+// any response makes the attempt free. A failure after the upstream answered 2xx never does:
+// the request ran, so the attempt is left to be estimated, and a non-streaming answer cut in
+// transit, whose size is unknown, is estimated at its whole output budget. Any other failure
+// is left to be estimated too.
 func (a *attemptUsage) failed(err error) {
 	if a == nil || a.settled || a.streamed > 0 || err == nil {
 		return
 	}
 	var perr *provider.Error
-	if !errors.As(err, &perr) || (perr.Kind != provider.KindHTTP && perr.Kind != provider.KindConnect) {
+	if !errors.As(err, &perr) {
+		return
+	}
+	if perr.Responded {
+		a.cut = a.wholeAnswer
+		return
+	}
+	if perr.Kind != provider.KindHTTP && perr.Kind != provider.KindConnect {
 		return
 	}
 	a.Prompt, a.Completion, a.Estimated, a.Cost = 0, 0, false, 0
@@ -261,6 +280,9 @@ func (a *attemptUsage) charge() money.PicoUSD {
 }
 
 func (a *attemptUsage) estimatedCompletion() int {
+	if a.cut {
+		return max(a.maxOut, 0)
+	}
 	return min(a.streamed, max(a.maxOut, 0))
 }
 
