@@ -272,7 +272,8 @@ throwaway values.
 - Tenant API keys are stored only as SHA-256 hashes in the config and compared in constant
   time. Provider keys are read from the environment variables the config names
   (`api_key_env`), never from config values. Compute a hash with
-  `printf %s your-key | shasum -a 256`.
+  `printf %s your-key | sha256sum` (Linux and Git Bash; on macOS use
+  `printf %s your-key | shasum -a 256`).
 - The admin routes (`GET /admin/policies`, `POST /admin/policies/rollback`) exist only when
   `server.admin_key_sha256` is set, and then need that key as a bearer token. Without it they
   answer like any unknown path. A rollback made through them lives in memory and the next

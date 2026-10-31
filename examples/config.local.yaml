@@ -83,7 +83,8 @@ accounting:
 
 tenants:
   # Only the SHA-256 of a client key is stored, never the key itself.
-  # Compute a hash with:  printf %s your-key | shasum -a 256
+  # Compute a hash with:  printf %s your-key | sha256sum
+  # (Linux and Git Bash; on macOS: printf %s your-key | shasum -a 256)
   # This hash is for the local demo key "demo-key-local".
   - id: demo
     api_key_sha256: 8b98693f57d481139ed5b92daf7ba8b09e22e380fcd1bf02532c777ac80aa940
