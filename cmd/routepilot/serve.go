@@ -143,6 +143,7 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 	defer closeLimiters()
 	if limiters.Budget == nil { // the memory backend: serve owns the ledger so it can sweep it
 		limiters.Budget = quota.NewMemoryBudget()
+		warnMemoryBudgets(cfg, logger)
 	}
 	opts := gateway.Options{Logger: logger, Limiters: limiters, Registry: newMetricsRegistry()}
 	tp, shutdownTracing, err := telemetry.NewTracerProvider(ctx, cfg.Tracing)
@@ -296,6 +297,19 @@ func newMetricsRegistry() *prometheus.Registry {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	return reg
+}
+
+// warnMemoryBudgets logs one warning for each tenant of cfg that has a budget while the quota
+// backend is memory: that counter starts at zero with every start and is not shared with a
+// second process, so a restart (or a replica) allows the whole budget again. A budget that
+// is durable and shared needs quota.backend redis.
+func warnMemoryBudgets(cfg *config.Config, logger *slog.Logger) {
+	for _, t := range cfg.Tenants {
+		if t.BudgetUSD != "" {
+			logger.Warn("the budget counter is in this process's memory: it is per process and resets on restart, so the tenant can spend its whole budget again; set quota.backend to redis for a durable budget shared by every replica",
+				slog.String("tenant", t.ID), slog.String("budget_usd", t.BudgetUSD))
+		}
+	}
 }
 
 // hasBudget reports whether any tenant of cfg has a budget.
