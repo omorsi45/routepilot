@@ -88,15 +88,16 @@ var specSeries = []string{
 	"rp_gateway_overhead_seconds", "rp_decision_duration_seconds", "rp_upstream_attempts_total",
 	"rp_cost_estimated_picousd_total", "rp_cost_actual_picousd_total", "rp_budget_rejections_total",
 	"rp_ratelimit_rejections_total", "rp_budget_overshoot_picousd_total", "rp_breaker_state",
-	"rp_policy_info", "rp_policy_rollbacks_total",
+	"rp_deployment_error_rate", "rp_policy_info", "rp_policy_rollbacks_total",
 	"rp_policy_reload_errors_total", "rp_decision_log_dropped_total", "rp_accounting_write_errors_total",
 }
 
 func TestExactlyTheSpecSeries(t *testing.T) {
 	m, reg := newTestMetrics("tenant-a")
 	m.SetSources(Sources{
-		BreakerStates: func() map[string]int { return map[string]int{"dep-a": BreakerClosed} },
-		PolicyInfo:    func() []PolicyLabels { return []PolicyLabels{{Version: "v1", Role: "stable"}} },
+		BreakerStates:        func() map[string]int { return map[string]int{"dep-a": BreakerClosed} },
+		DeploymentErrorRates: func() map[string]float64 { return map[string]float64{"dep-a": 0} },
+		PolicyInfo:           func() []PolicyLabels { return []PolicyLabels{{Version: "v1", Role: "stable"}} },
 	})
 	m.Request("tenant-a", "model-a", 200, "static", time.Millisecond)
 	m.Decision("model-a", "static-cheapest", nil, false)
@@ -121,7 +122,7 @@ func TestExactlyTheSpecSeries(t *testing.T) {
 		"rp_upstream_attempts_total": "COUNTER", "rp_cost_estimated_picousd_total": "COUNTER",
 		"rp_cost_actual_picousd_total": "COUNTER", "rp_budget_rejections_total": "COUNTER",
 		"rp_ratelimit_rejections_total": "COUNTER", "rp_budget_overshoot_picousd_total": "COUNTER",
-		"rp_breaker_state": "GAUGE", "rp_policy_info": "GAUGE", "rp_policy_rollbacks_total": "COUNTER",
+		"rp_breaker_state": "GAUGE", "rp_deployment_error_rate": "GAUGE", "rp_policy_info": "GAUGE", "rp_policy_rollbacks_total": "COUNTER",
 		"rp_policy_reload_errors_total": "COUNTER", "rp_decision_log_dropped_total": "COUNTER",
 		"rp_accounting_write_errors_total": "COUNTER",
 	}

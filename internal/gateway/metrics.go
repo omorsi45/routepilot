@@ -62,6 +62,14 @@ func (s *Server) initMetrics(reg *prometheus.Registry) (err error) {
 			}
 			return states
 		},
+		DeploymentErrorRates: func() map[string]float64 {
+			snap := s.health.Snapshot()
+			rates := make(map[string]float64, len(deployments))
+			for _, name := range deployments {
+				rates[name] = snap[name].ErrorRate // 0 for a deployment never used
+			}
+			return rates
+		},
 	}
 	if s.policies != nil {
 		src.PolicyReloadErrors = s.policies.ReloadErrors

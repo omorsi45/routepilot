@@ -18,7 +18,7 @@ The gateway fails over between deployments, so it needs to stop sending traffic 
 - **Blame for timeouts.** A timeout caused by the request deadline counts against the deployment only if the attempt ran for at least 90% of the deadline the request would have had without a client-chosen `timeout_ms` (the server default, clamped to the tenant maximum). A shorter run was cut off by the client and says nothing about the deployment. Watchdogs on the provider side (time to first token, idle time) always count.
 - **Retry-After.** A value of up to 2 seconds is waited out. A longer one trips that deployment for that long, capped at 120 seconds, and the loop moves on. A 401 or 403 from the provider quarantines the deployment for 120 seconds, because it points at a credential problem.
 - **Bulkhead.** A deployment may set `max_inflight`. The gateway keeps a counter per limited deployment (a compare-and-swap loop, no lock), takes a slot before a non-streaming attempt and gives it back when the provider call returns, on every path and at most once. A full deployment is skipped as if unavailable, and the rejection is counted. The bulkhead is in `internal/gateway`, not in `reliability`: it is about capacity, not health, and takes no part in the breaker's bookkeeping. Streams do not use it.
-- Breaker state is exported as a metric per deployment, and the health registry keeps an error-rate average with a 30 second half-life.
+- Breaker state is exported as a metric per deployment (`rp_breaker_state`), and so is the error-rate average the health registry keeps, with a 30 second half-life (`rp_deployment_error_rate`).
 
 ## Consequences
 

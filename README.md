@@ -275,8 +275,9 @@ throwaway values.
 - The admin routes (`GET /admin/policies`, `POST /admin/policies/rollback`) exist only when
   `server.admin_key_sha256` is set, and then need that key as a bearer token. Without it they
   answer like any unknown path. A rollback made through them lives in memory and the next
-  reload restores what the config file says. `/v1/feedback` and the admin routes have no
-  rate limit.
+  reload restores what the config file says. The admin routes have no rate limit.
+  `/v1/feedback` is charged against the tenant's request rate (`rpm`) like a chat request,
+  and needs a valid tenant key.
 - No prompt text or key reaches a log, trace, metric or decision log: the decision log holds
   a 16-hex prefix of the prompt hash and the prompt's byte count. A redaction test plants
   sentinel strings and fails if any appears (`TestNoSecretsOrPromptsAnywhere`).

@@ -171,7 +171,8 @@ func (sc *scrape) labelValues(name, label string) []string {
 var specSeries = []string{
 	"rp_accounting_write_errors_total", "rp_breaker_state", "rp_budget_overshoot_picousd_total",
 	"rp_budget_rejections_total", "rp_cost_actual_picousd_total", "rp_cost_estimated_picousd_total",
-	"rp_decision_duration_seconds", "rp_decision_log_dropped_total", "rp_gateway_overhead_seconds",
+	"rp_decision_duration_seconds", "rp_decision_log_dropped_total", "rp_deployment_error_rate",
+	"rp_gateway_overhead_seconds",
 	"rp_policy_info", "rp_policy_reload_errors_total", "rp_policy_rollbacks_total",
 	"rp_ratelimit_rejections_total", "rp_request_duration_seconds", "rp_requests_total",
 	"rp_routing_decisions_total", "rp_ttft_seconds", "rp_upstream_attempts_total",

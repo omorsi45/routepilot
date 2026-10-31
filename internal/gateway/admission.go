@@ -224,9 +224,7 @@ func (s *Server) admit(w http.ResponseWriter, rs *reqState, r *http.Request, ten
 		return reject(apiErr, retryAfter)
 	}
 	if tenant.RPM > 0 {
-		cctx, cancel := limiterCtx(ctx)
-		res, err := s.limits.Requests.Allow(cctx, tenant.ID, quota.RateLimit{PerMinute: int64(tenant.RPM), Burst: int64(tenant.RPMBurst)}, now)
-		cancel()
+		res, err := s.allowRequest(ctx, tenant, now)
 		if err != nil {
 			return failed("request rate check", err)
 		}
@@ -253,6 +251,19 @@ func (s *Server) admit(w http.ResponseWriter, rs *reqState, r *http.Request, ten
 		reserved = true
 	}
 	return finish, true
+}
+
+// allowRequest charges one request against the tenant's request rate (rpm) and says whether
+// it is within it. A tenant without an rpm is never limited. The call is bounded by
+// limiterCallTimeout; one that runs out of time is a limiter error. Chat requests and
+// feedback calls draw on the same allowance.
+func (s *Server) allowRequest(ctx context.Context, tenant *config.TenantConfig, now time.Time) (quota.Result, error) {
+	if tenant.RPM <= 0 {
+		return quota.Result{Allowed: true}, nil
+	}
+	cctx, cancel := limiterCtx(ctx)
+	defer cancel()
+	return s.limits.Requests.Allow(cctx, tenant.ID, quota.RateLimit{PerMinute: int64(tenant.RPM), Burst: int64(tenant.RPMBurst)}, now)
 }
 
 // limiterWarn logs a limiter failure with its cause. It never logs the tenant

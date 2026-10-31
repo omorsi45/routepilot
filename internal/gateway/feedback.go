@@ -47,6 +47,24 @@ func (s *Server) handleFeedback(w http.ResponseWriter, rs *reqState, r *http.Req
 	}
 	rs.tenant = tenant.ID
 
+	// A feedback call writes to the decision log, so it is charged like a request: from the
+	// same allowance, with the same answers.
+	res, err := s.allowRequest(r.Context(), tenant, s.now())
+	if err != nil {
+		if r.Context().Err() != nil { // the client left; there is nobody to answer
+			rs.canceled = true
+			return
+		}
+		s.limiterWarn(rs, "request rate check", err)
+		s.fail(w, rs, openai.ErrOverloaded())
+		return
+	}
+	if !res.Allowed {
+		w.Header().Set("Retry-After", retryAfterSeconds(res.RetryAfter))
+		s.fail(w, rs, openai.ErrRateLimited("tenant request rate exceeded"))
+		return
+	}
+
 	body, apiErr := s.readBodyLimit(w, r, maxFeedbackBytes)
 	if apiErr != nil {
 		s.fail(w, rs, apiErr)

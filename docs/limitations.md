@@ -41,13 +41,13 @@ This page lists what RoutePilot does not do, what its experiments did not show, 
 - **Circuit breakers are shared by all tenants.** A breaker is per deployment, so one tenant's failures can open a deployment for everyone.
 - **The bulkhead covers non-streaming requests only.** It does not cover streams.
 - **A late failure of a probe stream is not recorded.** After a half-open probe stream commits, a later mid-stream failure of that stream is not recorded against the breaker.
-- **A stale breaker ticket still feeds the error-rate average.** The outcome of a stale ticket is ignored by the window and by the probe, but it still feeds the EWMA error rate.
+- **A stale breaker ticket still feeds the error-rate average.** The outcome of a stale ticket is ignored by the window and by the probe, but it still feeds the EWMA error rate, which `rp_deployment_error_rate` exports.
 
 ## Operations and security
 
 - **The gateway speaks plaintext HTTP.** The examples bind loopback. Put TLS in front of the gateway for anything else.
 - **`/metrics` is unauthenticated.** No series carries prompts or keys. Keep the endpoint on an internal network.
-- **`/v1/feedback` and the admin routes have no rate limit.**
+- **The admin routes have no rate limit.** `/v1/feedback` is charged against the tenant's request rate (`rpm`) like a chat request, so a tenant with no `rpm` has no limit on it either.
 - **Rollbacks and canary changes can be undone by a reload.** A rollback or canary change made through the admin API, or by the guardrail, lives in memory. The next reload restores what the config file says.
 - **Hot reload re-reads only the `policies` section.** Other config changes need a restart.
 - **Rotated decision log files are never deleted.**

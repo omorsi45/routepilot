@@ -66,6 +66,9 @@ type Sources struct {
 	// BreakerStates maps each configured deployment to BreakerClosed, BreakerHalfOpen or
 	// BreakerOpen.
 	BreakerStates func() map[string]int
+	// DeploymentErrorRates maps each configured deployment to its error rate, the
+	// exponentially weighted average of its recent attempt outcomes, from 0 to 1.
+	DeploymentErrorRates func() map[string]float64
 	// PolicyInfo lists the loaded policy slots: stable, canary and each shadow.
 	PolicyInfo func() []PolicyLabels
 }
@@ -209,6 +212,12 @@ func NewMetrics(tenants []string, reg prometheus.Registerer) *Metrics {
 				"Circuit breaker state of each configured deployment: 0 closed, 1 half-open, 2 open.",
 				[]string{"deployment"}, nil),
 			read: m.breakerSamples,
+		},
+		&samples{
+			desc: prometheus.NewDesc("rp_deployment_error_rate",
+				"Error rate of each configured deployment: the exponentially weighted average of its recent attempt outcomes, from 0 to 1.",
+				[]string{"deployment"}, nil),
+			read: m.errorRateSamples,
 		},
 		&samples{
 			desc: prometheus.NewDesc("rp_policy_info",
@@ -367,6 +376,19 @@ func (m *Metrics) breakerSamples() []sample {
 	out := make([]sample, 0, len(states))
 	for dep, st := range states {
 		out = append(out, sample{labels: []string{dep}, value: float64(st)})
+	}
+	return out
+}
+
+func (m *Metrics) errorRateSamples() []sample {
+	s := m.sources.Load()
+	if s == nil || s.DeploymentErrorRates == nil {
+		return nil
+	}
+	rates := s.DeploymentErrorRates()
+	out := make([]sample, 0, len(rates))
+	for dep, rate := range rates {
+		out = append(out, sample{labels: []string{dep}, value: rate})
 	}
 	return out
 }
