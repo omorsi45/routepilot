@@ -756,3 +756,9 @@ def test_performance_doc_shows_the_clock_runs_of_both_hosts() -> None:
     assert "Windows-" in text and "Linux-" in text
     selection = rd.load_selection(REPO / "bench" / "results")
     assert [e.status for e in selection["clock"]] == ["current", "also"]
+
+
+def test_results_page_says_which_rows_the_prices_were_fitted_on() -> None:
+    text = (REPO / "docs" / "results.md").read_text(encoding="utf-8")
+
+    assert "fitted from recorded costs on the train and calibration rows only" in text

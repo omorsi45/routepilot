@@ -105,10 +105,11 @@ def _pool_section(pool: dict[str, Any], rows: pd.DataFrame) -> dict[str, Any]:
             else None
             for s in SPLITS
         }
+    tuning = rows.loc[rows["split"].isin(["train", "calib"])]
     prices: dict[str, dict[str, Any]] = {}
     for model in pool["models"]:
         price = pool["prices"][model]
-        n_fit = int(((rows["model"] == model) & (rows["cost_usd"] > 0)).sum())
+        n_fit = int(((tuning["model"] == model) & (tuning["cost_usd"] > 0)).sum())
         prices[model] = {
             "in_usd_per_mtok": price["in_usd_per_token"] * 1e6,
             "out_usd_per_mtok": price["out_usd_per_token"] * 1e6,
@@ -177,7 +178,7 @@ def _report(results: dict[str, Any], run_id: str) -> str:
     out.append(
         "Counts, rates and item IDs only: no prompt text. Prices are not list prices: they are "
         f"{FITTED} (non-negative least squares on prompt and completion tokens, rows with a "
-        "non-zero recorded cost).\n"
+        "non-zero recorded cost of the train and calibration splits only).\n"
     )
 
     out.append("## Held-out datasets\n")

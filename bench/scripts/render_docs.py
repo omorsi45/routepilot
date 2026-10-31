@@ -327,7 +327,8 @@ def render_data(run: Run) -> list[str]:
     )
     out.append(
         "Best Single is the model with the highest success on train and calibration. "
-        "Cheapest is the model with the lowest mean cost per item on train and calibration."
+        "Cheapest is the model with the lowest mean cost per item on train and calibration. "
+        "Per-token prices are fitted from recorded costs on the train and calibration rows only."
     )
     out.append("")
     for name, p in pools.items():

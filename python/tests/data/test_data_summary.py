@@ -9,6 +9,7 @@ import pytest
 from frames import SENTINEL, synthetic_outcomes, write_derived
 
 from routepilot_train.data import build, selection
+from routepilot_train.data.pools import pool_outcomes
 
 SCRIPT = Path(__file__).resolve().parents[3] / "bench" / "scripts" / "data_summary.py"
 
@@ -94,6 +95,26 @@ def test_summary_counts_zero_cost_records_and_negative_tokens(derived: Path, tmp
             "cost_usd": 0.0,
         }
     ]
+
+
+def test_summary_counts_only_the_rows_the_prices_were_fitted_on(derived: Path, tmp_path: Path):
+    outcomes = pd.read_parquet(derived / "outcomes.parquet")
+    splits = pd.read_parquet(derived / "splits.parquet")
+    pool = json.loads((derived / "pools" / "flagship.json").read_text(encoding="utf-8"))
+    rows = pool_outcomes(outcomes, pool["models"]).merge(
+        splits[["item_id", "split"]], on="item_id", validate="m:1"
+    )
+    paid = rows.loc[rows["cost_usd"] > 0]
+    fitted_on = paid.loc[paid["split"].isin(["train", "calib"])].groupby("model").size().to_dict()
+    assert fitted_on != paid.groupby("model").size().to_dict()  # test and held-out rows exist
+
+    run_dir = load_script().summarize(derived, tmp_path / "out")
+
+    results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
+    prices = results["pools"]["flagship"]["prices"]
+    assert {model: price["n_fit"] for model, price in prices.items()} == fitted_on
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+    assert "of the train and calibration splits only" in report
 
 
 def test_summary_flags_fits_with_low_r2(derived: Path, tmp_path: Path):

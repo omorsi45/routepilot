@@ -79,7 +79,7 @@ Held-out datasets (fixed before training, used only in the shift and OOD experim
 | flagship | 12 | 11 | 12067 | 5185 | 1773 | 1735 | 3374 | gemini-2.5-pro | deepseek-v3-0324 |
 | mixed | 16 | 8 | 3182 | 1067 | 382 | 361 | 1372 | gpt-5 | Llama-3.1-Nemotron-Nano-8B-v1 |
 
-Best Single is the model with the highest success on train and calibration. Cheapest is the model with the lowest mean cost per item on train and calibration.
+Best Single is the model with the highest success on train and calibration. Cheapest is the model with the lowest mean cost per item on train and calibration. Per-token prices are fitted from recorded costs on the train and calibration rows only.
 
 #### Success per split, pool flagship (recorded)
 
