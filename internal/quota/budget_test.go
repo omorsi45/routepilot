@@ -84,6 +84,48 @@ func TestBudgetConformanceReal(t *testing.T) {
 	})
 }
 
+// TestMemoryBudgetKeepsACommitResultForFifteenMinutes: a repeated commit gets the first
+// result for 15 minutes, which is longer than the longest lease (a 600 second deadline plus
+// 60 seconds of grace), and after that the ledger has forgotten the request. A gateway that
+// remembered every request it ever committed would grow without bound.
+func TestMemoryBudgetKeepsACommitResultForFifteenMinutes(t *testing.T) {
+	ctx := context.Background()
+	l := quota.NewMemoryBudget()
+	lim := quota.BudgetLimit{Limit: 1000, Period: quota.PeriodMonthly}
+	t0 := time.Unix(1_700_000_000, 0)
+
+	if ok, _, err := l.Reserve(ctx, "t", "r1", lim, 100, time.Minute, t0); err != nil || !ok {
+		t.Fatalf("Reserve = %v, %v", ok, err)
+	}
+	if over, err := l.Commit(ctx, "t", "r1", 300, t0); err != nil || over != 200 {
+		t.Fatalf("Commit = (%d, %v), want overshoot 200", over, err)
+	}
+
+	inside := t0.Add(15*time.Minute - time.Second)
+	if _, err := l.Sweep(ctx, inside); err != nil {
+		t.Fatal(err)
+	}
+	if over, err := l.Commit(ctx, "t", "r1", 50, inside); err != nil || over != 200 {
+		t.Errorf("repeated commit inside the window = (%d, %v), want the first result 200", over, err)
+	}
+	if got, _ := l.Spent(ctx, "t", lim, inside); got != 300 {
+		t.Errorf("Spent after a repeated commit = %d, want 300 (unchanged)", got)
+	}
+
+	after := t0.Add(15 * time.Minute)
+	if _, err := l.Sweep(ctx, after); err != nil {
+		t.Fatal(err)
+	}
+	// The record is gone, so this is a commit of a request the ledger knows nothing about:
+	// charged in full, and all of it overshoot.
+	if over, err := l.Commit(ctx, "t", "r1", 50, after); err != nil || over != 50 {
+		t.Errorf("commit after the window = (%d, %v), want the forgotten request treated as new (overshoot 50)", over, err)
+	}
+	if got, _ := l.Spent(ctx, "t", lim, after); got != 350 {
+		t.Errorf("Spent after the window = %d, want 350", got)
+	}
+}
+
 func TestLimitersCarryABudgetLedger(t *testing.T) {
 	if quota.NewMemory().Budget == nil {
 		t.Error("NewMemory().Budget is nil")
@@ -181,8 +223,8 @@ func TestRedisBudgetKeyLayout(t *testing.T) {
 	if got, err := mr.Get("rp:budget:commit:{req-1}"); err != nil || got != "0" {
 		t.Errorf("commit result = %q, %v, want 0", got, err)
 	}
-	if got := mr.TTL("rp:budget:commit:{req-1}"); got != 48*time.Hour {
-		t.Errorf("commit result ttl = %v, want 48h", got)
+	if got := mr.TTL("rp:budget:commit:{req-1}"); got != 15*time.Minute {
+		t.Errorf("commit result ttl = %v, want 15m", got)
 	}
 	for _, gone := range []string{rec, "rp:budget:{tenant-a}:2026-10:leases", "rp:budget:{tenant-a}:2026-10:expiry"} {
 		if mr.Exists(gone) {

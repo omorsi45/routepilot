@@ -42,7 +42,7 @@ const (
 //
 //	<prefix>:budget:lease:{R}      hash of tenant, period, amount; lives until the lease
 //	                               expires plus 48 hours, and is removed by Commit or Release
-//	<prefix>:budget:commit:{R}     the overshoot Commit returned, for 48 hours
+//	<prefix>:budget:commit:{R}     the overshoot Commit returned, for 15 minutes
 //
 // With the prefix "rp" the keys read rp:budget:{tenant-a}:2026-10:spent and so on. A lease
 // is live while its score is after now; the scripts ignore the others, and Sweep removes
@@ -107,7 +107,7 @@ func (b *redisBudget) Reserve(ctx context.Context, tenant, requestID string, lim
 func (b *redisBudget) Commit(ctx context.Context, tenant, requestID string, actual money.PicoUSD, now time.Time) (money.PicoUSD, error) {
 	keys := []string{b.leaseKey(requestID), b.commitKey(requestID)}
 	res, err := commitBudgetScript.Run(ctx, b.client, keys,
-		clampNow(now), amountOf(actual), requestID, tenant, PeriodKey(PeriodMonthly, now), b.base, budgetRetention.Milliseconds()).Int64Slice()
+		clampNow(now), amountOf(actual), requestID, tenant, PeriodKey(PeriodMonthly, now), b.base, commitRetention.Milliseconds()).Int64Slice()
 	if err != nil {
 		return 0, fmt.Errorf("quota: redis budget commit: %w", err)
 	}

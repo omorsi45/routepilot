@@ -15,11 +15,17 @@ const (
 	PeriodTotal = "total"
 )
 
-// budgetRetention is how long a ledger remembers a request after it ended: the result of
-// its commit (so a repeated commit returns it) and, past the expiry of its lease, which
-// tenant and period the reservation belonged to (so a late commit is charged where the
-// reservation was made).
+// budgetRetention is how long a ledger remembers a reservation after its lease expired
+// without the request ending: which tenant and period it belonged to, so that a late commit
+// is charged where the reservation was made.
 const budgetRetention = 48 * time.Hour
+
+// commitRetention is how long a ledger remembers the result of a commit, so that a repeated
+// commit of the same request returns it instead of charging twice. It is longer than the
+// longest lease (a 600 second request deadline plus 60 seconds of grace), which is as long
+// as any commit can be repeated. The gateway commits a request once, so a longer memory
+// would only cost a record per request served.
+const commitRetention = 15 * time.Minute
 
 // BudgetLimit is a tenant's spending limit. Limit is in picodollars; a Limit of zero allows
 // only requests that cost nothing. Period is PeriodMonthly or PeriodTotal; anything else,
@@ -68,7 +74,7 @@ type BudgetLedger interface {
 	// belongs to and removing the reservation. It returns the overshoot, the part of actual
 	// above the live reservation: max(0, actual - reserved), where an expired or missing
 	// reservation counts as zero. Commit is idempotent by request ID: a second commit
-	// returns the first result and changes nothing, for 48 hours.
+	// returns the first result and changes nothing, for 15 minutes.
 	//
 	// A commit for a request that never reserved (or whose record is gone) cannot know the
 	// period, so it adds actual to tenant's monthly period at now and reports all of it as

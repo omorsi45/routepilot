@@ -10,7 +10,8 @@ import (
 
 // NewMemoryBudget returns an in-process BudgetLedger. One mutex guards all of its state, so
 // every operation is atomic. State is kept for every tenant and period ever seen (a small
-// number) and for the requests of the last 48 hours; Sweep forgets the rest.
+// number) and for the requests of the last 15 minutes (their commit results) and the
+// reservations whose lease expired unended in the last 48 hours; Sweep forgets the rest.
 func NewMemoryBudget() BudgetLedger {
 	return &memBudget{
 		spent:   map[budgetKey]money.PicoUSD{},
@@ -187,7 +188,7 @@ func (m *memBudget) Sweep(_ context.Context, now time.Time) (int, error) {
 		}
 	}
 	for id, c := range m.commits {
-		if now.Sub(c.at) >= budgetRetention {
+		if now.Sub(c.at) >= commitRetention {
 			delete(m.commits, id)
 		}
 	}
