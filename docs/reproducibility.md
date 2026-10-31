@@ -113,15 +113,19 @@ Run everything from the repository root with the repository's virtual environmen
 | 23 | `python bench/scripts/failover.py` | Windows | 160 s | [`20261029T010235Z-f5ff91d`](../bench/results/failover/20261029T010235Z-f5ff91d/) |
 | 24 | `python bench/scripts/failure_analysis.py` | Windows | 9 s | [`20261029T015809Z-00deb40`](../bench/results/failure_analysis/20261029T015809Z-00deb40/) |
 | 25 | `python bench/scripts/live_collect.py measure` (needs Ollama) | Windows | 32 s | [`20261029T015819Z-00deb40`](../bench/results/live_collect/20261029T015819Z-00deb40/) |
-| 26 | `python bench/scripts/live_collect.py collect` (needs Ollama; first protocol, as written) | Windows | 4619 s (about 77 min) | [`20261029T015906Z-00deb40`](../bench/results/live_collect/20261029T015906Z-00deb40/) |
+| 26 | `python bench/scripts/live_collect.py collect --live-dir data/derived/live-cot` (needs Ollama; first protocol, as written) | Windows | 4619 s (about 77 min) | [`20261029T015906Z-00deb40`](../bench/results/live_collect/20261029T015906Z-00deb40/) |
 | 27 | `python bench/scripts/live_collect.py collect --protocol answer-only --budget-minutes 30` (needs Ollama) | Windows | 352 s | [`20261029T033743Z-766a3b8`](../bench/results/live_collect/20261029T033743Z-766a3b8/) |
 | 28 | `python bench/scripts/live_collect.py collect --protocol answer-only-user --budget-minutes 15 --live-dir data/derived/live-user` (needs Ollama) | Windows | 309 s | [`20261029T042250Z-6ecd7f2`](../bench/results/live_collect/20261029T042250Z-6ecd7f2/) |
-| 29 | `python bench/scripts/live_train.py` | Windows | 14 s | [`20261029T043015Z-6ecd7f2`](../bench/results/live_train/20261029T043015Z-6ecd7f2/) |
-| 30 | `python bench/scripts/live_demo.py` (needs Ollama) | Windows | 106 s | [`20261029T043138Z-6ecd7f2`](../bench/results/live_demo/20261029T043138Z-6ecd7f2/) |
+| 29 | `python bench/scripts/live_train.py --live-dir data/derived/live-user` | Windows | 14 s | [`20261029T043015Z-6ecd7f2`](../bench/results/live_train/20261029T043015Z-6ecd7f2/) |
+| 30 | `python bench/scripts/live_demo.py --live-dir data/derived/live-user` (needs Ollama) | Windows | 106 s | [`20261029T043138Z-6ecd7f2`](../bench/results/live_demo/20261029T043138Z-6ecd7f2/) |
 | 31 | `python bench/scripts/clock_probe.py` | Windows | 4 s | [`20261029T074230Z-e12fd9f`](../bench/results/clock/20261029T074230Z-e12fd9f/) |
 | 32 | `python bench/scripts/clock_probe.py` | Linux | 6 s | [`20261029T074240Z-e12fd9f`](../bench/results/clock/20261029T074240Z-e12fd9f/) |
 
 Row 27 is the answer-only protocol with the instruction in a system message. The `live_train` and `live_demo` runs made on it (`20261029T034651Z-766a3b8`, `20261029T034751Z-766a3b8`) are superseded and listed in `SELECTION.yaml`, and so are the earlier failover and quota runs. The first Linux overhead run ([`20261028T185609Z-44f7f4d`](../bench/results/overhead/20261028T185609Z-44f7f4d/), 1253 s) is kept next to the primary one.
+
+Rows 26 to 30 need their live directories apart. The recorded command of run 26 is the bare `collect`, which wrote `data/derived/live`; that directory was renamed to `live-cot` before row 27 ran, a step that left no record. The flag in the table gives the first collection that directory from the start, so row 27 (default directory `data/derived/live`) does not stop on the existing `raw.jsonl`. Runs 29 and 30 recorded the bare `live_train.py` and `live_demo.py` as their commands, because the scripts did not record their arguments then. Both ran with `--live-dir data/derived/live-user`, which the `answer-only-user` protocol in the `measurement` block of each `run.json` shows; without the flag the scripts read the answer-only collection of row 27. A new run 29 also trains a new artifact version under `policies/live-ollama/` next to the committed `21183f8ab3fe`, because the manifest embeds its creation time; `live_demo.py` stops when it finds more than one, so run 30 needs `--policies-root` pointing at a directory that holds only the version it should use.
+
+The two clock probes (rows 31 and 32) ran from a tree in which `bench/scripts/clock_probe.py` was not yet committed, so their `run.json` records `git_dirty` true and a commit that does not contain the script. The script was committed with the runs, in `c618111`, and since then only the way it records the git state has changed.
 
 Three steps have no `run.json`, so they have no recorded time:
 

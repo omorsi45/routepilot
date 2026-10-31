@@ -1415,7 +1415,7 @@ Assumed prices (USD per million tokens, input / output): qwen2.5-0.5b 0.01 / 0.0
 
 ### Run [`20261029T043015Z-6ecd7f2`](../bench/results/live_train/20261029T043015Z-6ecd7f2/)
 
-Status: current. Trained on the answer-only-user collection.
+Status: current. Trained on the answer-only-user collection. It ran with `--live-dir data/derived/live-user`, which the protocol in its measurement block shows; its recorded command omits the flag.
 
 Run facts: commit 6ecd7f2, started 2026-10-29T04:30:15Z, AMD Ryzen 9 7900X 12-Core Processor (24 threads), 31.2 GB RAM, Windows-11-10.0.26300-SP0, go1.27.2. Command: `python bench/scripts/live_train.py`.
 
@@ -1462,7 +1462,7 @@ Older runs, listed and not shown:
 
 ### Run [`20261029T043138Z-6ecd7f2`](../bench/results/live_demo/20261029T043138Z-6ecd7f2/)
 
-Status: current. Uses the answer-only-user artifact.
+Status: current. Uses the answer-only-user artifact. It ran with `--live-dir data/derived/live-user`, which the protocol in its measurement block shows; its recorded command omits the flag.
 
 Run facts: commit 6ecd7f2, started 2026-10-29T04:31:38Z, AMD Ryzen 9 7900X 12-Core Processor (24 threads), 31.2 GB RAM, Windows-11-10.0.26300-SP0, go1.27.2. Command: `python bench/scripts/live_demo.py`.
 

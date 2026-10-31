@@ -308,6 +308,20 @@ func TestReconcileUsageErrors(t *testing.T) {
 	}
 }
 
+// TestReconcileUsageSaysToRunItOnAQuietGateway: against a gateway that is serving, a
+// difference can be requests in flight, and the usage says how to tell.
+func TestReconcileUsageSaysToRunItOnAQuietGateway(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if code := runReconcile(nil, &out, &errOut); code != 2 {
+		t.Fatalf("exit code = %d, want 2", code)
+	}
+	for _, want := range []string{"quiet gateway", "in flight", "a few seconds later"} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Errorf("usage %q does not contain %q", errOut.String(), want)
+		}
+	}
+}
+
 // TestRunDispatchesReconcile: the subcommand is reachable from the CLI and listed in its usage.
 func TestRunDispatchesReconcile(t *testing.T) {
 	var stdout, stderr bytes.Buffer

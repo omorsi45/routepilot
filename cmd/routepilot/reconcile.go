@@ -29,6 +29,10 @@ const reconcileUsage = "usage: routepilot reconcile --config FILE [--at RFC3339]
 	"have none and are not counted. The counter is read from the quota backend the config\n" +
 	"names, so it needs quota.backend redis: the memory counter lives in the gateway process.\n" +
 	"\n" +
+	"Run it on a quiet gateway. The counter is charged inside the request and the ledger row is\n" +
+	"queued after the request ends, so while the gateway serves, a difference can be requests\n" +
+	"in flight. Trust a difference only when a second run a few seconds later shows the same one.\n" +
+	"\n" +
 	"exit codes: 0 every tenant matches, 1 at least one differs, 2 nothing could be compared\n"
 
 // reconcileClock is the clock behind the default of --at. Tests replace it.

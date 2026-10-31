@@ -101,6 +101,9 @@ tenants:
     rpm: 600
     tpm: 200000
     max_concurrency: 32
+    # There is no quota section, so the budget counter lives in the gateway's memory and starts
+    # from zero at every start. Set quota.backend to redis for a durable budget shared by every
+    # replica.
     budget_usd: "1"
     budget_period: total
 
