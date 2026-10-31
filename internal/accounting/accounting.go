@@ -30,6 +30,13 @@ type UsageRow struct {
 	// CostActual what the attempt was charged, both in picodollars.
 	CostEstimate, CostActual money.PicoUSD
 	PolicyVersion            string
+	// BudgetPeriod is the key of the budget period the request was charged to (quota.PeriodKey
+	// at the time of its reservation: "2026-10" for a monthly budget, "total" for a total
+	// one), and empty when the tenant had no budget. A request keeps the period it reserved in
+	// even if it ends after the period does. routepilot reconcile sums the rows of the
+	// counter's period, which a time window cannot do: a tenant that had traffic before its
+	// budget began, or a request that crossed a month boundary, would count in the wrong one.
+	BudgetPeriod string
 	// Status is "ok" for the attempt that answered and otherwise the way it failed
 	// ("http_429", "http_500", "timeout", "connect", "protocol", "canceled", ...).
 	Status    string
@@ -74,6 +81,10 @@ type Store interface {
 	// TenantSpend is the sum of CostActual over the tenant's rows with EndedAt in
 	// [from, to), in picodollars.
 	TenantSpend(ctx context.Context, tenant string, from, to time.Time) (money.PicoUSD, error)
+	// TenantSpendInPeriod is the sum of CostActual over the tenant's rows whose BudgetPeriod
+	// is period, in picodollars, whenever they ended. The empty period is the rows charged to
+	// no budget, which includes every row written before the column existed.
+	TenantSpendInPeriod(ctx context.Context, tenant, period string) (money.PicoUSD, error)
 	// Rollouts returns up to limit rollout events, newest first by At, and for equal times
 	// the one recorded last first. A limit below 1 is an error.
 	Rollouts(ctx context.Context, limit int) ([]RolloutEvent, error)

@@ -21,10 +21,13 @@ const reconcileUsage = "usage: routepilot reconcile --config FILE [--at RFC3339]
 	"\n" +
 	"    tenant ledger_usd counter_usd diff_usd\n" +
 	"\n" +
-	"diff is ledger minus counter. A monthly budget is compared over the UTC month that contains\n" +
-	"--at (default: now); a total budget over all time. The counter is read from the quota\n" +
-	"backend the config names, so it needs quota.backend redis: the memory counter lives in the\n" +
-	"gateway process.\n" +
+	"diff is ledger minus counter. The ledger side adds up the rows that were charged to the\n" +
+	"budget period of --at (default: now), the UTC month that contains it for a monthly budget\n" +
+	"and the whole life of the budget for a total one. Each row records the period its request\n" +
+	"reserved in, so traffic from before the budget existed and requests that crossed a month\n" +
+	"boundary count in the right period; rows written before the ledger recorded the period\n" +
+	"have none and are not counted. The counter is read from the quota backend the config\n" +
+	"names, so it needs quota.backend redis: the memory counter lives in the gateway process.\n" +
 	"\n" +
 	"exit codes: 0 every tenant matches, 1 at least one differs, 2 nothing could be compared\n"
 
@@ -114,8 +117,8 @@ func runReconcile(args []string, stdout, stderr io.Writer) int {
 
 	differ := false
 	for _, t := range tenants {
-		from, to := reconcileWindow(t.lim.Period, at)
-		ledger, err := store.TenantSpend(ctx, t.id, from, to)
+		period := quota.PeriodKey(t.lim.Period, at)
+		ledger, err := store.TenantSpendInPeriod(ctx, t.id, period)
 		if err != nil {
 			fmt.Fprintf(stderr, "routepilot reconcile: %v\n", err)
 			return 2
@@ -134,17 +137,6 @@ func runReconcile(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
-}
-
-// reconcileWindow is the span of ended_at the ledger is summed over for a budget period: the
-// UTC month that contains at for a monthly budget, and all time for a total one.
-func reconcileWindow(period string, at time.Time) (from, to time.Time) {
-	if period == quota.PeriodTotal {
-		return time.Time{}, time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)
-	}
-	at = at.UTC()
-	from = time.Date(at.Year(), at.Month(), 1, 0, 0, 0, 0, time.UTC)
-	return from, from.AddDate(0, 1, 0)
 }
 
 // openLedgerForReading opens the usage ledger the config names for a reader. A SQLite ledger

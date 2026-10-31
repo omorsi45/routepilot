@@ -41,6 +41,7 @@ var sqliteDDL = []string{
 		status            TEXT    NOT NULL,
 		started_at        TEXT    NOT NULL,
 		ended_at          TEXT    NOT NULL,
+		budget_period     TEXT    NOT NULL DEFAULT '',
 		PRIMARY KEY (request_id, attempt)
 	)`,
 	`CREATE INDEX IF NOT EXISTS usage_tenant_ended ON usage (tenant, ended_at)`,
@@ -71,6 +72,30 @@ var sqliteDialect = dialect{
 	// SQLite refuses a sum of integers that overflows int64 ("integer overflow") and the store
 	// reports that error: a tenant would need over 9 million USD in one window.
 	sumSQL: `SELECT COALESCE(SUM(cost_actual), 0) FROM usage WHERE tenant = ? AND ended_at >= ? AND ended_at < ?`,
+	// The same overflow error applies.
+	periodSumSQL: `SELECT COALESCE(SUM(cost_actual), 0) FROM usage WHERE tenant = ? AND budget_period = ?`,
+	upgrade:      upgradeSQLite,
+}
+
+// upgradeSQLite adds the budget_period column to a usage table created before it existed
+// (CREATE TABLE IF NOT EXISTS leaves such a table as it is), giving the rows already there the
+// empty period, and then indexes it. SQLite has no ADD COLUMN IF NOT EXISTS, so the column is
+// looked up first; a second process that adds it between the lookup and the ALTER is not an
+// error.
+func upgradeSQLite(ctx context.Context, db *sql.DB) error {
+	var have int
+	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('usage') WHERE name = 'budget_period'`).Scan(&have)
+	if err != nil {
+		return err
+	}
+	if have == 0 {
+		_, err := db.ExecContext(ctx, `ALTER TABLE usage ADD COLUMN budget_period TEXT NOT NULL DEFAULT ''`)
+		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+	_, err = db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS usage_tenant_period ON usage (tenant, budget_period)`)
+	return err
 }
 
 // OpenSQLite opens (creating it and its directory if needed) the SQLite ledger at path. A

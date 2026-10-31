@@ -137,6 +137,7 @@ func TestPostgresColumnTypes(t *testing.T) {
 		"rollouts.to_version":     "text",
 		"usage.deployment":        "text",
 		"usage.completion_tokens": "bigint",
+		"usage.budget_period":     "text",
 	} {
 		if types[col] != want {
 			t.Errorf("column %s has type %q, want %q", col, types[col], want)
@@ -169,5 +170,63 @@ func TestOpenPostgresErrorOmitsTheDSN(t *testing.T) {
 	}
 	if _, err := accounting.OpenPostgres(ctx, ""); err == nil {
 		t.Error("OpenPostgres with an empty DSN succeeded, want an error")
+	}
+}
+
+// TestPostgresUpgradesALedgerWithoutThePeriodColumn: opening a database written before the
+// budget_period column existed adds the column, keeps the old rows (with the empty period)
+// and takes new rows with a period; opening it again is harmless.
+func TestPostgresUpgradesALedgerWithoutThePeriodColumn(t *testing.T) {
+	admin, schema, dsn := newSchema(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	for _, stmt := range []string{
+		`CREATE TABLE ` + schema + `.usage (
+			request_id        TEXT             NOT NULL,
+			attempt           INTEGER          NOT NULL,
+			tenant            TEXT             NOT NULL,
+			model             TEXT             NOT NULL,
+			deployment        TEXT             NOT NULL,
+			prompt_tokens     BIGINT           NOT NULL,
+			completion_tokens BIGINT           NOT NULL,
+			usage_estimated   BOOLEAN          NOT NULL,
+			cost_estimate     BIGINT           NOT NULL,
+			cost_actual       BIGINT           NOT NULL,
+			policy_version    TEXT             NOT NULL,
+			status            TEXT             NOT NULL,
+			started_at        TIMESTAMPTZ      NOT NULL,
+			ended_at          TIMESTAMPTZ      NOT NULL,
+			PRIMARY KEY (request_id, attempt)
+		)`,
+		`INSERT INTO ` + schema + `.usage VALUES ('old-req', 1, 'tenant-a', 'm', 'm-a', 5, 4, false, 10, 45000000,
+			'pinned', 'ok', '2026-10-15T12:00:00Z', '2026-10-15T12:00:01Z')`,
+	} {
+		if _, err := admin.ExecContext(ctx, stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for pass := 1; pass <= 2; pass++ {
+		s, err := accounting.OpenPostgres(ctx, dsn)
+		if err != nil {
+			t.Fatalf("OpenPostgres pass %d on a database without budget_period: %v", pass, err)
+		}
+		if pass == 1 {
+			fresh := sampleRow("new-req", 1)
+			fresh.BudgetPeriod = "total"
+			fresh.CostActual = 7
+			if err := s.RecordAttempt(ctx, fresh); err != nil {
+				t.Fatalf("record a row with a period: %v", err)
+			}
+		}
+		if got, err := s.TenantSpendInPeriod(ctx, "tenant-a", ""); err != nil || got != 45_000_000 {
+			t.Errorf("pass %d: spend of the old row in the empty period = %d, %v, want 45000000", pass, got, err)
+		}
+		if got, err := s.TenantSpendInPeriod(ctx, "tenant-a", "total"); err != nil || got != 7 {
+			t.Errorf("pass %d: spend of the new row in period total = %d, %v, want 7", pass, got, err)
+		}
+		if err := s.Close(); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

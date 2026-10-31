@@ -36,9 +36,14 @@ var postgresDDL = []string{
 		status            TEXT             NOT NULL,
 		started_at        TIMESTAMPTZ      NOT NULL,
 		ended_at          TIMESTAMPTZ      NOT NULL,
+		budget_period     TEXT             NOT NULL DEFAULT '',
 		PRIMARY KEY (request_id, attempt)
 	)`,
+	// A table created before budget_period existed gets the column, with the empty period for
+	// the rows already in it. IF NOT EXISTS makes this a no-op on a table that has it.
+	`ALTER TABLE usage ADD COLUMN IF NOT EXISTS budget_period TEXT NOT NULL DEFAULT ''`,
 	`CREATE INDEX IF NOT EXISTS usage_tenant_ended ON usage (tenant, ended_at)`,
+	`CREATE INDEX IF NOT EXISTS usage_tenant_period ON usage (tenant, budget_period)`,
 	`CREATE TABLE IF NOT EXISTS rollouts (
 		id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 		occurred_at  TIMESTAMPTZ      NOT NULL,
@@ -62,6 +67,8 @@ var postgresDialect = dialect{
 	// int64 range, which saturates the way the Go side does.
 	sumSQL: `SELECT LEAST(COALESCE(SUM(cost_actual), 0), 9223372036854775807)::bigint
 		FROM usage WHERE tenant = ? AND ended_at >= ? AND ended_at < ?`,
+	periodSumSQL: `SELECT LEAST(COALESCE(SUM(cost_actual), 0), 9223372036854775807)::bigint
+		FROM usage WHERE tenant = ? AND budget_period = ?`,
 }
 
 // OpenPostgres connects to the PostgreSQL ledger at dsn (a postgres:// URL or key/value

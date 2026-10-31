@@ -76,6 +76,10 @@ type budgetHold struct {
 
 	// reserved is the amount the ledger holds for the request, as far as this request knows.
 	reserved money.PicoUSD
+	// period is the key of the budget period the reservation was made in (quota.PeriodKey at
+	// the first reserve). The ledger charges the commit to that period even if the request
+	// ends in the next one, and the usage rows carry the same key.
+	period string
 	// held is set when the ledger may hold a reservation: also after a Reserve that failed,
 	// because a reply timeout can follow a script that ran.
 	held bool
@@ -86,7 +90,11 @@ type budgetHold struct {
 func (h *budgetHold) reserve(ctx context.Context, amount money.PicoUSD) (bool, error) {
 	span := h.s.startSpan(h.rs, spanBudget)
 	cctx, cancel := limiterCtx(ctx)
-	ok, _, err := h.s.limits.Budget.Reserve(cctx, h.tenant, h.rs.id, h.lim, amount, h.ttl, h.s.now())
+	now := h.s.now()
+	if h.period == "" {
+		h.period = quota.PeriodKey(h.lim.Period, now)
+	}
+	ok, _, err := h.s.limits.Budget.Reserve(cctx, h.tenant, h.rs.id, h.lim, amount, h.ttl, now)
 	cancel()
 	// The span fails with the code the client would get: the ledger failing is "overloaded"
 	// and a refusal is "insufficient_quota". A client that left is no failure of the ledger.

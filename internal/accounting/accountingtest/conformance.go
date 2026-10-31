@@ -78,6 +78,7 @@ func Run(t *testing.T, open Factory) {
 		{"SpendSumsActualInWindow", spendSumsActualInWindow},
 		{"SpendWindowIsExactToTheMicrosecond", spendWindowMicroseconds},
 		{"SpendIgnoresTheZoneOfTheTimestamps", spendIgnoresZone},
+		{"SpendInPeriodSumsTheRowsChargedToIt", spendInPeriod},
 		{"RolloutsNewestFirst", rolloutsNewestFirst},
 		{"RolloutsRoundTrip", rolloutsRoundTrip},
 		{"RejectsInvalidRollouts", rejectsInvalidRollouts},
@@ -272,6 +273,57 @@ func spendIgnoresZone(t *testing.T, s accounting.Store) {
 	}
 }
 
+// spendInPeriod: TenantSpendInPeriod sums the rows charged to one budget period of one
+// tenant, whatever instant they ended at: a row that ended in October but belongs to a
+// September reservation is September's, and a row with no period (a tenant without a
+// budget, or a row written before the column existed) is the empty period's.
+func spendInPeriod(t *testing.T, s accounting.Store) {
+	inPeriod := func(tenant, period string) money.PicoUSD {
+		t.Helper()
+		got, err := s.TenantSpendInPeriod(ctx(t), tenant, period)
+		if err != nil {
+			t.Fatalf("TenantSpendInPeriod(%s, %q) error = %v", tenant, period, err)
+		}
+		return got
+	}
+	withPeriod := func(r accounting.UsageRow, period string) accounting.UsageRow {
+		r.BudgetPeriod = period
+		return r
+	}
+	mustRecord(t, s, withPeriod(row("req-1", 1, "tenant-a", 100, base), "2026-10"))
+	mustRecord(t, s, withPeriod(row("req-1", 2, "tenant-a", 30, base), "2026-10"))
+	mustRecord(t, s, withPeriod(row("req-2", 1, "tenant-a", 50, base), "2026-09")) // ended in October, reserved in September
+	mustRecord(t, s, row("req-3", 1, "tenant-a", 7, base))                         // charged to no budget
+	mustRecord(t, s, withPeriod(row("req-4", 1, "tenant-b", 9, base), "2026-10"))
+	if err := s.RecordAttempts(ctx(t), []accounting.UsageRow{
+		withPeriod(row("req-5", 1, "tenant-a", 4, base), "total"),
+		withPeriod(row("req-1", 1, "tenant-a", 999, base), "total"), // a stored key: ignored whole
+	}); err != nil {
+		t.Fatalf("RecordAttempts error = %v", err)
+	}
+
+	for _, c := range []struct {
+		tenant, period string
+		want           money.PicoUSD
+	}{
+		{"tenant-a", "2026-10", 130},
+		{"tenant-a", "2026-09", 50},
+		{"tenant-a", "total", 4},
+		{"tenant-a", "", 7},
+		{"tenant-a", "2026-11", 0},
+		{"tenant-b", "2026-10", 9},
+		{"tenant-b", "2026-09", 0},
+		{"nobody", "2026-10", 0},
+	} {
+		if got := inPeriod(c.tenant, c.period); got != c.want {
+			t.Errorf("TenantSpendInPeriod(%s, %q) = %d, want %d", c.tenant, c.period, got, c.want)
+		}
+	}
+	if got := spend(t, s, "tenant-a", time.Time{}, farFuture); got != 100+30+50+7+4 {
+		t.Errorf("TenantSpend over all time = %d, want 191: the period does not change the window sum", got)
+	}
+}
+
 func event(at time.Time, action, reason string) accounting.RolloutEvent {
 	return accounting.RolloutEvent{At: at, Action: action, From: "v1", To: "v2", Percent: 5, Reason: reason, Actor: "ops"}
 }
@@ -424,5 +476,8 @@ func closeEndsUse(t *testing.T, s accounting.Store) {
 	}
 	if _, err := s.TenantSpend(ctx(t), "tenant-a", time.Time{}, farFuture); err == nil {
 		t.Error("TenantSpend after Close succeeded, want an error")
+	}
+	if _, err := s.TenantSpendInPeriod(ctx(t), "tenant-a", "total"); err == nil {
+		t.Error("TenantSpendInPeriod after Close succeeded, want an error")
 	}
 }

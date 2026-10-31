@@ -88,12 +88,26 @@ func (e *reconcileEnv) openStore() accounting.Store {
 	return e.store
 }
 
-// ledger records a finished attempt of tenant that cost cost and ended at ended.
+// ledger records a finished attempt of tenant that cost cost and ended at ended, charged to
+// the budget period the tenant's budget has at that instant (none for a tenant without one).
 func (e *reconcileEnv) ledger(tenant, request string, cost money.PicoUSD, ended time.Time) {
+	e.t.Helper()
+	period := ""
+	switch tenant {
+	case "alpha":
+		period = quota.PeriodKey(alphaLim.Period, ended)
+	case "beta":
+		period = quota.PeriodKey(betaLim.Period, ended)
+	}
+	e.ledgerIn(tenant, request, cost, ended, period)
+}
+
+// ledgerIn records a finished attempt that was charged to the budget period named period.
+func (e *reconcileEnv) ledgerIn(tenant, request string, cost money.PicoUSD, ended time.Time, period string) {
 	e.t.Helper()
 	err := e.openStore().RecordAttempt(context.Background(), accounting.UsageRow{
 		RequestID: request, Attempt: 1, Tenant: tenant, Model: "m", Deployment: "d", Status: "ok",
-		CostActual: cost, StartedAt: ended.Add(-time.Second), EndedAt: ended,
+		CostActual: cost, StartedAt: ended.Add(-time.Second), EndedAt: ended, BudgetPeriod: period,
 	})
 	if err != nil {
 		e.t.Fatal(err)
@@ -103,13 +117,19 @@ func (e *reconcileEnv) ledger(tenant, request string, cost money.PicoUSD, ended 
 // counter charges the budget counter of tenant, as the gateway's reserve and commit do.
 func (e *reconcileEnv) counter(tenant string, lim quota.BudgetLimit, cost money.PicoUSD) {
 	e.t.Helper()
+	e.counterAt(tenant, lim, cost, reconcileAt)
+}
+
+// counterAt is counter for a request that reserved and committed at instant at.
+func (e *reconcileEnv) counterAt(tenant string, lim quota.BudgetLimit, cost money.PicoUSD, at time.Time) {
+	e.t.Helper()
 	l := quota.NewRedisBudget(redisClientFor(e.t, e.redis), redisKeyPrefix)
-	id := "counter-" + tenant
-	ok, _, err := l.Reserve(context.Background(), tenant, id, lim, cost, time.Hour, reconcileAt)
+	id := "counter-" + tenant + at.Format(time.RFC3339)
+	ok, _, err := l.Reserve(context.Background(), tenant, id, lim, cost, time.Hour, at)
 	if err != nil || !ok {
 		e.t.Fatalf("Reserve(%s): ok=%v err=%v", tenant, ok, err)
 	}
-	if _, err := l.Commit(context.Background(), tenant, id, cost, reconcileAt); err != nil {
+	if _, err := l.Commit(context.Background(), tenant, id, cost, at); err != nil {
 		e.t.Fatal(err)
 	}
 }

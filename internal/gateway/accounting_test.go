@@ -78,6 +78,9 @@ func (r *recordingStore) Rollouts(context.Context, int) ([]accounting.RolloutEve
 func (r *recordingStore) TenantSpend(context.Context, string, time.Time, time.Time) (money.PicoUSD, error) {
 	return 0, nil
 }
+func (r *recordingStore) TenantSpendInPeriod(context.Context, string, string) (money.PicoUSD, error) {
+	return 0, nil
+}
 func (r *recordingStore) Close() error { return nil }
 
 func (r *recordingStore) got() []accounting.UsageRow {

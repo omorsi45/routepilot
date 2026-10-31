@@ -104,6 +104,10 @@ func (s *Server) CloseUsage(ctx context.Context) error {
 // order. It must run after settleAttempts, so that tokens and costs are final.
 func (s *Server) usageRows(rs *reqState) []accounting.UsageRow {
 	now := s.now()
+	period := ""
+	if rs.budget != nil {
+		period = rs.budget.period
+	}
 	rows := make([]accounting.UsageRow, 0, len(rs.attemptUsages))
 	for i, a := range rs.attemptUsages {
 		status, ended, started := a.status, a.ended, a.started
@@ -119,7 +123,7 @@ func (s *Server) usageRows(rs *reqState) []accounting.UsageRow {
 			PromptTokens: a.Prompt, CompletionTokens: a.Completion, UsageEstimated: a.Estimated,
 			CostEstimate: a.costEstimate, CostActual: a.Cost,
 			PolicyVersion: rs.policyVersion, Status: status,
-			StartedAt: started, EndedAt: ended,
+			StartedAt: started, EndedAt: ended, BudgetPeriod: period,
 		})
 	}
 	return rows

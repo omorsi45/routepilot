@@ -34,7 +34,7 @@ This page lists what RoutePilot does not do, what its experiments did not show, 
 - **A failed budget commit is not retried.** If a commit fails (for example, Redis is down), the failure is logged as a warning and nothing counts it. `routepilot reconcile` is the check.
 - **Prometheus counters of picodollars lose exactness at large totals.** They are float64 and exact only up to 2^53 picodollars, about 9,007 USD per series.
 - **Usage-ledger rows can be lost.** Rows are written in batches off the request path. Rows still queued are lost if the process crashes. SQLite runs in WAL mode with synchronous=NORMAL, so the last transactions can be lost on power loss. A full queue drops rows and counts them in `rp_accounting_write_errors_total`. The current quota run lost no rows. Run: [quota_correctness](../bench/results/quota_correctness/20261029T010202Z-f5ff91d/).
-- **`routepilot reconcile` has two gaps.** It can show a spurious difference for a request that straddles a month boundary. It cannot read the in-process memory ledger and exits with code 2 for the memory backend, by design.
+- **`routepilot reconcile` has two gaps.** A usage ledger written before the rows recorded their budget period has rows with an empty period, and reconcile does not count them, so a tenant whose budget was already in force at the upgrade shows the counter above the ledger by what those rows cost (until the month ends for a monthly budget, for good for a total one). It cannot read the in-process memory ledger and exits with code 2 for the memory backend, by design.
 
 ## Reliability
 

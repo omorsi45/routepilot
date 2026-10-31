@@ -22,14 +22,20 @@ type dialect struct {
 	encodeTime func(time.Time) any
 	// ddl creates the tables and indexes if they are missing.
 	ddl []string
+	// upgrade, when set, runs after ddl and brings a database written by an older version up
+	// to the current schema. It must be safe to run on every start.
+	upgrade func(ctx context.Context, db *sql.DB) error
 	// sumSQL selects the sum of cost_actual for tenant, from and to, in that order.
 	sumSQL string
+	// periodSumSQL selects the sum of cost_actual for tenant and budget_period, in that order.
+	periodSumSQL string
 }
 
 const (
 	insertUsageSQL = `INSERT INTO usage (request_id, attempt, tenant, model, deployment, prompt_tokens,
-		completion_tokens, usage_estimated, cost_estimate, cost_actual, policy_version, status, started_at, ended_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		completion_tokens, usage_estimated, cost_estimate, cost_actual, policy_version, status, started_at, ended_at,
+		budget_period)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (request_id, attempt) DO NOTHING`
 	insertRolloutSQL = `INSERT INTO rollouts (occurred_at, action, from_version, to_version, percent, reason, actor)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -48,6 +54,11 @@ func (s *sqlStore) migrate(ctx context.Context) error {
 	for _, stmt := range s.d.ddl {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("accounting: create %s schema: %w", s.d.name, err)
+		}
+	}
+	if s.d.upgrade != nil {
+		if err := s.d.upgrade(ctx, s.db); err != nil {
+			return fmt.Errorf("accounting: upgrade %s schema: %w", s.d.name, err)
 		}
 	}
 	return nil
@@ -102,7 +113,7 @@ func (s *sqlStore) usageArgs(r UsageRow) []any {
 	return []any{
 		r.RequestID, r.Attempt, r.Tenant, r.Model, r.Deployment, r.PromptTokens, r.CompletionTokens,
 		s.d.encodeBool(r.UsageEstimated), int64(r.CostEstimate), int64(r.CostActual), r.PolicyVersion, r.Status,
-		s.d.encodeTime(r.StartedAt), s.d.encodeTime(r.EndedAt),
+		s.d.encodeTime(r.StartedAt), s.d.encodeTime(r.EndedAt), r.BudgetPeriod,
 	}
 }
 
@@ -123,6 +134,15 @@ func (s *sqlStore) TenantSpend(ctx context.Context, tenant string, from, to time
 	err := s.db.QueryRowContext(ctx, s.d.rebind(s.d.sumSQL), tenant, s.d.encodeTime(from), s.d.encodeTime(to)).Scan(&sum)
 	if err != nil {
 		return 0, fmt.Errorf("accounting: sum spend of %s: %w", tenant, err)
+	}
+	return money.PicoUSD(sum), nil
+}
+
+func (s *sqlStore) TenantSpendInPeriod(ctx context.Context, tenant, period string) (money.PicoUSD, error) {
+	var sum int64
+	err := s.db.QueryRowContext(ctx, s.d.rebind(s.d.periodSumSQL), tenant, period).Scan(&sum)
+	if err != nil {
+		return 0, fmt.Errorf("accounting: sum spend of %s in period %q: %w", tenant, period, err)
 	}
 	return money.PicoUSD(sum), nil
 }
