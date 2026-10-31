@@ -325,6 +325,13 @@ func buildModel(mj modelJSON, weights []byte, wide int64) (modelParams, error) {
 		if !finite(u) || !finite(lcb.Lower[i]) || (i > 0 && u < lcb.Upper[i-1]) {
 			return mp, fmt.Errorf("%w: lcb upper must be finite and non-decreasing, lower finite", ErrManifest)
 		}
+		if lcb.Lower[i] < 0 || lcb.Lower[i] > 1 {
+			return mp, fmt.Errorf("%w: lcb lower[%d]=%v is outside [0, 1]", ErrManifest, i, lcb.Lower[i])
+		}
+	}
+	// The last bin must reach 1, or a probability above its edge falls off the table.
+	if lcb.Upper[len(lcb.Upper)-1] != 1 {
+		return mp, fmt.Errorf("%w: lcb upper must end at 1.0, not %v", ErrManifest, lcb.Upper[len(lcb.Upper)-1])
 	}
 	mp.lcbUpper, mp.lcbLower = lcb.Upper, lcb.Lower
 	mp.pooledRate, mp.pooledLCB = lcb.PooledRate, lcb.PooledLCB
@@ -346,6 +353,22 @@ func buildModel(mj modelJSON, weights []byte, wide int64) (modelParams, error) {
 	for _, s := range scalars {
 		if !finite(s.v) {
 			return mp, fmt.Errorf("%w: %s is not finite", ErrManifest, s.name)
+		}
+	}
+	for _, s := range []struct {
+		name string
+		v    float64
+	}{{"pooled_rate", mp.pooledRate}, {"pooled_lcb", mp.pooledLCB}} {
+		if s.v < 0 || s.v > 1 {
+			return mp, fmt.Errorf("%w: %s %v is outside [0, 1]", ErrManifest, s.name, s.v)
+		}
+	}
+	for _, s := range []struct {
+		name string
+		v    float64
+	}{{"smear", mp.smear}, {"in_ratio", mp.inRatio}} {
+		if s.v <= 0 {
+			return mp, fmt.Errorf("%w: %s %v must be positive", ErrManifest, s.name, s.v)
 		}
 	}
 	return mp, nil

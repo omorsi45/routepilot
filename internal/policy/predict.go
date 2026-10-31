@@ -51,6 +51,9 @@ func newCalibrator(c calibratorJSON) (calibrator, error) {
 			if !finite(x) || !finite(c.Y[i]) || (i > 0 && x <= c.X[i-1]) {
 				return calibrator{}, fmt.Errorf("%w: isotonic knots must be finite and strictly increasing", ErrManifest)
 			}
+			if c.Y[i] < 0 || c.Y[i] > 1 {
+				return calibrator{}, fmt.Errorf("%w: isotonic value y[%d]=%v is outside [0, 1]", ErrManifest, i, c.Y[i])
+			}
 		}
 		return calibrator{kind: c.Type, xs: c.X, ys: c.Y}, nil
 	case "platt":
