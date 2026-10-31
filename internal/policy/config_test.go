@@ -138,7 +138,7 @@ func TestShippedFlagshipPolicyConfig(t *testing.T) {
 	}
 	// lambda is the value bench/scripts/sweeps.py tuned on the calibration split (see
 	// bench/results/sweeps); a new tuning changes it here in the same commit.
-	want := Config{Mode: ModeDual, Lambda: 6.719579687342048, DefaultFloor: 0, Epsilon: 0, OODAction: OODConservative, OnInfeasible: "best_effort"}
+	want := Config{Mode: ModeDual, Lambda: 6.721045792801306, DefaultFloor: 0, Epsilon: 0, OODAction: OODConservative, OnInfeasible: "best_effort"}
 	if got != want {
 		t.Errorf("got %+v, want %+v", got, want)
 	}

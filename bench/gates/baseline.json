@@ -3,9 +3,9 @@
   "split": "test",
   "policy": "learned",
   "items": 1735,
-  "policy_version": "dea4486d7575+ef0a989c",
+  "policy_version": "dea4486d7575+3d8c470b",
   "success_rate": 0.48184438040345823,
-  "mean_cost_picousd": 4337157850.144093,
-  "git_sha": "5e4dbcce0eb62bb7217c683218066509410a9c4b",
-  "updated_at": "2026-10-28T03:35:11Z"
+  "mean_cost_picousd": 4387969463.976945,
+  "git_sha": "d02bb26f60079c0e6677cc89ac4f36bb6250fd4f",
+  "updated_at": "2026-10-31T06:48:38Z"
 }

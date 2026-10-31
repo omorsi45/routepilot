@@ -6,7 +6,7 @@
 # stays within 0.01 of Best Single, found by bisection. With 0 the policy picks the most likely
 # to succeed among the safe models.
 mode: dual
-lambda: 6.719579687342048
+lambda: 6.721045792801306
 default_floor: 0
 epsilon: 0
 ood_action: conservative
