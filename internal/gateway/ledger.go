@@ -90,7 +90,8 @@ func (s *Server) attachLedger(store accounting.Store, tune accounting.BatcherOpt
 
 // CloseUsage stops taking usage rows and writes the ones still queued, giving up when ctx
 // ends (the rows left are then counted by AccountingErrors). The caller runs it once the HTTP
-// server has drained, so no request is still adding rows, and before it closes the store.
+// server has drained, and after WaitIdle when the server was closed with requests still
+// running, so no request is still adding rows, and before it closes the store.
 // Without a ledger it does nothing, and a second call is harmless.
 func (s *Server) CloseUsage(ctx context.Context) error {
 	if s.usage == nil {

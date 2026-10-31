@@ -42,6 +42,10 @@ const (
 	usageCloseTimeout = 15 * time.Second
 	// tracingShutdownTimeout bounds the final flush of the trace exporter at shutdown.
 	tracingShutdownTimeout = 5 * time.Second
+	// forcedDrainTimeout bounds the wait for the requests still running when the shutdown
+	// grace period ended and their connections were cut. A request that is cut finishes in
+	// milliseconds: its budget commit is bounded by two seconds.
+	forcedDrainTimeout = 5 * time.Second
 )
 
 // notifyContext is signal.NotifyContext; tests replace it to inject signals.
@@ -266,7 +270,17 @@ func serve(ctx context.Context, cfg *config.Config, ln net.Listener, logger *slo
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), grace)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
+		// The grace period ended with requests still open. Close cuts their connections but
+		// does not wait for their handlers, which are still unwinding: each one commits its
+		// budget and queues its usage rows and decision record on the way out. Wait for them,
+		// within forcedDrainTimeout, before the deferred closes run, or those rows are refused
+		// and the commits race the closing of the quota backend.
 		_ = srv.Close()
+		drainCtx, cancelDrain := context.WithTimeout(context.Background(), forcedDrainTimeout)
+		defer cancelDrain()
+		if derr := gw.WaitIdle(drainCtx); derr != nil {
+			logger.Warn("requests were still running when the server closed", slog.String("error", derr.Error()))
+		}
 		return fmt.Errorf("shutdown: %w", err)
 	}
 	if err := <-errc; err != nil && !errors.Is(err, http.ErrServerClosed) {

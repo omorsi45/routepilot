@@ -139,6 +139,8 @@ type Server struct {
 	// sem is the global in-flight limit: one token per request in progress.
 	// Nil when server.max_inflight is not positive (no limit).
 	sem chan struct{}
+	// inflight counts the requests being handled, for WaitIdle.
+	inflight inflight
 }
 
 // New builds a Server. Every deployment's provider must exist in providers.
@@ -417,6 +419,10 @@ const clientClosedStatus = 499
 
 // serve routes one request, then writes its log line.
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
+	// Counted from the first line to the last defer, so WaitIdle returns only after the usage
+	// rows are queued.
+	s.inflight.enter()
+	defer s.inflight.leave()
 	start := s.now()
 	rs := &reqState{id: newRequestID()}
 	w.Header().Set(requestIDHeader, rs.id)
