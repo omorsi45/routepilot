@@ -365,24 +365,30 @@ func truncateBytes(s string, n int) string {
 	return s[:cut]
 }
 
-// maxDeadline is the longest deadline a request of the tenant can be given:
-// the tenant's max_timeout_ms when set, else the server's.
-func (s *Server) maxDeadline(tenant *config.TenantConfig) time.Duration {
-	ms := s.cfg.Server.MaxTimeoutMs
+// maxDeadlineMs is the longest deadline, in milliseconds, a request of the tenant can be
+// given: the tenant's max_timeout_ms when set, else the server's.
+func (s *Server) maxDeadlineMs(tenant *config.TenantConfig) int {
 	if tenant.MaxTimeoutMs > 0 {
-		ms = tenant.MaxTimeoutMs
+		return tenant.MaxTimeoutMs
 	}
-	return time.Duration(ms) * time.Millisecond
+	return s.cfg.Server.MaxTimeoutMs
+}
+
+// maxDeadline is the longest deadline a request of the tenant can be given.
+func (s *Server) maxDeadline(tenant *config.TenantConfig) time.Duration {
+	return time.Duration(s.maxDeadlineMs(tenant)) * time.Millisecond
 }
 
 // deadline is the request timeout: routepilot.timeout_ms if set, else the
-// server default, clamped to the tenant maximum when set, else the server's.
+// server default, clamped to the tenant maximum when set, else the server's. The clamp is
+// applied in milliseconds, before the conversion: a client value too large for a duration
+// in nanoseconds would otherwise wrap into the past.
 func (s *Server) deadline(tenant *config.TenantConfig, req *openai.ChatCompletionRequest) time.Duration {
 	ms := s.cfg.Server.DefaultTimeoutMs
 	if rp := req.RoutePilot; rp != nil && rp.TimeoutMs != nil {
 		ms = *rp.TimeoutMs
 	}
-	return min(time.Duration(ms)*time.Millisecond, s.maxDeadline(tenant))
+	return time.Duration(min(ms, s.maxDeadlineMs(tenant))) * time.Millisecond
 }
 
 // blameBudget is the deadline a request of the tenant gets when the client

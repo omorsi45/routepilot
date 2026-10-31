@@ -105,9 +105,14 @@ func (s *Server) prepareUpstream(rs *reqState, req *openai.ChatCompletionRequest
 	// A request without an output cap is admitted and costed with k, so it is
 	// sent upstream with k as its cap: the provider then cannot produce more
 	// than was reserved, and an adapter that needs a cap (Anthropic) uses it
-	// instead of its own default.
-	if _, set := req.EffectiveMaxTokens(); !set {
+	// instead of its own default. A request with a cap was admitted and costed
+	// with the effective cap, max_completion_tokens when both are set, so exactly that
+	// cap is sent, in the field the client used for it. Forwarding both could reach an
+	// upstream that honors the larger one.
+	if n, set := req.EffectiveMaxTokens(); !set {
 		up.MaxTokens = &k
+	} else if up.MaxCompletionTokens != nil {
+		up.MaxCompletionTokens, up.MaxTokens = &n, nil
 	}
 	return up
 }

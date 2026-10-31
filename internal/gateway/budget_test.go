@@ -118,8 +118,10 @@ func TestStreamUpstreamGetsTheAttemptBudget(t *testing.T) {
 	}
 }
 
-// TestUpstreamKeepsTheClientOutputCap: a cap the client set is forwarded as
-// sent, on every attempt, and nothing is added next to it.
+// TestUpstreamKeepsTheClientOutputCap: a cap the client set is forwarded on every attempt,
+// in the field the client used and with nothing added next to it. When both fields are set
+// only the effective one (max_completion_tokens) is forwarded, since that is the cap the
+// request was admitted and reserved for.
 func TestUpstreamKeepsTheClientOutputCap(t *testing.T) {
 	msgs := `"messages":[{"role":"user","content":"hi"}]`
 	tests := []struct {
@@ -129,7 +131,7 @@ func TestUpstreamKeepsTheClientOutputCap(t *testing.T) {
 	}{
 		{"max_tokens", `{"model":"auto",` + msgs + `,"max_tokens":50}`, outputCaps{maxTokens: "50"}},
 		{"max_completion_tokens", `{"model":"auto",` + msgs + `,"max_completion_tokens":70}`, outputCaps{maxCompletionTokens: "70"}},
-		{"both", `{"model":"auto",` + msgs + `,"max_tokens":50,"max_completion_tokens":70}`, outputCaps{maxTokens: "50", maxCompletionTokens: "70"}},
+		{"both", `{"model":"auto",` + msgs + `,"max_tokens":50,"max_completion_tokens":70}`, outputCaps{maxCompletionTokens: "70"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
