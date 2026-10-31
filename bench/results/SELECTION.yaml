@@ -9,28 +9,99 @@
 # The script fails when a run named here does not exist.
 
 data:
-  - run: "20261028T004933Z-bec7b21"
+  - run: "20261031T064740Z-d02bb26"
     status: current
-    reason: Newest run.
+    reason: Newest run, with per-token prices fitted on train and calibration rows only.
+  - run: "20261028T004933Z-bec7b21"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
   - run: "20261028T000340Z-dc84ab7"
     status: older
     reason: Superseded. It defined the cheapest model as the one with the lowest fitted price; the newest run defines it as the lowest mean cost per item on train and calibration, as the replay charges it.
 
 baselines:
-  - run: "20261028T004934Z-bec7b21"
+  - run: "20261031T064741Z-d02bb26"
     status: current
     reason: Flagship pool.
-  - run: "20261028T004943Z-bec7b21"
+  - run: "20261031T064750Z-d02bb26"
     status: also
     reason: Mixed pool (flagship plus four small models), sensitivity only. The small models' costs are fitted from their recorded costs.
+  - run: "20261028T004934Z-bec7b21"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only. Flagship pool."
+  - run: "20261028T004943Z-bec7b21"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only. Mixed pool."
 
 headline:
-  - run: "20261028T203202Z-028d6b4"
+  - run: "20261031T070340Z-f0429c6"
     status: current
     reason: Flagship pool.
-  - run: "20261028T203239Z-028d6b4"
+  - run: "20261031T070408Z-f0429c6"
     status: also
     reason: Mixed pool (flagship plus four small models), sensitivity only. The small models' costs are fitted from their recorded costs.
+  - run: "20261028T203202Z-028d6b4"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only. Flagship pool."
+  - run: "20261028T203239Z-028d6b4"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only. Mixed pool."
+
+sweeps:
+  - run: "20261031T064753Z-d02bb26"
+    status: current
+    reason: Newest run, with prices fitted on train and calibration rows only. It retuned lambda.
+  - run: "20261028T033434Z-5e4dbcc"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
+
+lcb_vs_point:
+  - run: "20261031T070419Z-f0429c6"
+    status: current
+    reason: Newest run, with prices fitted on train and calibration rows only.
+  - run: "20261028T203321Z-028d6b4"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
+
+shift_ood:
+  - run: "20261031T070425Z-f0429c6"
+    status: current
+    reason: Newest run, with prices fitted on train and calibration rows only.
+  - run: "20261028T210636Z-86f6519"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
+
+ope_validation:
+  - run: "20261031T070430Z-f0429c6"
+    status: current
+    reason: Newest run, with prices fitted on train and calibration rows only.
+  - run: "20261028T210706Z-86f6519"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
+
+bandits:
+  - run: "20261031T070500Z-f0429c6"
+    status: current
+    reason: Newest run, with prices fitted on train and calibration rows only.
+  - run: "20261028T223648Z-1dadba6"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
+
+ablations:
+  - run: "20261031T070638Z-f0429c6"
+    status: current
+    reason: Newest run, with prices fitted on train and calibration rows only.
+  - run: "20261028T221525Z-1dadba6"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
+
+failure_analysis:
+  - run: "20261031T071751Z-f0429c6"
+    status: current
+    reason: Newest run, with prices fitted on train and calibration rows only.
+  - run: "20261029T015809Z-00deb40"
+    status: older
+    reason: "Superseded: prices were fitted on every split; refitted on train and calibration only."
 
 train:
   - run: "20261028T202236Z-e49df83"

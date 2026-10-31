@@ -1,0 +1,908 @@
+{
+  "pool": "mixed",
+  "artifact_version": "15201d82e792",
+  "n_items": {
+    "calib": 382,
+    "test": 361
+  },
+  "best_single": "gpt-5",
+  "cheapest": "Llama-3.1-Nemotron-Nano-8B-v1",
+  "bootstrap": {
+    "n": 1000,
+    "seed": 0,
+    "alpha": 0.05,
+    "method": "percentile"
+  },
+  "target": {
+    "best_single": "gpt-5",
+    "best_single_calib_success": 0.8664921465968587,
+    "margin": 0.01,
+    "target": 0.8564921465968587
+  },
+  "lambda": {
+    "source": "tune",
+    "value": 0.7815751814632677,
+    "calib_success": 0.8586387434554974,
+    "calib_success_at_zero": 0.8664921465968587
+  },
+  "policy_config": {
+    "mode": "dual",
+    "default_floor": 0,
+    "epsilon": 0,
+    "ood_action": "conservative",
+    "on_infeasible": "best_effort"
+  },
+  "calibrators": {
+    "platt": 16
+  },
+  "mf_sha256": "d3fba3d30ed140c8af2e92afe4de18a097507ddf7cecbd8b0d52837f9c8ec5e5",
+  "operating_points": {
+    "dual": {
+      "param_name": "lambda",
+      "param": 0.7815751814632677,
+      "calib": {
+        "n": 382,
+        "errors": 0,
+        "success_rate": 0.8586387434554974,
+        "mean_cost_usd": 0.03505840319371728,
+        "cost_per_success_usd": 0.04083021347560976,
+        "relaxed_share": 0.0,
+        "relaxed_quality_share": 0.0,
+        "model_counts": {
+          "DeepSeek-R1-0528-Qwen3-8B": 1,
+          "Llama-3.1-Nemotron-Nano-8B-v1": 1,
+          "claude-sonnet-4": 4,
+          "deepseek-r1-0528": 35,
+          "gemini-2.5-flash": 4,
+          "gemini-2.5-pro": 2,
+          "glm-4.6": 3,
+          "gpt-5": 181,
+          "gpt-5-chat": 11,
+          "intern-s1": 25,
+          "kimi-k2-0905": 2,
+          "qwen3-235b-a22b-2507": 49,
+          "qwen3-235b-a22b-thinking-2507": 64
+        }
+      },
+      "test": {
+        "n": 361,
+        "errors": 0,
+        "success_rate": 0.8421052631578947,
+        "mean_cost_usd": 0.03609695950138504,
+        "cost_per_success_usd": 0.042865139407894735,
+        "relaxed_share": 0.0,
+        "relaxed_quality_share": 0.0,
+        "model_counts": {
+          "DeepSeek-R1-0528-Qwen3-8B": 2,
+          "NVIDIA-Nemotron-Nano-9B-v2": 1,
+          "claude-sonnet-4": 6,
+          "deepseek-r1-0528": 38,
+          "deepseek-v3-0324": 2,
+          "gemini-2.5-flash": 3,
+          "gemini-2.5-pro": 4,
+          "glm-4.6": 3,
+          "gpt-5": 168,
+          "gpt-5-chat": 9,
+          "intern-s1": 19,
+          "kimi-k2-0905": 7,
+          "qwen3-235b-a22b-2507": 38,
+          "qwen3-235b-a22b-thinking-2507": 61
+        }
+      },
+      "test_row": {
+        "policy": "learned_dual",
+        "replay_policy": "learned",
+        "fixed_model": null,
+        "n": 361,
+        "errors": 0,
+        "success_rate": 0.8421052631578947,
+        "mean_cost_usd": 0.03609695950138504,
+        "cost_per_success_usd": 0.042865139407894735,
+        "success_ci": [
+          0.8060249307479224,
+          0.8781163434903048
+        ],
+        "mean_cost_ci": [
+          0.030057455855263156,
+          0.042462928891966754
+        ],
+        "success_delta_vs_strongest": 0.005540166204986097,
+        "success_delta_ci": [
+          -0.027770083102493136,
+          0.03601108033240996
+        ],
+        "cost_reduction_vs_strongest": 0.2456423855236769,
+        "cost_reduction_ci": [
+          0.1793097302466867,
+          0.31145379552292
+        ],
+        "model_counts": {
+          "DeepSeek-R1-0528-Qwen3-8B": 2,
+          "NVIDIA-Nemotron-Nano-9B-v2": 1,
+          "claude-sonnet-4": 6,
+          "deepseek-r1-0528": 38,
+          "deepseek-v3-0324": 2,
+          "gemini-2.5-flash": 3,
+          "gemini-2.5-pro": 4,
+          "glm-4.6": 3,
+          "gpt-5": 168,
+          "gpt-5-chat": 9,
+          "intern-s1": 19,
+          "kimi-k2-0905": 7,
+          "qwen3-235b-a22b-2507": 38,
+          "qwen3-235b-a22b-thinking-2507": 61
+        }
+      },
+      "targets": {
+        "cost_reduction": 0.2456423855236769,
+        "cost_target": 0.25,
+        "cost_target_met": false,
+        "success_delta": 0.005540166204986097,
+        "success_margin": 0.01,
+        "success_target_met": true,
+        "success_abs_within_margin": true,
+        "both_met": false
+      }
+    },
+    "min_cost": {
+      "param_name": "floor",
+      "param": 0.8,
+      "calib": {
+        "n": 382,
+        "errors": 0,
+        "success_rate": 0.8664921465968587,
+        "mean_cost_usd": 0.03606496630104712,
+        "cost_per_success_usd": 0.04162180400906344,
+        "relaxed_share": 0.3089005235602094,
+        "relaxed_quality_share": 0.3089005235602094,
+        "model_counts": {
+          "DeepSeek-R1-0528-Qwen3-8B": 1,
+          "Llama-3.1-Nemotron-Nano-8B-v1": 2,
+          "Qwen3-8B": 69,
+          "deepseek-r1-0528": 19,
+          "gemini-2.5-pro": 29,
+          "gpt-5": 112,
+          "gpt-5-chat": 22,
+          "intern-s1": 23,
+          "kimi-k2-0905": 11,
+          "qwen3-235b-a22b-2507": 70,
+          "qwen3-235b-a22b-thinking-2507": 24
+        }
+      },
+      "test": {
+        "n": 361,
+        "errors": 0,
+        "success_rate": 0.8033240997229917,
+        "mean_cost_usd": 0.03530894710803324,
+        "cost_per_success_usd": 0.0439535514,
+        "relaxed_share": 0.2770083102493075,
+        "relaxed_quality_share": 0.2770083102493075,
+        "model_counts": {
+          "NVIDIA-Nemotron-Nano-9B-v2": 4,
+          "Qwen3-8B": 76,
+          "deepseek-r1-0528": 23,
+          "deepseek-v3-0324": 1,
+          "gemini-2.5-flash": 1,
+          "gemini-2.5-pro": 39,
+          "glm-4.6": 1,
+          "gpt-5": 71,
+          "gpt-5-chat": 17,
+          "intern-s1": 22,
+          "kimi-k2-0905": 9,
+          "qwen3-235b-a22b-2507": 70,
+          "qwen3-235b-a22b-thinking-2507": 27
+        }
+      },
+      "test_row": {
+        "policy": "learned_min_cost",
+        "replay_policy": "learned",
+        "fixed_model": null,
+        "n": 361,
+        "errors": 0,
+        "success_rate": 0.8033240997229917,
+        "mean_cost_usd": 0.03530894710803324,
+        "cost_per_success_usd": 0.0439535514,
+        "success_ci": [
+          0.7617728531855956,
+          0.8421745152354569
+        ],
+        "mean_cost_ci": [
+          0.028513107599030474,
+          0.042584037900207754
+        ],
+        "success_delta_vs_strongest": -0.03324099722991691,
+        "success_delta_ci": [
+          -0.07202216066481992,
+          0.008379501385041519
+        ],
+        "cost_reduction_vs_strongest": 0.2621103417570497,
+        "cost_reduction_ci": [
+          0.1521065813741306,
+          0.3701287841047927
+        ],
+        "model_counts": {
+          "NVIDIA-Nemotron-Nano-9B-v2": 4,
+          "Qwen3-8B": 76,
+          "deepseek-r1-0528": 23,
+          "deepseek-v3-0324": 1,
+          "gemini-2.5-flash": 1,
+          "gemini-2.5-pro": 39,
+          "glm-4.6": 1,
+          "gpt-5": 71,
+          "gpt-5-chat": 17,
+          "intern-s1": 22,
+          "kimi-k2-0905": 9,
+          "qwen3-235b-a22b-2507": 70,
+          "qwen3-235b-a22b-thinking-2507": 27
+        }
+      },
+      "targets": {
+        "cost_reduction": 0.2621103417570497,
+        "cost_target": 0.25,
+        "cost_target_met": true,
+        "success_delta": -0.03324099722991691,
+        "success_margin": 0.01,
+        "success_target_met": false,
+        "success_abs_within_margin": false,
+        "both_met": false
+      }
+    },
+    "routellm_mf": {
+      "param_name": "threshold",
+      "param": 0.3999995904247668,
+      "calib": {
+        "n": 382,
+        "errors": 0,
+        "success_rate": 0.8664921465968587,
+        "mean_cost_usd": 0.04904456413612566,
+        "cost_per_success_usd": 0.05660127945619335,
+        "relaxed_share": 0.0,
+        "relaxed_quality_share": 0.0,
+        "model_counts": {
+          "gpt-5": 382
+        }
+      },
+      "test": {
+        "n": 361,
+        "errors": 0,
+        "success_rate": 0.8337950138504155,
+        "mean_cost_usd": 0.04721436198060942,
+        "cost_per_success_usd": 0.056625862707641195,
+        "relaxed_share": 0.0,
+        "relaxed_quality_share": 0.0,
+        "model_counts": {
+          "Llama-3.1-Nemotron-Nano-8B-v1": 1,
+          "gpt-5": 360
+        }
+      },
+      "test_row": {
+        "policy": "routellm_mf",
+        "replay_policy": "routellm_mf",
+        "fixed_model": null,
+        "n": 361,
+        "errors": 0,
+        "success_rate": 0.8337950138504155,
+        "mean_cost_usd": 0.04721436198060942,
+        "cost_per_success_usd": 0.056625862707641195,
+        "success_ci": [
+          0.7950138504155124,
+          0.8698060941828255
+        ],
+        "mean_cost_ci": [
+          0.04071352692174515,
+          0.05364806166897505
+        ],
+        "success_delta_vs_strongest": -0.0027700831024930483,
+        "success_delta_ci": [
+          -0.008310249307479256,
+          0.0
+        ],
+        "cost_reduction_vs_strongest": 0.013309875272250471,
+        "cost_reduction_ci": [
+          0.0,
+          0.042413823575858156
+        ],
+        "model_counts": {
+          "Llama-3.1-Nemotron-Nano-8B-v1": 1,
+          "gpt-5": 360
+        }
+      },
+      "targets": {
+        "cost_reduction": 0.013309875272250471,
+        "cost_target": 0.25,
+        "cost_target_met": false,
+        "success_delta": -0.0027700831024930483,
+        "success_margin": 0.01,
+        "success_target_met": true,
+        "success_abs_within_margin": true,
+        "both_met": false
+      },
+      "quantile": 0.0
+    },
+    "dual_lambda0_reference": {
+      "param_name": "lambda",
+      "param": 0.0,
+      "calib": {
+        "n": 382,
+        "errors": 0,
+        "success_rate": 0.8664921465968587,
+        "mean_cost_usd": 0.04027228510471204,
+        "cost_per_success_usd": 0.04647738039274924,
+        "relaxed_share": 0.0,
+        "relaxed_quality_share": 0.0,
+        "model_counts": {
+          "claude-sonnet-4": 1,
+          "deepseek-r1-0528": 17,
+          "gemini-2.5-flash": 1,
+          "gemini-2.5-pro": 30,
+          "glm-4.6": 1,
+          "gpt-5": 200,
+          "gpt-5-chat": 7,
+          "intern-s1": 7,
+          "qwen3-235b-a22b-2507": 38,
+          "qwen3-235b-a22b-thinking-2507": 80
+        }
+      },
+      "test": {
+        "n": 361,
+        "errors": 0,
+        "success_rate": 0.850415512465374,
+        "mean_cost_usd": 0.04019087268698061,
+        "cost_per_success_usd": 0.047260277003257335,
+        "relaxed_share": 0.0,
+        "relaxed_quality_share": 0.0,
+        "model_counts": {
+          "claude-sonnet-4": 1,
+          "deepseek-r1-0528": 16,
+          "gemini-2.5-pro": 29,
+          "gpt-5": 174,
+          "gpt-5-chat": 7,
+          "intern-s1": 7,
+          "kimi-k2-0905": 2,
+          "qwen3-235b-a22b-2507": 31,
+          "qwen3-235b-a22b-thinking-2507": 94
+        }
+      },
+      "test_row": {
+        "policy": "learned_dual_lambda0 (reference)",
+        "replay_policy": "learned",
+        "fixed_model": null,
+        "n": 361,
+        "errors": 0,
+        "success_rate": 0.850415512465374,
+        "mean_cost_usd": 0.04019087268698061,
+        "cost_per_success_usd": 0.047260277003257335,
+        "success_ci": [
+          0.814404432132964,
+          0.8864265927977839
+        ],
+        "mean_cost_ci": [
+          0.033761998729224384,
+          0.04683875435595568
+        ],
+        "success_delta_vs_strongest": 0.013850415512465353,
+        "success_delta_ci": [
+          -0.01939058171745156,
+          0.04155124653739617
+        ],
+        "cost_reduction_vs_strongest": 0.16008740728678306,
+        "cost_reduction_ci": [
+          0.0889491734348834,
+          0.23152572281931794
+        ],
+        "model_counts": {
+          "claude-sonnet-4": 1,
+          "deepseek-r1-0528": 16,
+          "gemini-2.5-pro": 29,
+          "gpt-5": 174,
+          "gpt-5-chat": 7,
+          "intern-s1": 7,
+          "kimi-k2-0905": 2,
+          "qwen3-235b-a22b-2507": 31,
+          "qwen3-235b-a22b-thinking-2507": 94
+        }
+      },
+      "targets": {
+        "cost_reduction": 0.16008740728678306,
+        "cost_target": 0.25,
+        "cost_target_met": false,
+        "success_delta": 0.013850415512465353,
+        "success_margin": 0.01,
+        "success_target_met": true,
+        "success_abs_within_margin": false,
+        "both_met": false
+      }
+    }
+  },
+  "baselines": {
+    "always_strongest": {
+      "policy": "always_strongest",
+      "replay_policy": "fixed",
+      "fixed_model": "gpt-5",
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.8365650969529086,
+      "mean_cost_usd": 0.04785125623268698,
+      "cost_per_success_usd": 0.05719968046357616,
+      "success_ci": [
+        0.7977839335180056,
+        0.8725761772853186
+      ],
+      "mean_cost_ci": [
+        0.04137648530124653,
+        0.05436594799168975
+      ],
+      "success_delta_vs_strongest": 0.0,
+      "success_delta_ci": [
+        0.0,
+        0.0
+      ],
+      "cost_reduction_vs_strongest": 0.0,
+      "cost_reduction_ci": [
+        0.0,
+        0.0
+      ],
+      "model_counts": {
+        "gpt-5": 361
+      }
+    },
+    "always_cheapest": {
+      "policy": "always_cheapest",
+      "replay_policy": "fixed",
+      "fixed_model": "Llama-3.1-Nemotron-Nano-8B-v1",
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.2853185595567867,
+      "mean_cost_usd": 0.00010530120498614958,
+      "cost_per_success_usd": 0.00036906538834951457,
+      "success_ci": [
+        0.23822714681440443,
+        0.32970914127423817
+      ],
+      "mean_cost_ci": [
+        9.934983310249308e-05,
+        0.00011162419840720222
+      ],
+      "success_delta_vs_strongest": -0.551246537396122,
+      "success_delta_ci": [
+        -0.6038781163434903,
+        -0.4958448753462604
+      ],
+      "cost_reduction_vs_strongest": 0.9977994056316076,
+      "cost_reduction_ci": [
+        0.9974698422210031,
+        0.998066631047298
+      ],
+      "model_counts": {
+        "Llama-3.1-Nemotron-Nano-8B-v1": 361
+      }
+    },
+    "random": {
+      "policy": "random",
+      "replay_policy": "random",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.6509695290858726,
+      "mean_cost_usd": 0.021560478362880886,
+      "cost_per_success_usd": 0.03312056463404255,
+      "success_ci": [
+        0.6038781163434903,
+        0.7008310249307479
+      ],
+      "mean_cost_ci": [
+        0.016324113595948757,
+        0.027088060276696677
+      ],
+      "success_delta_vs_strongest": -0.18559556786703602,
+      "success_delta_ci": [
+        -0.23822714681440438,
+        -0.1357340720221607
+      ],
+      "cost_reduction_vs_strongest": 0.5494271193625839,
+      "cost_reduction_ci": [
+        0.4380708730103035,
+        0.6500905921698238
+      ],
+      "model_counts": {
+        "DeepSeek-R1-0528-Qwen3-8B": 12,
+        "Llama-3.1-Nemotron-Nano-8B-v1": 20,
+        "NVIDIA-Nemotron-Nano-9B-v2": 28,
+        "Qwen3-8B": 18,
+        "claude-sonnet-4": 22,
+        "deepseek-r1-0528": 22,
+        "deepseek-v3-0324": 28,
+        "gemini-2.5-flash": 22,
+        "gemini-2.5-pro": 39,
+        "glm-4.6": 14,
+        "gpt-5": 24,
+        "gpt-5-chat": 24,
+        "intern-s1": 29,
+        "kimi-k2-0905": 16,
+        "qwen3-235b-a22b-2507": 20,
+        "qwen3-235b-a22b-thinking-2507": 23
+      }
+    },
+    "static_rules": {
+      "policy": "static_rules",
+      "replay_policy": "rules",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.8365650969529086,
+      "mean_cost_usd": 0.04785125623268698,
+      "cost_per_success_usd": 0.05719968046357616,
+      "success_ci": [
+        0.7977839335180056,
+        0.8725761772853186
+      ],
+      "mean_cost_ci": [
+        0.04137648530124653,
+        0.05436594799168975
+      ],
+      "success_delta_vs_strongest": 0.0,
+      "success_delta_ci": [
+        0.0,
+        0.0
+      ],
+      "cost_reduction_vs_strongest": 0.0,
+      "cost_reduction_ci": [
+        0.0,
+        0.0
+      ],
+      "model_counts": {
+        "gpt-5": 361
+      }
+    },
+    "oracle": {
+      "policy": "oracle",
+      "replay_policy": "oracle",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.9473684210526315,
+      "mean_cost_usd": 0.007577976005540166,
+      "cost_per_success_usd": 0.00799897467251462,
+      "success_ci": [
+        0.925207756232687,
+        0.9695290858725761
+      ],
+      "mean_cost_ci": [
+        0.004133588439889198,
+        0.01186515032316482
+      ],
+      "success_delta_vs_strongest": 0.11080332409972293,
+      "success_delta_ci": [
+        0.08033240997229918,
+        0.1468144044321329
+      ],
+      "cost_reduction_vs_strongest": 0.8416347531464872,
+      "cost_reduction_ci": [
+        0.7626275153158751,
+        0.9071493437220227
+      ],
+      "model_counts": {
+        "DeepSeek-R1-0528-Qwen3-8B": 48,
+        "Llama-3.1-Nemotron-Nano-8B-v1": 109,
+        "NVIDIA-Nemotron-Nano-9B-v2": 10,
+        "Qwen3-8B": 26,
+        "deepseek-r1-0528": 1,
+        "deepseek-v3-0324": 23,
+        "gemini-2.5-flash": 29,
+        "gemini-2.5-pro": 8,
+        "glm-4.6": 5,
+        "gpt-5": 11,
+        "gpt-5-chat": 3,
+        "intern-s1": 2,
+        "kimi-k2-0905": 8,
+        "qwen3-235b-a22b-2507": 66,
+        "qwen3-235b-a22b-thinking-2507": 12
+      }
+    },
+    "static_strongest_rank": {
+      "policy": "static_strongest_rank",
+      "replay_policy": "strongest",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.8365650969529086,
+      "mean_cost_usd": 0.04785125623268698,
+      "cost_per_success_usd": 0.05719968046357616,
+      "success_ci": [
+        0.7977839335180056,
+        0.8725761772853186
+      ],
+      "mean_cost_ci": [
+        0.04137648530124653,
+        0.05436594799168975
+      ],
+      "success_delta_vs_strongest": 0.0,
+      "success_delta_ci": [
+        0.0,
+        0.0
+      ],
+      "cost_reduction_vs_strongest": 0.0,
+      "cost_reduction_ci": [
+        0.0,
+        0.0
+      ],
+      "model_counts": {
+        "gpt-5": 361
+      }
+    },
+    "static_cheapest_worstcase": {
+      "policy": "static_cheapest_worstcase",
+      "replay_policy": "cheapest",
+      "fixed_model": null,
+      "n": 361,
+      "errors": 0,
+      "success_rate": 0.2853185595567867,
+      "mean_cost_usd": 0.00010530120498614958,
+      "cost_per_success_usd": 0.00036906538834951457,
+      "success_ci": [
+        0.23822714681440443,
+        0.32970914127423817
+      ],
+      "mean_cost_ci": [
+        9.934983310249308e-05,
+        0.00011162419840720222
+      ],
+      "success_delta_vs_strongest": -0.551246537396122,
+      "success_delta_ci": [
+        -0.6038781163434903,
+        -0.4958448753462604
+      ],
+      "cost_reduction_vs_strongest": 0.9977994056316076,
+      "cost_reduction_ci": [
+        0.9974698422210031,
+        0.998066631047298
+      ],
+      "model_counts": {
+        "Llama-3.1-Nemotron-Nano-8B-v1": 361
+      }
+    }
+  },
+  "per_dataset": [
+    {
+      "dataset": "aime",
+      "n": 14,
+      "always_strongest success": 0.6428571428571429,
+      "always_strongest cost USD": 0.120316875,
+      "learned_dual success": 0.6428571428571429,
+      "learned_dual cost USD": 0.07623295,
+      "learned_dual success delta": 0.0,
+      "learned_dual cost reduction": 0.36639852057327793
+    },
+    {
+      "dataset": "arenahard_creative_writing",
+      "n": 51,
+      "always_strongest success": 0.9411764705882353,
+      "always_strongest cost USD": 0.032803063725490196,
+      "learned_dual success": 0.9607843137254902,
+      "learned_dual cost USD": 0.003808340980392157,
+      "learned_dual success delta": 0.019607843137254943,
+      "learned_dual cost reduction": 0.8839028874783784
+    },
+    {
+      "dataset": "arenahard_math",
+      "n": 58,
+      "always_strongest success": 0.6379310344827587,
+      "always_strongest cost USD": 0.03915185344827586,
+      "learned_dual success": 0.6724137931034483,
+      "learned_dual cost USD": 0.013262858448275862,
+      "learned_dual success delta": 0.03448275862068961,
+      "learned_dual cost reduction": 0.6612457066484059
+    },
+    {
+      "dataset": "gpqa",
+      "n": 33,
+      "always_strongest success": 0.7575757575757576,
+      "always_strongest cost USD": 0.04636507575757576,
+      "learned_dual success": 0.7272727272727273,
+      "learned_dual cost USD": 0.04128596666666667,
+      "learned_dual success delta": -0.030303030303030276,
+      "learned_dual cost reduction": 0.10954601082646132
+    },
+    {
+      "dataset": "livecodebench",
+      "n": 205,
+      "always_strongest success": 0.8926829268292683,
+      "always_strongest cost USD": 0.04934661463414634,
+      "learned_dual success": 0.8926829268292683,
+      "learned_dual cost USD": 0.047013819512195125,
+      "learned_dual success delta": 0.0,
+      "learned_dual cost reduction": 0.04727366080219386
+    }
+  ],
+  "crossfit": null,
+  "calibration_quality": {
+    "per_model": {
+      "DeepSeek-R1-0528-Qwen3-8B": {
+        "n": 361,
+        "base_rate": 0.5623268698060941,
+        "mean_p": 0.5274156519469707,
+        "ece_mass": 0.07335685982655518,
+        "ece_width": 0.05924779521711702,
+        "brier": 0.2206866267332659,
+        "log_loss": 0.6310138749334021
+      },
+      "Llama-3.1-Nemotron-Nano-8B-v1": {
+        "n": 361,
+        "base_rate": 0.2853185595567867,
+        "mean_p": 0.3304191598957634,
+        "ece_mass": 0.06959656232650129,
+        "ece_width": 0.0605168523586277,
+        "brier": 0.1379111276381507,
+        "log_loss": 0.4203282360580846
+      },
+      "NVIDIA-Nemotron-Nano-9B-v2": {
+        "n": 361,
+        "base_rate": 0.48476454293628807,
+        "mean_p": 0.4905712052354141,
+        "ece_mass": 0.06455018746884127,
+        "ece_width": 0.054795914828608454,
+        "brier": 0.19253151748389263,
+        "log_loss": 0.5658742209602973
+      },
+      "Qwen3-8B": {
+        "n": 361,
+        "base_rate": 0.5678670360110804,
+        "mean_p": 0.5615742026802999,
+        "ece_mass": 0.06592412210098571,
+        "ece_width": 0.05857305128340032,
+        "brier": 0.20644852759067026,
+        "log_loss": 0.6011982656354858
+      },
+      "claude-sonnet-4": {
+        "n": 361,
+        "base_rate": 0.6177285318559557,
+        "mean_p": 0.6044000902227794,
+        "ece_mass": 0.06152589803876075,
+        "ece_width": 0.07193243956433712,
+        "brier": 0.2101152968854298,
+        "log_loss": 0.6111660653795412
+      },
+      "deepseek-r1-0528": {
+        "n": 361,
+        "base_rate": 0.7479224376731302,
+        "mean_p": 0.7839626341397036,
+        "ece_mass": 0.06715480596024934,
+        "ece_width": 0.04745490914491827,
+        "brier": 0.16098727850313313,
+        "log_loss": 0.4931830344457436
+      },
+      "deepseek-v3-0324": {
+        "n": 361,
+        "base_rate": 0.6731301939058172,
+        "mean_p": 0.6611538051107201,
+        "ece_mass": 0.04283513013549677,
+        "ece_width": 0.029620530294738885,
+        "brier": 0.20213136018471248,
+        "log_loss": 0.5912736716105008
+      },
+      "gemini-2.5-flash": {
+        "n": 361,
+        "base_rate": 0.6260387811634349,
+        "mean_p": 0.6730393570718822,
+        "ece_mass": 0.09663208626788193,
+        "ece_width": 0.06474973849022594,
+        "brier": 0.2135200658702547,
+        "log_loss": 0.617439718223798
+      },
+      "gemini-2.5-pro": {
+        "n": 361,
+        "base_rate": 0.8254847645429363,
+        "mean_p": 0.8132003844551257,
+        "ece_mass": 0.05383165737124175,
+        "ece_width": 0.05655281876897339,
+        "brier": 0.1424878716671975,
+        "log_loss": 0.4573864293003608
+      },
+      "glm-4.6": {
+        "n": 361,
+        "base_rate": 0.6980609418282548,
+        "mean_p": 0.7018196342204785,
+        "ece_mass": 0.07607767006333888,
+        "ece_width": 0.041698617611412615,
+        "brier": 0.19327039940366364,
+        "log_loss": 0.5717667607196467
+      },
+      "gpt-5": {
+        "n": 361,
+        "base_rate": 0.8365650969529086,
+        "mean_p": 0.8660974399162703,
+        "ece_mass": 0.05087092421973107,
+        "ece_width": 0.04233061536426766,
+        "brier": 0.1344183172181371,
+        "log_loss": 0.43330063043386574
+      },
+      "gpt-5-chat": {
+        "n": 361,
+        "base_rate": 0.7063711911357341,
+        "mean_p": 0.6828937659822253,
+        "ece_mass": 0.06520072125016747,
+        "ece_width": 0.048263623698321094,
+        "brier": 0.18852952592434102,
+        "log_loss": 0.5595584321183699
+      },
+      "intern-s1": {
+        "n": 361,
+        "base_rate": 0.5789473684210527,
+        "mean_p": 0.6147272941407679,
+        "ece_mass": 0.07226037640268007,
+        "ece_width": 0.05674305996255982,
+        "brier": 0.19748528083152314,
+        "log_loss": 0.5837083216885786
+      },
+      "kimi-k2-0905": {
+        "n": 361,
+        "base_rate": 0.7451523545706371,
+        "mean_p": 0.7176903363100974,
+        "ece_mass": 0.08385041668917009,
+        "ece_width": 0.06991933331300709,
+        "brier": 0.16565924280778443,
+        "log_loss": 0.5041514570230778
+      },
+      "qwen3-235b-a22b-2507": {
+        "n": 361,
+        "base_rate": 0.7257617728531855,
+        "mean_p": 0.6957555761379934,
+        "ece_mass": 0.0843641948354462,
+        "ece_width": 0.07152329986373726,
+        "brier": 0.16084838128831516,
+        "log_loss": 0.49959380041961016
+      },
+      "qwen3-235b-a22b-thinking-2507": {
+        "n": 361,
+        "base_rate": 0.817174515235457,
+        "mean_p": 0.8066974278097278,
+        "ece_mass": 0.057683507089407865,
+        "ece_width": 0.03490474303597997,
+        "brier": 0.13338490348526189,
+        "log_loss": 0.43550776884275155
+      }
+    },
+    "pooled": {
+      "n": 5776,
+      "base_rate": 0.6561634349030471,
+      "mean_p": 0.6582136228297637,
+      "ece_mass": 0.014327481622293428,
+      "ece_width": 0.01782323613974676,
+      "brier": 0.17877598271973336,
+      "log_loss": 0.5360281679870696
+    }
+  },
+  "python_go_parity": {
+    "items_compared": 361,
+    "items_skipped": 0,
+    "max_abs_diff": 3.3306690738754696e-16
+  },
+  "target_statements": [
+    "learned dual (chosen operating point): cost reduction 24.6% (misses the 25% target), success +0.55 points against always_strongest (within the 1 point target): targets NOT met.",
+    "learned min_cost: cost reduction 26.2% (meets the 25% target), success -3.32 points against always_strongest (outside the 1 point target): targets NOT met.",
+    "RouteLLM MF: cost reduction 1.3% (misses the 25% target), success -0.28 points against always_strongest (within the 1 point target): targets NOT met."
+  ],
+  "targets": {
+    "cost_reduction": 0.25,
+    "success_margin": 0.01
+  },
+  "replays": {
+    "calib": 105,
+    "test": 11
+  },
+  "wall_time_s": 9.022006699997291,
+  "phase_time_s": {
+    "calibration": 7.523999299999559,
+    "crossfit": 2.9999500839039683e-07,
+    "test replays": 0.2828278999950271,
+    "calibration quality": 0.6559336000063922
+  },
+  "labels": [
+    "sensitivity pool; the four small models' costs are fitted from their recorded costs and applied to their recorded token counts (7B costs fitted from recorded costs); flagship costs are recorded",
+    "no latency is measured or simulated in this experiment",
+    "operating points (lambda, the floor, the RouteLLM threshold) are chosen on the calibration split only; the test split is read once per reported point",
+    "the calibrators and lower-bound tables of the learned policy were fitted on the calibration split, so the learned policy's calibration success is in-sample and optimistic",
+    "oracle looks at the recorded outcomes: an upper bound, not a policy",
+    "the lambda = 0 dual row is a reference, not an operating point"
+  ]
+}
