@@ -590,7 +590,12 @@ func (c *Config) applyDefaults() {
 			m.ContextWindow = defaultContextWindow
 		}
 		if m.MaxOutputTokens == 0 {
+			// The default cap, but never above the model's own window: a small local model
+			// would otherwise be refused for a value the operator never wrote.
 			m.MaxOutputTokens = defaultMaxOutputTokens
+			if m.ContextWindow > 0 {
+				m.MaxOutputTokens = min(defaultMaxOutputTokens, m.ContextWindow)
+			}
 		}
 		if m.Capabilities == nil {
 			m.Capabilities = []string{CapStreaming}
