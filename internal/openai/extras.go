@@ -114,6 +114,27 @@ func hasContent(extra map[string]json.RawMessage) bool {
 	return false
 }
 
+// extraContentBytes is the size of the values hasContent counts: a JSON string counts as the
+// length of its text, any other value as its raw JSON, and a null or an empty string as
+// nothing. It sizes the output a model produced in fields outside the typed subset, such as
+// reasoning_content.
+func extraContentBytes(extra map[string]json.RawMessage) int {
+	n := 0
+	for _, v := range extra {
+		v = bytes.TrimSpace(v)
+		if len(v) == 0 || bytes.Equal(v, []byte("null")) || bytes.Equal(v, []byte(`""`)) {
+			continue
+		}
+		var s string
+		if v[0] == '"' && json.Unmarshal(v, &s) == nil {
+			n += len(s)
+			continue
+		}
+		n += len(v)
+	}
+	return n
+}
+
 var (
 	contentPartKeys = keySet{"type", "text", "image_url"}
 	messageKeys     = keySet{"role", "content", "name", "tool_calls", "tool_call_id"}
@@ -198,6 +219,14 @@ func (d Delta) MarshalJSON() ([]byte, error) {
 // real value, such as reasoning_content or refusal text. A null or empty
 // string does not count.
 func (d Delta) HasExtraContent() bool { return hasContent(d.Extra) }
+
+// ExtraContentBytes is the size of the unknown fields' real values (see HasExtraContent):
+// the text of reasoning_content or refusal, which the model produced like any other output.
+func (d Delta) ExtraContentBytes() int { return extraContentBytes(d.Extra) }
+
+// ExtraContentBytes is the size of the message's unknown fields' real values, such as the
+// reasoning_content of a complete answer.
+func (m Message) ExtraContentBytes() int { return extraContentBytes(m.Extra) }
 
 // UnmarshalJSON decodes known fields and keeps unknown ones in Extra.
 func (u *Usage) UnmarshalJSON(data []byte) error {

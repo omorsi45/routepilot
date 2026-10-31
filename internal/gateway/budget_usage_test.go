@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math"
 	"testing"
@@ -230,6 +231,34 @@ func TestStreamedBytesCountsContentAndToolCalls(t *testing.T) {
 	}
 	if got := chunkBytes(&openai.ChatCompletionChunk{Usage: &openai.Usage{CompletionTokens: 9}}); got != 0 {
 		t.Errorf("chunkBytes of a usage chunk = %d, want 0", got)
+	}
+}
+
+// TestStreamedBytesCountsReasoningContent: reasoning and other extra delta fields are model
+// output, as they are for the commit of a stream (isCommitting), so a stream cut before its
+// usage report is charged for them too. A null or empty field counts for nothing.
+func TestStreamedBytesCountsReasoningContent(t *testing.T) {
+	var chunk openai.ChatCompletionChunk
+	raw := `{"choices":[` +
+		`{"index":0,"delta":{"reasoning_content":"think"}},` +
+		`{"index":0,"delta":{"content":"ab","reasoning_content":"cde","refusal":null}},` +
+		`{"index":0,"delta":{"reasoning_content":""}}]}`
+	if err := json.Unmarshal([]byte(raw), &chunk); err != nil {
+		t.Fatal(err)
+	}
+	if got := chunkBytes(&chunk); got != 5+2+3 {
+		t.Errorf("chunkBytes = %d, want 10: 5 and 3 bytes of reasoning plus 2 of content", got)
+	}
+}
+
+func TestCompletionBytesCountsReasoningContent(t *testing.T) {
+	var resp openai.ChatCompletion
+	raw := `{"choices":[{"index":0,"message":{"role":"assistant","content":"ab","reasoning_content":"think hard"}}]}`
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if got := completionBytes(&resp); got != 2+10 {
+		t.Errorf("completionBytes = %d, want 12", got)
 	}
 }
 

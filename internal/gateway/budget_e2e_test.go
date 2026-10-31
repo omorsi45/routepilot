@@ -873,6 +873,40 @@ func TestFailureAfterTheUpstreamAnsweredIsBilled(t *testing.T) {
 	}
 }
 
+// reasoningThenCut streams three chunks of reasoning_content, five bytes each, and then ends
+// the response without a usage report or [DONE], as a reasoning model's stream can be cut.
+func reasoningThenCut() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		for i := 0; i < 3; i++ {
+			_, _ = io.WriteString(w, `data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"u","choices":[{"index":0,"delta":{"reasoning_content":"abcde"},"finish_reason":null}]}`+"\n\n")
+			w.(http.Flusher).Flush()
+		}
+	})
+}
+
+// TestStreamCutAfterReasoningIsChargedForIt: reasoning output is billed as completion
+// tokens, so a stream that was cut after streaming only reasoning is charged those bytes on
+// top of its input bound, as one that streamed answer text would be.
+func TestStreamCutAfterReasoningIsChargedForIt(t *testing.T) {
+	budget := money.PicoUSD(1_000_000_000)
+	e := newBudgetEnv(t, budgetOpts{budget: budget, policy: config.PolicyCheapest, models: []modelSpec{stdModel("ua")}, upstream: reasoningThenCut(), maxAttempts: 1})
+
+	rec := e.post(streamBody("auto"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: the reasoning chunks committed the stream: %s", rec.Code, rec.Body.String())
+	}
+	want := worstCase(t, stdIn, stdOut, 0) + 15*stdOut // the input bound plus 15 bytes of reasoning as tokens
+	if got := e.spent(); got != want {
+		t.Errorf("Spent = %d, want %d", got, want)
+	}
+	if got := e.gw.BudgetOvershoot(); got != 0 {
+		t.Errorf("BudgetOvershoot = %d, want 0", got)
+	}
+}
+
 // TestBudgetReleasedWhenNothingSent: a reservation made for a request that then sends nothing
 // (every deployment became unavailable between the decision and the claim) is released, not
 // committed.

@@ -179,7 +179,7 @@ func (h *budgetHold) finish() {
 //     bound of its model plus its whole output budget.
 //   - Any other attempt without usage (a timeout, a cancel, a failure in the middle of a
 //     stream, an answer or a stream that ended without usage) is charged the input bound of
-//     its model as prompt tokens and the bytes of content and tool-call deltas it received
+//     its model as prompt tokens and the bytes of content, tool-call and reasoning deltas it received
 //     as completion tokens, never more than the output budget the attempt was sent with
 //     (the request carried that cap, so it cannot have produced more tokens). Estimated
 //     says so.
@@ -194,7 +194,7 @@ type attemptUsage struct {
 
 	priceIn, priceOut money.PicoUSD
 	inUpper, maxOut   int
-	streamed          int  // bytes of content and tool-call deltas received
+	streamed          int  // bytes of content, tool-call and reasoning deltas received
 	settled           bool // Prompt, Completion, Estimated and Cost are final
 	// wholeAnswer is set for a non-streaming attempt, whose output arrives as one answer.
 	wholeAnswer bool
@@ -239,7 +239,7 @@ func (a *attemptUsage) reportUsage(u *openai.Usage) {
 	a.settled = true
 }
 
-// addStreamed counts n more bytes of content or tool-call deltas received.
+// addStreamed counts n more bytes of content, tool-call or reasoning deltas received.
 func (a *attemptUsage) addStreamed(n int) {
 	if a == nil || n <= 0 {
 		return
@@ -350,8 +350,8 @@ func (rs *reqState) settleAttempts() money.PicoUSD {
 	return sum
 }
 
-// chunkBytes is the size of the content and tool-call deltas of a streamed chunk: the text
-// the model produced, not its framing.
+// chunkBytes is the size of the content, tool-call and extra (reasoning) deltas of a streamed
+// chunk: the text the model produced, not its framing.
 func chunkBytes(chunk *openai.ChatCompletionChunk) int {
 	n := 0
 	for _, ch := range chunk.Choices {
@@ -359,11 +359,13 @@ func chunkBytes(chunk *openai.ChatCompletionChunk) int {
 			n += len(*ch.Delta.Content)
 		}
 		n += toolCallBytes(ch.Delta.ToolCalls)
+		n += ch.Delta.ExtraContentBytes()
 	}
 	return n
 }
 
-// completionBytes is the size of the content and tool calls of a complete answer.
+// completionBytes is the size of the content, tool calls and extra (reasoning) fields of a
+// complete answer.
 func completionBytes(resp *openai.ChatCompletion) int {
 	if resp == nil {
 		return 0
@@ -372,6 +374,7 @@ func completionBytes(resp *openai.ChatCompletion) int {
 	for _, ch := range resp.Choices {
 		n += len(ch.Message.Content.PlainText())
 		n += toolCallBytes(ch.Message.ToolCalls)
+		n += ch.Message.ExtraContentBytes()
 	}
 	return n
 }
