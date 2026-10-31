@@ -292,7 +292,9 @@ type reqState struct {
 	usage    *openai.Usage
 	errCode  string
 	canceled bool
-
+	// panicked is set when the handler panicked, so the deferred log shows a server error
+	// instead of no status.
+	panicked bool
 	// upstream429 counts the sent attempts that ended in an upstream HTTP 429 and
 	// retryAfter is the smallest positive Retry-After among them. When every attempt was
 	// a 429 the client gets a 429 too (see failAttempts).
@@ -423,6 +425,24 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// also when the handler panics, because the attempts were sent and billed all the same.
 	defer s.recordUsage(rs)
 
+	// The trace, the decision record, the request log line and the metrics are written from
+	// a defer too, so that a handler that panics still leaves them: it is the request an
+	// operator most needs to find. They run before the usage ledger write above. The panic
+	// itself goes on to net/http, which closes the connection.
+	finished := false
+	defer func() {
+		rs.panicked = !finished
+		if rs.chat {
+			s.endTrace(sw, rs)
+		}
+		s.logDecisions(sw, rs, start)
+		s.logRequest(sw, rs, start)
+		if rs.chat {
+			s.observeRequest(sw, rs, start)
+			s.observeGuard(sw, rs, start)
+		}
+	}()
+
 	switch r.URL.Path {
 	case "/healthz":
 		s.handleText(sw, rs, r, "ok")
@@ -458,23 +478,18 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.fail(sw, rs, errRouteNotFound(r.URL.Path))
 	}
-
-	if rs.chat {
-		s.endTrace(sw, rs)
-	}
-	s.logDecisions(sw, rs, start)
-	s.logRequest(sw, rs, start)
-	if rs.chat {
-		s.observeRequest(sw, rs, start)
-		s.observeGuard(sw, rs, start)
-	}
+	finished = true
 }
 
-// finalStatus is the status the client got: what was written, or 499 when the client left
-// before anything was.
+// finalStatus is the status the client got: what was written, 499 when the client left
+// before anything was, or 500 when the handler panicked before writing anything (net/http
+// then closes the connection, so the client sees no status at all).
 func finalStatus(sw *statusWriter, rs *reqState) int {
 	if sw.status == 0 && rs.canceled {
 		return clientClosedStatus
+	}
+	if sw.status == 0 && rs.panicked {
+		return http.StatusInternalServerError
 	}
 	return sw.status
 }

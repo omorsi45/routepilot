@@ -78,9 +78,17 @@ func (s *Server) proxyComplete(ctx context.Context, w http.ResponseWriter, rs *r
 }
 
 // complete makes the provider call of one non-streaming attempt and gives the attempt's
-// bulkhead slot back when the call returns, whatever way it ends, a panic included.
+// bulkhead slot back when the call returns, whatever way it ends, a panic included. A panic
+// also hands back the breaker claim, which nothing else would resolve: a half-open probe
+// would stay claimed for good and the deployment would never be tried again.
 func (s *Server) complete(ctx context.Context, dep catalog.Deployment, up *openai.ChatCompletionRequest, h hold) (*openai.ChatCompletion, error) {
 	defer h.releaseSlot()
+	defer func() {
+		if v := recover(); v != nil {
+			s.health.Abort(h.ticket)
+			panic(v)
+		}
+	}()
 	return s.providers[dep.Provider].Complete(ctx, up)
 }
 

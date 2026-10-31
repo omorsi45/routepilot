@@ -60,6 +60,14 @@ func (c *streamCall) attempt(modelID string, dep catalog.Deployment, ticket reli
 	ctx, cancel := context.WithCancelCause(c.ctx)
 	defer cancel(nil)
 	a := &streamAttempt{c: c, model: modelID, dep: dep, ticket: ticket, ctx: ctx, cancel: cancel, usage: c.rs.lastAttempt()}
+	// A panic in the provider leaves the breaker claim unresolved: a half-open probe would
+	// stay claimed for good. Hand it back and let the panic go on.
+	defer func() {
+		if v := recover(); v != nil {
+			a.abort()
+			panic(v)
+		}
+	}()
 
 	// One timer is the TTFT watchdog until the first committing chunk arrives,
 	// then the idle watchdog. It starts before Stream() so it also covers
