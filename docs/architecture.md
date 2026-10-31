@@ -90,7 +90,7 @@ flowchart LR
 
 The steps, with the commands that run them (the full order, seeds and run times are in [reproducibility.md](reproducibility.md)):
 
-1. `make data` downloads the benchmark release, checks its SHA-256, ingests it into `data/derived/` (`outcomes.parquet`, `prompts.parquet`, `ingest_report.json`) and builds splits, pools and replay exports. `data/raw/` and `data/derived/` are never committed; the prompts live only in `data/derived/`.
+1. `make data` downloads the benchmark release, checks its SHA-256, ingests it into `data/derived/` (`outcomes.parquet`, `prompts.parquet`, `ingest_report.json`) and builds splits, pools and replay exports; the per-token prices of a pool are fitted on its train and calibration rows only. `data/raw/` and `data/derived/` are never committed; the prompts live only in `data/derived/`.
 2. Splits (`python/routepilot_train/data/splits.py`) depend only on the item ID. Three whole datasets, at most one per domain, are held out of all fitting and tuning; they appear in the shift and out-of-distribution experiments. Every other item goes to a split by the first 16 hex digits of `SHA-256(item_id + salt)` read as a fraction: below 0.6 is train, below 0.8 is calibration, the rest is test. Adding or removing items never moves an existing one.
 3. Training (`make train`, `python/routepilot_train/train/`) fits, per model:
    - the quality predictor: an L2 logistic regression on 65,536 signed hashed text features and 12 dense features, with the penalty chosen by 5-fold cross-validation inside train;

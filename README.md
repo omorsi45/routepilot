@@ -28,7 +28,8 @@ several mechanisms work as designed but gave a weaker result than expected.
 Every result below comes from a committed run under `bench/results/`; the linked sections of
 [docs/results.md](docs/results.md) and [docs/performance.md](docs/performance.md) show the
 tables, the run IDs and the exact settings. "Recorded" costs and outcomes come from the
-benchmark release, "fitted" prices are fitted from recorded costs, "assumed" prices are stated
+benchmark release, "fitted" prices are fitted from recorded costs on the train and calibration
+rows only, "assumed" prices are stated
 assumptions, "simulated" values are modeled and never measured, and "measured" means measured
 on one machine by a committed script.
 
@@ -37,17 +38,17 @@ on one machine by a committed script.
 | Calibrated success probability with a lower confidence bound | One logistic regression per model on hashed text features and 12 dense features, then Platt or isotonic calibration, then a one-sided 95% Clopper-Pearson bound per calibration bin. The quality floor is compared with the bound, not with the point estimate. | The artifact loader recomputes stored golden predictions and refuses a mismatch (`TestLoadRejectsGoldenMismatch`). Runs: [calibration study](docs/results.md#calibration-study), [bound against point estimate](docs/results.md#lower-confidence-bound-against-point-estimate). | Pooled test ECE 0.0160 over 15 equal-mass bins (target below 0.05; per model 0.026 to 0.054). Floors were met at all 12 tested floors on the test split, but the point-estimate arm met them too, so the run does not show that the bound is needed. The bounds are conservative: at floor 0.5 the router relaxed 59.4% of requests. |
 | Constrained selection | `min_cost` takes the cheapest expected cost whose bound clears the floor; `dual` takes the highest probability minus lambda times cost. Both choose inside a safe set (capability, permission, budget, p95 latency). An empty safe set is relaxed (`best_effort`) or rejected with 422. | Optimizer tests in `internal/router/optimize_test.go`. Runs: [headline](docs/results.md#headline-operating-points-and-targets), [sweeps](docs/results.md#operating-point-sweeps). | At the chosen operating point the learned policy is 93.5% cheaper than the best single model and 4.55 points less successful: the targets were not met. A static rules baseline beat the best single model on both axes. |
 | Budgets that cannot overshoot by construction | The worst-case cost of the first candidate (input-token bound times price, plus output cap times price) is reserved atomically before any upstream call. Every further attempt, to a pricier model or to another deployment of the same one, re-reserves first and is skipped if the reservation fails. The commit uses the usage the provider reported. | One conformance suite for the memory and Redis ledgers (`ConcurrentNeverOvershoots`), `TestFallbackReReserveFailureSkipsModel`. Run: [quota correctness](docs/results.md#quota-correctness-under-concurrent-clients). | 64 concurrent clients on a 0.05 USD budget: overshoot counter 0, spend 0.049904 USD (memory) and 0.049894 USD (Redis), and the Redis ledger and counter reconcile with a difference of 0. The bound is a proof only for text the gateway sends (see [the input-token bound](docs/architecture.md#the-input-token-bound)). A budget is durable and shared between gateway processes only with `quota.backend: redis`; the default memory ledger is per process and starts from zero at every start. |
-| Off-policy evaluation from gateway logs | Exploration inside the safe set with a logged propensity. IPS, SNIPS and doubly robust estimators with bootstrap intervals in `python/routepilot_train/ope.py`. | Run: [OPE validation](docs/results.md#off-policy-evaluation-validation), 50 logging seeds against full-information replay. | The estimators work but are noisy at this sample size: effective sample size 15 to 25 on 1,735 items, RMSE of the success estimate 9.5 to 17.5 points, interval coverage 0.84 to 0.96 for success (nominal 0.95) and 0.70 to 0.92 for cost. |
+| Off-policy evaluation from gateway logs | Exploration inside the safe set with a logged propensity. IPS, SNIPS and doubly robust estimators with bootstrap intervals in `python/routepilot_train/ope.py`. | Run: [OPE validation](docs/results.md#off-policy-evaluation-validation), 50 logging seeds against full-information replay. | The estimators work but are noisy at this sample size: effective sample size 15 to 25 on 1,735 items, RMSE of the success estimate 10.3 to 18.1 points, interval coverage 0.80 to 0.98 for success (nominal 0.95) and 0.76 to 0.92 for cost. |
 | Versioned policies with a rollout lifecycle | An artifact's version is a hash of its manifest and weights. A registry holds stable, canary and shadow policies, reloads on SIGHUP or file change, rolls back through guardrails or the admin API, and `routepilot policy gate` decides a promotion with a paired doubly robust check. | Unit tests only: registry reload (`TestReloadKeepsOldOnCorruptArtifact`), guardrails with a fake clock, the gate command. | No experiment and no production traffic. The guardrail thresholds were not tuned on real canary traffic, and the gate has little power at the sample sizes above. |
 | Streaming failover only before the first byte | An attempt commits when the first content reaches the client. Before that the gateway fails over to the next deployment or model; after it, an upstream error becomes one SSE error event and there is no second upstream call. | `TestMidstreamNeverRetried`, `TestStreamMidstreamErrorEvent`. Run: [failover](docs/results.md#failover-against-injected-failures). | Of 10,000 requests with injected failures before the stream, 1,749 first attempts failed and all 1,749 were answered by the other deployment. Of 2,000 streams, 411 were cut after the commit and none made a second upstream call. The failures are independent and deployment B never failed. |
-| Offline results describe the shipped router | `routepilot replay` runs the same optimizer, catalog and artifact as `routepilot serve` over recorded outcomes. | Python against Go prediction comparison inside the [headline run](docs/results.md#headline-operating-points-and-targets); rules parity (12,067 items, 0 mismatches); `TestReplayOutputHasNoPromptText`. | The two implementations agree to floating-point precision on the test split (largest absolute difference 5.6e-15 over 1,713 items). The headline tables use recorded costs and no latency. |
+| Offline results describe the shipped router | `routepilot replay` runs the same optimizer, catalog and artifact as `routepilot serve` over recorded outcomes. | Python against Go prediction comparison inside the [headline run](docs/results.md#headline-operating-points-and-targets); rules parity (12,067 items, 0 mismatches); `TestReplayOutputHasNoPromptText`. | The two implementations agree to floating-point precision on the test split (largest absolute difference 5.60663e-15 over 1,713 items). The headline tables use recorded costs and no latency. |
 | Low gateway overhead | A thin proxy path with an in-process decision (0.056 ms on average with the learned policy); the usage ledger and the decision log are written by background writers. | Runs: [overhead](docs/performance.md#gateway-overhead-against-the-local-mock), [LiteLLM comparison](docs/performance.md#routepilot-and-litellm-against-the-same-mock). | Measured on Linux (WSL2) over loopback against a mock with constant delays: p95 overhead of 0.29 to 0.64 ms without streaming. Accounting, the decision log and tracing were off in that run, and there is one run per cell, with no confidence intervals. |
 
 ### What the experiments did not show
 
 - The headline targets (at least 25% cost reduction with success within 1 point of the best
   single model) were not met on the main pool, and only nearly met on the mixed sensitivity
-  pool (23.9% cheaper at equal success). A static rules mapping chosen on the same train and
+  pool (24.6% cheaper, with success 0.55 points above the best single model). A static rules mapping chosen on the same train and
   calibration data met the numbers of the targets, so the learned policy has not been shown
   to beat the simplest baseline.
 - The lower confidence bound was not shown to be required to meet a floor: a point-estimate
@@ -75,15 +76,15 @@ Main pool (flagship): 12 models, 11 datasets, test split of 1,735 items. Success
 router. Intervals are 95% percentile bootstrap intervals over items. The operating point
 (lambda, the floor, the RouteLLM threshold, the static rules) is chosen on the calibration
 split only, and the test split is read once per row. Run
-[`20261028T203202Z-028d6b4`](bench/results/headline/20261028T203202Z-028d6b4/), model artifact
+[`20261031T070340Z-f0429c6`](bench/results/headline/20261031T070340Z-f0429c6/), model artifact
 `dea4486d7575`; the static rules and oracle rows are also in baselines run
-[`20261028T004934Z-bec7b21`](bench/results/baselines/20261028T004934Z-bec7b21/).
+[`20261031T064741Z-d02bb26`](bench/results/baselines/20261031T064741Z-d02bb26/).
 
 | Policy | Success | Mean cost USD per item | Success vs best single, points | Cost reduction vs best single |
 |---|---|---|---|---|
 | Best single (always gemini-2.5-pro) | 52.7% [50.5%, 55.2%] | 0.06706 [0.06292, 0.07127] | 0.00 | 0.0% |
-| Learned, dual mode, lambda 6.72 (the chosen operating point) | 48.2% [46.0%, 50.6%] | 0.004337 [0.003778, 0.0049] | -4.55 [-6.97, -2.25] | 93.5% [92.6%, 94.4%] |
-| Learned, min_cost mode, floor 0.2 | 49.7% [47.3%, 52.1%] | 0.021 [0.01839, 0.02338] | -3.00 [-5.36, -0.63] | 68.7% [65.7%, 72.2%] |
+| Learned, dual mode, lambda 6.72 (the chosen operating point) | 48.2% [46.0%, 50.6%] | 0.004388 [0.00383, 0.004954] | -4.55 [-6.97, -2.25] | 93.5% [92.5%, 94.3%] |
+| Learned, min_cost mode, floor 0.2 | 49.7% [47.3%, 52.0%] | 0.021 [0.01839, 0.02338] | -3.05 [-5.42, -0.63] | 68.7% [65.7%, 72.2%] |
 | RouteLLM matrix factorization, threshold 0.7547 | 52.0% [49.7%, 54.6%] | 0.06526 [0.06112, 0.06944] | -0.69 [-1.21, -0.23] | 2.7% [2.0%, 3.5%] |
 | Static rules (multiple-choice, code, math and long prompts to gpt-5, the rest to gemini-2.5-pro) | 54.6% [52.4%, 56.9%] | 0.04397 [0.04073, 0.04718] | +1.90 [+0.69, +3.17] | 34.4% [30.9%, 38.0%] |
 | Oracle (reads the recorded outcomes: an upper bound, not a policy) | 77.5% [75.5%, 79.5%] | 0.009284 [0.007501, 0.01103] | +24.73 [+22.65, +26.74] | 86.2% [83.7%, 88.6%] |
@@ -91,9 +92,9 @@ split only, and the test split is read once per row. Run
 **The targets were not met.** The target was a cost reduction of at least 25% with success
 within 1 point of the best single model. The learned dual policy meets the cost half (93.5%)
 and misses the quality half (-4.55 points). The learned min_cost policy does the same (68.7%
-cheaper, -3.00 points), and the RouteLLM baseline meets the quality half (-0.69 points) and
+cheaper, -3.05 points), and the RouteLLM baseline meets the quality half (-0.69 points) and
 misses the cost half (2.7%). The run states "targets NOT met" for all three, and for a
-cross-fitted variant of the dual policy (97.1% cheaper, -5.07 points). The static rules row,
+cross-fitted variant of the dual policy (97.1% cheaper, -5.19 points). The static rules row,
 chosen on the same train and calibration data, meets the numbers of both targets, so on this
 data the simple baseline is the better trade and the learned policy has not been shown to
 beat it.
@@ -107,15 +108,16 @@ calibration figure in-sample and optimistic, because the calibrators were fitted
 split. The losses concentrate in a few datasets: the largest drops against the best single
 model are arc-agi (-20.5 points), hle (-12.5), gpqa (-12.1) and livecodebench (-10.7), from
 the [failure analysis](docs/results.md#failure-analysis) run
-[`20261029T015809Z-00deb40`](bench/results/failure_analysis/20261029T015809Z-00deb40/).
+[`20261031T071751Z-f0429c6`](bench/results/failure_analysis/20261031T071751Z-f0429c6/).
 
 Mixed pool (sensitivity only: the 12 models plus four small models whose prices are
 **fitted** from recorded costs; 361 test items). Run
-[`20261028T203239Z-028d6b4`](bench/results/headline/20261028T203239Z-028d6b4/). The learned
-dual policy (lambda 0.7028) keeps the best single model's success, 83.7% [80.1%, 87.3%]
-against 83.7% [79.8%, 87.3%] for gpt-5 (difference 0.00 points [-3.32, +3.05]), at a cost
-reduction of 23.9% [17.4%, 30.7%]. That is 1.1 points short of the cost target. The static
-rules mapping on this pool is the best single model, so it saves nothing.
+[`20261031T070408Z-f0429c6`](bench/results/headline/20261031T070408Z-f0429c6/). The learned
+dual policy (lambda 0.7816) stays within the 1 point success band of the best single model,
+84.2% [80.6%, 87.8%] against 83.7% [79.8%, 87.3%] for gpt-5 (difference +0.55 points
+[-2.78, +3.60]), at a cost reduction of 24.6% [17.9%, 31.1%]. That is 0.4 points short of the
+cost target. The static rules mapping on this pool is the best single model, so it saves
+nothing.
 
 Calibration and systems measurements:
 
