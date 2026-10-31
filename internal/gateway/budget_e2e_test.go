@@ -595,6 +595,127 @@ func TestSecondAttemptReservesForWhatTheFirstAlreadyCost(t *testing.T) {
 	}
 }
 
+// sameModelFailover is one model with two deployments whose first fails in a way that is
+// billed, so the second deployment is a failover that follows a charged attempt. The
+// upstream model strings are the mock directives; the first one stalls for the stream case.
+type sameModelFailover struct {
+	name    string
+	firstUp string // upstream model string of the first deployment
+	// upstream builds the upstream handler for a mock answer of this many completion tokens;
+	// nil keeps the standard mock.
+	upstream   func(tokens int) http.Handler
+	body       string
+	ttftMs     int
+	wantStatus int // when the raise does not fit and the second deployment is skipped
+}
+
+// inBandErrorFirst answers the upstream model "u1" with an error object in a 200, which the
+// adapter reports as a protocol failure (billed its input bound), and everyone else with the
+// mock.
+func inBandErrorFirst(tokens int) http.Handler {
+	next := mock.NewHandler(mock.Config{OutputTokens: tokens})
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(b))
+		var body struct {
+			Model string `json:"model"`
+		}
+		_ = json.Unmarshal(b, &body)
+		if body.Model == "u1" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"error":{"message":"engine failed"}}`)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func sameModelFailoverCases() []sameModelFailover {
+	return []sameModelFailover{
+		{name: "a stream that stalls", firstUp: "u1;fail=stall", body: streamBody("auto"), ttftMs: 100, wantStatus: http.StatusGatewayTimeout},
+		{name: "an error object in a 200", firstUp: "u1", upstream: inBandErrorFirst, body: chatBody("auto", "hi"), wantStatus: http.StatusBadGateway},
+	}
+}
+
+// TestSameModelFailoverReservesForWhatTheFirstAlreadyCost: a failover to another deployment
+// of the same model is a further attempt like any other. When the first attempt is billed,
+// the reservation has to be raised by that charge first, and the second deployment is not
+// called when the raise does not fit, so committed spend stays inside the budget.
+func TestSameModelFailoverReservesForWhatTheFirstAlreadyCost(t *testing.T) {
+	each := worstCase(t, stdIn, stdOut, 10)
+	inputOnly := worstCase(t, stdIn, stdOut, 0)
+	for _, tc := range sameModelFailoverCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			models := []modelSpec{{id: "m", in: "1", out: "2", maxOut: 10, deps: []depSpec{{"m-a", tc.firstUp}, {"m-b", "u2"}}}}
+			// The budget is exactly one worst case: nothing is left for the first attempt's
+			// charge on top of the second attempt's worst case.
+			o := budgetOpts{budget: each, policy: config.PolicyCheapest, models: models, ttftMs: tc.ttftMs, mockTokens: 1000}
+			if tc.upstream != nil {
+				o.upstream = tc.upstream(1000)
+			}
+			e := newBudgetEnv(t, o)
+
+			rec := e.post(tc.body)
+
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status %d, want %d after the first attempt failed and the second was skipped: %s", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			if e.hit("u2") != 0 {
+				t.Errorf("the second deployment was called %d times, want 0: its raise to %d did not fit", e.hit("u2"), each+inputOnly)
+			}
+			if got := e.spent(); got != inputOnly {
+				t.Errorf("Spent = %d, want %d: the failed attempt is charged its input bound", got, inputOnly)
+			}
+			if got := e.gw.BudgetOvershoot(); got != 0 {
+				t.Errorf("BudgetOvershoot = %d, want 0", got)
+			}
+		})
+	}
+}
+
+// TestSameModelFailoverRaisesTheReservationWhenItFits: with room, the reservation is raised
+// to the first attempt's charge plus the worst case before the second deployment is called,
+// and that deployment serves the request.
+func TestSameModelFailoverRaisesTheReservationWhenItFits(t *testing.T) {
+	each := worstCase(t, stdIn, stdOut, 10)
+	inputOnly := worstCase(t, stdIn, stdOut, 0)
+	budget := 4 * each
+	for _, tc := range sameModelFailoverCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			models := []modelSpec{{id: "m", in: "1", out: "2", maxOut: 10, deps: []depSpec{{"m-a", tc.firstUp}, {"m-b", "u2"}}}}
+			o := budgetOpts{budget: budget, policy: config.PolicyCheapest, models: models, ttftMs: tc.ttftMs}
+			if tc.upstream != nil {
+				o.upstream = tc.upstream(4)
+			}
+			e := newBudgetEnv(t, o)
+			var secondSaw money.PicoUSD
+			e.setOnUpstream(func(model string) {
+				if model == "u2" {
+					secondSaw = e.remaining()
+				}
+			})
+
+			rec := e.post(tc.body)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status %d, want 200 from the second deployment: %s", rec.Code, rec.Body.String())
+			}
+			if e.hit("u2") != 1 {
+				t.Errorf("the second deployment was called %d times, want 1", e.hit("u2"))
+			}
+			if want := budget - inputOnly - each; secondSaw != want {
+				t.Errorf("Remaining during the second attempt = %d, want %d: raised by the first attempt's charge", secondSaw, want)
+			}
+			if want := inputOnly + 5*stdIn + 4*stdOut; e.spent() != want {
+				t.Errorf("Spent = %d, want %d: the first attempt's input bound plus the second's usage", e.spent(), want)
+			}
+			if got := e.gw.BudgetOvershoot(); got != 0 {
+				t.Errorf("BudgetOvershoot = %d, want 0", got)
+			}
+		})
+	}
+}
+
 // TestBudgetCommitsActualUsage: the commit is the usage the provider reported, priced with
 // the model's prices, for a complete answer and for a stream, and nothing stays reserved.
 func TestBudgetCommitsActualUsage(t *testing.T) {

@@ -55,19 +55,20 @@ type attemptPlan struct {
 	// one, before the breaker is asked, and each pair issued comes with a slot to give back.
 	bulkhead *bulkhead
 
-	// gate, when set, rules once on each candidate, just before the first of its
-	// deployments that looks available is claimed. A candidate it refuses is skipped with all
-	// its deployments, and the skip is not an attempt. The budget uses it to raise the
-	// request's reservation before a pricier fallback is called.
-	gate  func(router.Candidate) bool
-	ruled int // index of the last candidate the gate ruled on, -1 before the first
+	// gate, when set, rules on each pair just before it is claimed, once the breaker looks to
+	// admit it. A candidate it refuses is skipped with all its deployments, and the skip is
+	// not an attempt. The budget uses it to raise the request's reservation before any
+	// further attempt is sent, whether to another model or to another deployment of the same
+	// one, since either can follow a billed attempt. It is cheap when the reservation already
+	// covers the pair.
+	gate func(router.Candidate) bool
 
 	ci, di int // cursor: the next pair is cands[ci].Deployments[di]
 	issued int // pairs returned so far
 }
 
 func (s *Server) newAttemptPlan(d router.Decision) *attemptPlan {
-	return &attemptPlan{health: s.health, cands: d.Candidates, max: s.cfg.Reliability.MaxAttempts, ruled: -1}
+	return &attemptPlan{health: s.health, cands: d.Candidates, max: s.cfg.Reliability.MaxAttempts}
 }
 
 // next returns the next pair whose breaker admits an attempt, with the output
@@ -91,12 +92,9 @@ func (p *attemptPlan) next() (catalog.Model, catalog.Deployment, int, hold, bool
 			}
 			continue
 		}
-		if p.gate != nil && p.ruled < p.ci && p.health.Available(dep.Name) {
-			p.ruled = p.ci
-			if !p.gate(c) {
-				p.ci, p.di = p.ci+1, 0
-				continue
-			}
+		if p.gate != nil && p.health.Available(dep.Name) && !p.gate(c) {
+			p.ci, p.di = p.ci+1, 0
+			continue
 		}
 		// The slot is taken before the breaker is asked, so a deployment that is full never
 		// takes a half-open probe it cannot use.
@@ -300,8 +298,8 @@ const (
 // (lastErr) it checks that another pair can be tried, waits out the backoff or
 // Retry-After, and rechecks the deadline before claiming anything, so a wait
 // that ran past the deadline never takes a half-open probe. For a tenant with a budget
-// it also raises the reservation before claiming a pair of a pricier model, and skips the
-// model when the raise is refused. On claimOK it has counted the attempt and recorded it
+// it also raises the reservation before claiming any pair after the first (a pricier model
+// or another deployment of the same one), and skips the model when the raise is refused. On claimOK it has counted the attempt and recorded it
 // for the request log and the budget (rs.attemptUsages); the caller owes the pair exactly
 // one settle or Abort of the returned hold's ticket and, when the hold carries a bulkhead
 // slot, one releaseSlot once the provider call returns. A claimClientGone has already marked

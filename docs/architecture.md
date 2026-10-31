@@ -139,7 +139,7 @@ The router returns candidates in the order to try them. Each carries the model, 
 **10. The attempt loop** (`attempts.go`, `proxy.go`, `stream.go`, `stream_attempt.go`). A context with the deadline covers every attempt and wait. `claimNext` hands out one (candidate, deployment) pair at a time:
 
 - It walks the candidates in order and, within a candidate, its deployments in config order: another deployment of the same model first, then the next candidate. At most `reliability.max_attempts` pairs are issued (default 3, at most 5). Skipped pairs are not attempts.
-- Before the first available deployment of a candidate, the budget gate rules on the candidate. It needs the cost of the attempts so far plus this candidate's `CostMax`. If the reservation already covers that, the candidate goes ahead. Otherwise the reservation is raised first; if the raise is refused (or the ledger fails) the candidate is skipped with all its deployments. `TestFallbackReReserveFailureSkipsModel` pins this.
+- Before each pair is claimed, the budget gate rules on its candidate. It needs the cost of the attempts so far plus this candidate's `CostMax`. If the reservation already covers that, the pair goes ahead. Otherwise the reservation is raised first; if the raise is refused (or the ledger fails) the candidate is skipped with all its deployments. This holds for another deployment of the same model as much as for the next model, since either follows a billed attempt. `TestFallbackReReserveFailureSkipsModel` and `TestSameModelFailoverReservesForWhatTheFirstAlreadyCost` pin this.
 - A non-streaming attempt on a deployment with `max_inflight` takes a bulkhead slot, or the deployment is skipped as if unavailable. The slot is returned when the provider call returns, on every path. Streams do not use the bulkhead.
 - The deployment's circuit breaker is asked (`Allow`). A breaker opens after 5 consecutive failures, or when at least half of at least 20 requests in a 30 second window failed. It stays open for 10 seconds and then admits one probe at a time; a failed probe reopens it for twice as long, up to 120 seconds. Breakers are per deployment and shared by all tenants.
 - The request sent upstream is a clone with the model replaced by the deployment's upstream model, the `routepilot` object removed, and, when the client set no output cap, `max_tokens` set to `K`, so a provider cannot produce more than was reserved.
@@ -338,7 +338,7 @@ sequenceDiagram
 
 The first reservation is the worst case of the first candidate only. The token limiter, by contrast, holds the largest candidate.
 
-**Re-reservation before a pricier fallback.** The gate described in step 10 asks for `cost of the attempts so far + CostMax of the candidate`. If that is above what is reserved, the reservation is raised; if the ledger refuses, the candidate is skipped. A fallback therefore never spends money that was not reserved.
+**Re-reservation before every further attempt.** The gate described in step 10 asks for `cost of the attempts so far + CostMax of the candidate`, before a fallback to a pricier model and equally before a failover to another deployment of the same model. If that is above what is reserved, the reservation is raised; if the ledger refuses, the candidate is skipped. A further attempt therefore never spends money that was not reserved.
 
 **What an attempt costs.** Each attempt sent gets a record (`attemptUsage` in `budget.go`), settled once:
 

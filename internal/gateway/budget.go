@@ -109,9 +109,10 @@ func (h *budgetHold) reserve(ctx context.Context, amount money.PicoUSD) (bool, e
 	return ok, nil
 }
 
-// gate is the attempt plan's check before it claims a deployment of candidate c. A failover
-// can end up charged for every attempt that was sent, so the reservation has to cover what
-// those attempts cost so far plus the worst case of this one. When it already does, the
+// gate is the attempt plan's check before it claims a deployment of candidate c, whether c
+// is the next model or another deployment of the one just tried. A failover can end up
+// charged for every attempt that was sent, so the reservation has to cover what those
+// attempts cost so far plus the worst case of this one. When it already does, the
 // candidate is approved; otherwise the reservation is raised first, and a candidate whose
 // raise is refused (or fails) is skipped.
 func (h *budgetHold) gate(ctx context.Context) func(router.Candidate) bool {
