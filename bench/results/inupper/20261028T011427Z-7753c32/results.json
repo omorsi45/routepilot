@@ -1,0 +1,2707 @@
+{
+  "ratio": "recorded prompt_tokens / in_upper, over records with prompt_tokens > 0",
+  "adjusted_ratio": "recorded prompt_tokens / (in_upper + prompt_overhead_tokens(model)), over records with prompt_tokens > 0",
+  "anomaly_rule": "prompt_tokens above 3 times the median prompt_tokens of the other models on the same item",
+  "percentiles": [
+    50.0,
+    99.0,
+    99.9
+  ],
+  "pools": {
+    "flagship": {
+      "items": 12067,
+      "records": 144804,
+      "records_nonpositive_prompt_tokens": 1878,
+      "overall": {
+        "n": 142926,
+        "max": 5.09273570324575,
+        "p50": 0.2672811059907834,
+        "p99": 1.797979797979798,
+        "p99_9": 2.5,
+        "count_gt_1": 4319
+      },
+      "per_dataset": {
+        "aime": {
+          "n": 709,
+          "max": 0.6482939632545932,
+          "p50": 0.2659758203799655,
+          "p99": 0.6122992557775164,
+          "p99_9": 0.6454629110958446,
+          "count_gt_1": 0
+        },
+        "arc-agi": {
+          "n": 4520,
+          "max": 0.9751545481307036,
+          "p50": 0.8174289009934873,
+          "p99": 0.9660877244627613,
+          "p99_9": 0.9699760407307577,
+          "count_gt_1": 0
+        },
+        "arenahard_coding": {
+          "n": 3006,
+          "max": 2.4776119402985075,
+          "p50": 0.24389339890433745,
+          "p99": 1.2243286764038765,
+          "p99_9": 1.9650097987980215,
+          "count_gt_1": 54
+        },
+        "arenahard_creative_writing": {
+          "n": 2996,
+          "max": 3.951219512195122,
+          "p50": 0.23618090452261306,
+          "p99": 1.871375398794755,
+          "p99_9": 3.3269812925170164,
+          "count_gt_1": 97
+        },
+        "arenahard_math": {
+          "n": 2920,
+          "max": 4.205128205128205,
+          "p50": 0.28294573643410853,
+          "p99": 1.7999500554938945,
+          "p99_9": 3.5401350000000003,
+          "count_gt_1": 86
+        },
+        "gpqa": {
+          "n": 2376,
+          "max": 0.7597911227154047,
+          "p50": 0.3063265710324534,
+          "p99": 0.6412216575570563,
+          "p99_9": 0.7075750682438662,
+          "count_gt_1": 0
+        },
+        "hle": {
+          "n": 24911,
+          "max": 0.9767353527680183,
+          "p50": 0.26485148514851486,
+          "p99": 0.6609457980838525,
+          "p99_9": 0.7750879197528878,
+          "count_gt_1": 0
+        },
+        "livecodebench": {
+          "n": 12444,
+          "max": 0.5576631259484067,
+          "p50": 0.29210861122271325,
+          "p99": 0.43748987947755075,
+          "p99_9": 0.4993634480734596,
+          "count_gt_1": 0
+        },
+        "livemathbench": {
+          "n": 1414,
+          "max": 5.09273570324575,
+          "p50": 0.26701875484179227,
+          "p99": 0.6672092713186994,
+          "p99_9": 0.7189481481481492,
+          "count_gt_1": 1
+        },
+        "mmlupro": {
+          "n": 35768,
+          "max": 0.9093851132686084,
+          "p50": 0.292910724896019,
+          "p99": 0.712742980561555,
+          "p99_9": 0.8388058835341516,
+          "count_gt_1": 0
+        },
+        "simpleqa": {
+          "n": 51862,
+          "max": 3.24,
+          "p50": 0.24390243902439024,
+          "p99": 2.0956855995410204,
+          "p99_9": 2.689222897937613,
+          "count_gt_1": 4081
+        }
+      },
+      "per_model": {
+        "claude-sonnet-4": {
+          "n": 12066,
+          "max": 0.9675596114218428,
+          "p50": 0.2857142857142857,
+          "p99": 0.8770045816881473,
+          "p99_9": 0.9516085509210869,
+          "count_gt_1": 0
+        },
+        "deepseek-r1-0528": {
+          "n": 12067,
+          "max": 0.9660877244627613,
+          "p50": 0.23185011709601874,
+          "p99": 0.8718902217038577,
+          "p99_9": 0.9496108979454729,
+          "count_gt_1": 0
+        },
+        "deepseek-v3-0324": {
+          "n": 12067,
+          "max": 0.9660877244627613,
+          "p50": 0.23185011709601874,
+          "p99": 0.8718902217038577,
+          "p99_9": 0.9496108979454729,
+          "count_gt_1": 0
+        },
+        "gemini-2.5-flash": {
+          "n": 12035,
+          "max": 0.9670886075949368,
+          "p50": 0.23183023872679046,
+          "p99": 0.8775469219216487,
+          "p99_9": 0.9511469097057179,
+          "count_gt_1": 0
+        },
+        "gemini-2.5-pro": {
+          "n": 11866,
+          "max": 0.9670886075949368,
+          "p50": 0.23105058521725186,
+          "p99": 0.8747726022797083,
+          "p99_9": 0.9506815551099831,
+          "count_gt_1": 0
+        },
+        "glm-4.6": {
+          "n": 12038,
+          "max": 0.9662054754194878,
+          "p50": 0.24675324675324675,
+          "p99": 0.8723981323426045,
+          "p99_9": 0.9497999159392495,
+          "count_gt_1": 0
+        },
+        "gpt-5": {
+          "n": 12056,
+          "max": 5.09273570324575,
+          "p50": 0.2524271844660194,
+          "p99": 0.8722083912742513,
+          "p99_9": 0.9501480842832387,
+          "count_gt_1": 1
+        },
+        "gpt-5-chat": {
+          "n": 12067,
+          "max": 0.9663232263762143,
+          "p50": 0.25842696629213485,
+          "p99": 0.8728031544717959,
+          "p99_9": 0.9499740626449651,
+          "count_gt_1": 0
+        },
+        "intern-s1": {
+          "n": 12067,
+          "max": 4.205128205128205,
+          "p50": 0.6563706563706564,
+          "p99": 2.5538461538461537,
+          "p99_9": 3.196078431372549,
+          "count_gt_1": 4318
+        },
+        "kimi-k2-0905": {
+          "n": 12065,
+          "max": 0.9675596114218428,
+          "p50": 0.35555555555555557,
+          "p99": 0.8809348420592945,
+          "p99_9": 0.95188116879218,
+          "count_gt_1": 0
+        },
+        "qwen3-235b-a22b-2507": {
+          "n": 11873,
+          "max": 0.9663821018545775,
+          "p50": 0.2717391304347826,
+          "p99": 0.8292814977685191,
+          "p99_9": 0.9447522297852622,
+          "count_gt_1": 0
+        },
+        "qwen3-235b-a22b-thinking-2507": {
+          "n": 10659,
+          "max": 0.9588948787061995,
+          "p50": 0.27610208816705334,
+          "p99": 0.7180195641739956,
+          "p99_9": 0.9331791626095424,
+          "count_gt_1": 0
+        }
+      },
+      "worst": [
+        {
+          "item_id": "livemathbench/7",
+          "dataset": "livemathbench",
+          "model": "gpt-5",
+          "prompt_tokens": 3295,
+          "in_upper": 647,
+          "ratio": 5.09273570324575
+        },
+        {
+          "item_id": "arenahard_math/287",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 164,
+          "in_upper": 39,
+          "ratio": 4.205128205128205
+        },
+        {
+          "item_id": "arenahard_creative_writing/523",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 162,
+          "in_upper": 41,
+          "ratio": 3.951219512195122
+        },
+        {
+          "item_id": "arenahard_creative_writing/668",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 162,
+          "in_upper": 43,
+          "ratio": 3.7674418604651163
+        },
+        {
+          "item_id": "arenahard_math/333",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 171,
+          "in_upper": 48,
+          "ratio": 3.5625
+        },
+        {
+          "item_id": "arenahard_math/289",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 170,
+          "in_upper": 48,
+          "ratio": 3.5416666666666665
+        },
+        {
+          "item_id": "arenahard_math/311",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 177,
+          "in_upper": 50,
+          "ratio": 3.54
+        },
+        {
+          "item_id": "arenahard_math/365",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 186,
+          "in_upper": 54,
+          "ratio": 3.4444444444444446
+        },
+        {
+          "item_id": "arenahard_creative_writing/697",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 164,
+          "in_upper": 48,
+          "ratio": 3.4166666666666665
+        },
+        {
+          "item_id": "arenahard_math/420",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 170,
+          "in_upper": 50,
+          "ratio": 3.4
+        },
+        {
+          "item_id": "arenahard_creative_writing/750",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 163,
+          "in_upper": 49,
+          "ratio": 3.326530612244898
+        },
+        {
+          "item_id": "arenahard_math/454",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 167,
+          "in_upper": 51,
+          "ratio": 3.2745098039215685
+        },
+        {
+          "item_id": "simpleqa/3757",
+          "dataset": "simpleqa",
+          "model": "intern-s1",
+          "prompt_tokens": 162,
+          "in_upper": 50,
+          "ratio": 3.24
+        },
+        {
+          "item_id": "arenahard_creative_writing/592",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 163,
+          "in_upper": 51,
+          "ratio": 3.196078431372549
+        },
+        {
+          "item_id": "arenahard_creative_writing/674",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 163,
+          "in_upper": 51,
+          "ratio": 3.196078431372549
+        },
+        {
+          "item_id": "arenahard_math/394",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 181,
+          "in_upper": 57,
+          "ratio": 3.175438596491228
+        },
+        {
+          "item_id": "arenahard_math/431",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 173,
+          "in_upper": 56,
+          "ratio": 3.0892857142857144
+        },
+        {
+          "item_id": "simpleqa/1112",
+          "dataset": "simpleqa",
+          "model": "intern-s1",
+          "prompt_tokens": 169,
+          "in_upper": 55,
+          "ratio": 3.0727272727272728
+        },
+        {
+          "item_id": "arenahard_creative_writing/599",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 168,
+          "in_upper": 55,
+          "ratio": 3.0545454545454547
+        },
+        {
+          "item_id": "arenahard_creative_writing/625",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 164,
+          "in_upper": 54,
+          "ratio": 3.037037037037037
+        }
+      ],
+      "adjusted": {
+        "bound": "in_upper + prompt_overhead_tokens(model)",
+        "prompt_overhead_tokens": {
+          "claude-sonnet-4": 0,
+          "deepseek-r1-0528": 0,
+          "deepseek-v3-0324": 0,
+          "gemini-2.5-flash": 0,
+          "gemini-2.5-pro": 0,
+          "glm-4.6": 0,
+          "gpt-5": 0,
+          "gpt-5-chat": 0,
+          "intern-s1": 68,
+          "kimi-k2-0905": 0,
+          "qwen3-235b-a22b-2507": 0,
+          "qwen3-235b-a22b-thinking-2507": 0
+        },
+        "per_split": {
+          "train": {
+            "n": 61268,
+            "max": 1.4741379310344827,
+            "p50": 0.26380368098159507,
+            "p99": 1.09109201773836,
+            "p99_9": 1.2661431372549166,
+            "count_gt_1": 1248,
+            "coverage": 0.979630475941764,
+            "n_anomalies": 2779,
+            "anomalies_by_model": {
+              "intern-s1": 2777,
+              "kimi-k2-0905": 2
+            },
+            "anomalies": [
+              {
+                "item_id": "simpleqa/3757",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 162,
+                "others_median": 11.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/599",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 12.0
+              },
+              {
+                "item_id": "simpleqa/101",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 13.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/697",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 13.5
+              },
+              {
+                "item_id": "simpleqa/1897",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/1279",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/1492",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/1501",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/1588",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/2072",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/3767",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/3785",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/3872",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/4154",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/625",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/674",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 163,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/646",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "simpleqa/1324",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "simpleqa/2688",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/501",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 15.0
+              }
+            ],
+            "without_anomalies": {
+              "n": 58489,
+              "max": 1.0,
+              "p50": 0.2600574712643678,
+              "p99": 0.8976224272533712,
+              "p99_9": 0.9587834681042235,
+              "count_gt_1": 0,
+              "coverage": 1.0
+            }
+          },
+          "calib": {
+            "n": 20952,
+            "max": 1.4862385321100917,
+            "p50": 0.2646477600142331,
+            "p99": 1.1025641025641026,
+            "p99_9": 1.2591968951154977,
+            "count_gt_1": 450,
+            "coverage": 0.9785223367697594,
+            "n_anomalies": 941,
+            "anomalies_by_model": {
+              "intern-s1": 939,
+              "kimi-k2-0905": 2
+            },
+            "anomalies": [
+              {
+                "item_id": "simpleqa/4277",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 163,
+                "others_median": 12.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/523",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 162,
+                "others_median": 12.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/668",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 162,
+                "others_median": 12.0
+              },
+              {
+                "item_id": "simpleqa/1568",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 13.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/750",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 163,
+                "others_median": 13.0
+              },
+              {
+                "item_id": "simpleqa/1281",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/1748",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/2889",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/3857",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/4115",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/1043",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "simpleqa/185",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "simpleqa/2958",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "simpleqa/3028",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "simpleqa/2337",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/968",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_math/353",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_math/454",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/1142",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/1146",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              }
+            ],
+            "without_anomalies": {
+              "n": 20011,
+              "max": 0.957479601087942,
+              "p50": 0.2608695652173913,
+              "p99": 0.8818821096173737,
+              "p99_9": 0.9444478854156588,
+              "count_gt_1": 0,
+              "coverage": 1.0
+            }
+          },
+          "test": {
+            "n": 20518,
+            "max": 1.5327102803738317,
+            "p50": 0.2634569570536347,
+            "p99": 1.0955414012738853,
+            "p99_9": 1.2872530240751823,
+            "count_gt_1": 430,
+            "coverage": 0.979042791695097,
+            "n_anomalies": 937,
+            "anomalies_by_model": {
+              "intern-s1": 937
+            },
+            "anomalies": [
+              {
+                "item_id": "arenahard_creative_writing/592",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 163,
+                "others_median": 13.0
+              },
+              {
+                "item_id": "simpleqa/2107",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/3817",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/56",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/634",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/654",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "arenahard_math/287",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "simpleqa/4026",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "simpleqa/864",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/1062",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/1156",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/4054",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/1212",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/1366",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/2846",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/3200",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/3247",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/3530",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/4113",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "simpleqa/4182",
+                "dataset": "simpleqa",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 16.0
+              }
+            ],
+            "without_anomalies": {
+              "n": 19581,
+              "max": 0.971266052893919,
+              "p50": 0.2597402597402597,
+              "p99": 0.911251454213063,
+              "p99_9": 0.9575577100646354,
+              "count_gt_1": 0,
+              "coverage": 1.0
+            }
+          },
+          "heldout": {
+            "n": 40188,
+            "max": 5.09273570324575,
+            "p50": 0.28272251308900526,
+            "p99": 0.6340403710951655,
+            "p99_9": 0.8088961611076213,
+            "count_gt_1": 14,
+            "coverage": 0.9996516373046681,
+            "n_anomalies": 84,
+            "anomalies_by_model": {
+              "gpt-5": 1,
+              "intern-s1": 83
+            },
+            "anomalies": [
+              {
+                "item_id": "livemathbench/7",
+                "dataset": "livemathbench",
+                "model": "gpt-5",
+                "prompt_tokens": 3295,
+                "others_median": 180.5
+              },
+              {
+                "item_id": "arenahard_coding/107",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_coding/186",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_coding/116",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 19.0
+              },
+              {
+                "item_id": "arenahard_coding/137",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 19.0
+              },
+              {
+                "item_id": "arenahard_coding/64",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 19.0
+              },
+              {
+                "item_id": "arenahard_coding/104",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_coding/246",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_coding/15",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 21.0
+              },
+              {
+                "item_id": "arenahard_coding/26",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 174,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_coding/215",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_coding/63",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_coding/78",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 172,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_coding/56",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 25.0
+              },
+              {
+                "item_id": "arenahard_coding/135",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 26.0
+              },
+              {
+                "item_id": "arenahard_coding/183",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 26.0
+              },
+              {
+                "item_id": "arenahard_coding/187",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 26.0
+              },
+              {
+                "item_id": "arenahard_coding/82",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 26.0
+              },
+              {
+                "item_id": "arenahard_coding/2",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 178,
+                "others_median": 27.0
+              },
+              {
+                "item_id": "arenahard_coding/125",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 177,
+                "others_median": 27.0
+              }
+            ],
+            "without_anomalies": {
+              "n": 40104,
+              "max": 0.8375451263537906,
+              "p50": 0.28242376376110834,
+              "p99": 0.6219505279173775,
+              "p99_9": 0.7115294736091831,
+              "count_gt_1": 0,
+              "coverage": 1.0
+            }
+          }
+        },
+        "worst": [
+          {
+            "item_id": "livemathbench/7",
+            "dataset": "livemathbench",
+            "split": "heldout",
+            "model": "gpt-5",
+            "prompt_tokens": 3295,
+            "in_upper": 647,
+            "prompt_overhead": 0,
+            "bound": 647,
+            "ratio": 5.09273570324575,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/287",
+            "dataset": "arenahard_math",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 164,
+            "in_upper": 39,
+            "prompt_overhead": 68,
+            "bound": 107,
+            "ratio": 1.5327102803738317,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/365",
+            "dataset": "arenahard_math",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 186,
+            "in_upper": 54,
+            "prompt_overhead": 68,
+            "bound": 122,
+            "ratio": 1.5245901639344261,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/311",
+            "dataset": "arenahard_math",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 177,
+            "in_upper": 50,
+            "prompt_overhead": 68,
+            "bound": 118,
+            "ratio": 1.5,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/523",
+            "dataset": "arenahard_creative_writing",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 162,
+            "in_upper": 41,
+            "prompt_overhead": 68,
+            "bound": 109,
+            "ratio": 1.4862385321100917,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/333",
+            "dataset": "arenahard_math",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 171,
+            "in_upper": 48,
+            "prompt_overhead": 68,
+            "bound": 116,
+            "ratio": 1.4741379310344827,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/289",
+            "dataset": "arenahard_math",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 170,
+            "in_upper": 48,
+            "prompt_overhead": 68,
+            "bound": 116,
+            "ratio": 1.4655172413793103,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/668",
+            "dataset": "arenahard_creative_writing",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 162,
+            "in_upper": 43,
+            "prompt_overhead": 68,
+            "bound": 111,
+            "ratio": 1.4594594594594594,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/394",
+            "dataset": "arenahard_math",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 181,
+            "in_upper": 57,
+            "prompt_overhead": 68,
+            "bound": 125,
+            "ratio": 1.448,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/420",
+            "dataset": "arenahard_math",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 170,
+            "in_upper": 50,
+            "prompt_overhead": 68,
+            "bound": 118,
+            "ratio": 1.4406779661016949,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/697",
+            "dataset": "arenahard_creative_writing",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 164,
+            "in_upper": 48,
+            "prompt_overhead": 68,
+            "bound": 116,
+            "ratio": 1.4137931034482758,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/454",
+            "dataset": "arenahard_math",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 167,
+            "in_upper": 51,
+            "prompt_overhead": 68,
+            "bound": 119,
+            "ratio": 1.403361344537815,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/417",
+            "dataset": "arenahard_math",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 182,
+            "in_upper": 62,
+            "prompt_overhead": 68,
+            "bound": 130,
+            "ratio": 1.4,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/431",
+            "dataset": "arenahard_math",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 173,
+            "in_upper": 56,
+            "prompt_overhead": 68,
+            "bound": 124,
+            "ratio": 1.3951612903225807,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/750",
+            "dataset": "arenahard_creative_writing",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 163,
+            "in_upper": 49,
+            "prompt_overhead": 68,
+            "bound": 117,
+            "ratio": 1.393162393162393,
+            "anomaly": true
+          },
+          {
+            "item_id": "simpleqa/1112",
+            "dataset": "simpleqa",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 169,
+            "in_upper": 55,
+            "prompt_overhead": 68,
+            "bound": 123,
+            "ratio": 1.3739837398373984,
+            "anomaly": true
+          },
+          {
+            "item_id": "simpleqa/3757",
+            "dataset": "simpleqa",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 162,
+            "in_upper": 50,
+            "prompt_overhead": 68,
+            "bound": 118,
+            "ratio": 1.3728813559322033,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/592",
+            "dataset": "arenahard_creative_writing",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 163,
+            "in_upper": 51,
+            "prompt_overhead": 68,
+            "bound": 119,
+            "ratio": 1.3697478991596639,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/674",
+            "dataset": "arenahard_creative_writing",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 163,
+            "in_upper": 51,
+            "prompt_overhead": 68,
+            "bound": 119,
+            "ratio": 1.3697478991596639,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/599",
+            "dataset": "arenahard_creative_writing",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 168,
+            "in_upper": 55,
+            "prompt_overhead": 68,
+            "bound": 123,
+            "ratio": 1.3658536585365855,
+            "anomaly": true
+          }
+        ]
+      },
+      "sensitivity_no_exclusion": {
+        "prompt_overhead_tokens": {
+          "claude-sonnet-4": 0,
+          "deepseek-r1-0528": 0,
+          "deepseek-v3-0324": 0,
+          "gemini-2.5-flash": 0,
+          "gemini-2.5-pro": 0,
+          "glm-4.6": 0,
+          "gpt-5": 0,
+          "gpt-5-chat": 0,
+          "intern-s1": 124,
+          "kimi-k2-0905": 0,
+          "qwen3-235b-a22b-2507": 0,
+          "qwen3-235b-a22b-thinking-2507": 0
+        },
+        "per_split": {
+          "train": {
+            "n": 61268,
+            "max": 1.0,
+            "p50": 0.26375,
+            "p99": 0.898540274252142,
+            "p99_9": 0.9587451332734351,
+            "count_gt_1": 0,
+            "coverage": 1.0
+          },
+          "calib": {
+            "n": 20952,
+            "max": 0.9883720930232558,
+            "p50": 0.2646477600142331,
+            "p99": 0.8888888888888888,
+            "p99_9": 0.9446481176812157,
+            "count_gt_1": 0,
+            "coverage": 1.0
+          },
+          "test": {
+            "n": 20518,
+            "max": 1.0449438202247192,
+            "p50": 0.2634569570536347,
+            "p99": 0.9115614923998158,
+            "p99_9": 0.9580137734687623,
+            "count_gt_1": 3,
+            "coverage": 0.999853786918803
+          },
+          "heldout": {
+            "n": 40188,
+            "max": 5.09273570324575,
+            "p50": 0.28214378671822715,
+            "p99": 0.5794141804426035,
+            "p99_9": 0.6740682309221356,
+            "count_gt_1": 1,
+            "coverage": 0.9999751169503335
+          }
+        }
+      }
+    },
+    "mixed": {
+      "items": 3182,
+      "records": 50912,
+      "records_nonpositive_prompt_tokens": 391,
+      "overall": {
+        "n": 50521,
+        "max": 5.09273570324575,
+        "p50": 0.2826530612244898,
+        "p99": 0.7172191173236774,
+        "p99_9": 2.0051764705883484,
+        "count_gt_1": 238
+      },
+      "per_dataset": {
+        "aime": {
+          "n": 949,
+          "max": 0.6482939632545932,
+          "p50": 0.26714801444043323,
+          "p99": 0.6014807909860173,
+          "p99_9": 0.6445032323979641,
+          "count_gt_1": 0
+        },
+        "arenahard_coding": {
+          "n": 4018,
+          "max": 2.4776119402985075,
+          "p50": 0.24390243902439024,
+          "p99": 1.1174803921568628,
+          "p99_9": 1.9436161899897932,
+          "count_gt_1": 54
+        },
+        "arenahard_creative_writing": {
+          "n": 3996,
+          "max": 3.951219512195122,
+          "p50": 0.2390620727372163,
+          "p99": 1.62579514824799,
+          "p99_9": 3.1967306922769847,
+          "count_gt_1": 97
+        },
+        "arenahard_math": {
+          "n": 3901,
+          "max": 4.205128205128205,
+          "p50": 0.28484848484848485,
+          "p99": 1.5072463768115942,
+          "p99_9": 3.454000000000035,
+          "count_gt_1": 86
+        },
+        "gpqa": {
+          "n": 3168,
+          "max": 0.7597911227154047,
+          "p50": 0.3044000933706816,
+          "p99": 0.6260609527632811,
+          "p99_9": 0.6936097581283134,
+          "count_gt_1": 0
+        },
+        "livecodebench": {
+          "n": 16664,
+          "max": 0.5576631259484067,
+          "p50": 0.2908246087425796,
+          "p99": 0.4341688917382482,
+          "p99_9": 0.49925317401045555,
+          "count_gt_1": 0
+        },
+        "livemathbench": {
+          "n": 1898,
+          "max": 5.09273570324575,
+          "p50": 0.2692307692307692,
+          "p99": 0.659428504857385,
+          "p99_9": 0.7165580246913594,
+          "count_gt_1": 1
+        },
+        "mmlupro": {
+          "n": 15927,
+          "max": 0.9027355623100304,
+          "p50": 0.28893905191873587,
+          "p99": 0.6754178644763859,
+          "p99_9": 0.820042042042049,
+          "count_gt_1": 0
+        }
+      },
+      "per_model": {
+        "DeepSeek-R1-0528-Qwen3-8B": {
+          "n": 3182,
+          "max": 0.9137463382879462,
+          "p50": 0.26971298813733163,
+          "p99": 0.48446404983610836,
+          "p99_9": 0.6358024691358025,
+          "count_gt_1": 0
+        },
+        "Llama-3.1-Nemotron-Nano-8B-v1": {
+          "n": 3182,
+          "max": 0.8170731707317073,
+          "p50": 0.2836803960763258,
+          "p99": 0.47957243401759536,
+          "p99_9": 0.6251577060931961,
+          "count_gt_1": 0
+        },
+        "NVIDIA-Nemotron-Nano-9B-v2": {
+          "n": 3175,
+          "max": 0.9161332320711728,
+          "p50": 0.2889273356401384,
+          "p99": 0.5184659948503946,
+          "p99_9": 0.6965731456245579,
+          "count_gt_1": 0
+        },
+        "Qwen3-8B": {
+          "n": 3182,
+          "max": 0.9142888141477704,
+          "p50": 0.27727308790860045,
+          "p99": 0.5016835147847167,
+          "p99_9": 0.6720696736224229,
+          "count_gt_1": 0
+        },
+        "claude-sonnet-4": {
+          "n": 3181,
+          "max": 0.6851851851851852,
+          "p50": 0.3022801302931596,
+          "p99": 0.5170598091352807,
+          "p99_9": 0.6308853615520287,
+          "count_gt_1": 0
+        },
+        "deepseek-r1-0528": {
+          "n": 3182,
+          "max": 0.6502057613168725,
+          "p50": 0.26279711772412506,
+          "p99": 0.42996339679721973,
+          "p99_9": 0.5144665244906222,
+          "count_gt_1": 0
+        },
+        "deepseek-v3-0324": {
+          "n": 3182,
+          "max": 0.6502057613168725,
+          "p50": 0.26279711772412506,
+          "p99": 0.42996339679721973,
+          "p99_9": 0.5144665244906222,
+          "count_gt_1": 0
+        },
+        "gemini-2.5-flash": {
+          "n": 3176,
+          "max": 0.9186286210263643,
+          "p50": 0.2752816282010828,
+          "p99": 0.49275512710303326,
+          "p99_9": 0.632225773795544,
+          "count_gt_1": 0
+        },
+        "gemini-2.5-pro": {
+          "n": 3061,
+          "max": 0.9186286210263643,
+          "p50": 0.2731707317073171,
+          "p99": 0.49350226244343903,
+          "p99_9": 0.6334171914792123,
+          "count_gt_1": 0
+        },
+        "glm-4.6": {
+          "n": 3177,
+          "max": 0.8048780487804879,
+          "p50": 0.27052489905787347,
+          "p99": 0.4604886774080935,
+          "p99_9": 0.5883548836891699,
+          "count_gt_1": 0
+        },
+        "gpt-5": {
+          "n": 3181,
+          "max": 5.09273570324575,
+          "p50": 0.2692307692307692,
+          "p99": 0.44569032664357566,
+          "p99_9": 0.5429094265514552,
+          "count_gt_1": 1
+        },
+        "gpt-5-chat": {
+          "n": 3182,
+          "max": 0.6378600823045267,
+          "p50": 0.2706462327276245,
+          "p99": 0.4477295932585021,
+          "p99_9": 0.5365183294056048,
+          "count_gt_1": 0
+        },
+        "intern-s1": {
+          "n": 3182,
+          "max": 4.205128205128205,
+          "p50": 0.43826575177768995,
+          "p99": 2.3451964769647704,
+          "p99_9": 3.558729166666675,
+          "count_gt_1": 237
+        },
+        "kimi-k2-0905": {
+          "n": 3180,
+          "max": 0.9444444444444444,
+          "p50": 0.29946357128478684,
+          "p99": 0.6365508021390375,
+          "p99_9": 0.892923255813968,
+          "count_gt_1": 0
+        },
+        "qwen3-235b-a22b-2507": {
+          "n": 3174,
+          "max": 0.9142888141477704,
+          "p50": 0.2793645290560728,
+          "p99": 0.5019434797125872,
+          "p99_9": 0.6723435368879764,
+          "count_gt_1": 0
+        },
+        "qwen3-235b-a22b-thinking-2507": {
+          "n": 2942,
+          "max": 0.75,
+          "p50": 0.27948179401869855,
+          "p99": 0.49321619771225184,
+          "p99_9": 0.6448378099036576,
+          "count_gt_1": 0
+        }
+      },
+      "worst": [
+        {
+          "item_id": "livemathbench/7",
+          "dataset": "livemathbench",
+          "model": "gpt-5",
+          "prompt_tokens": 3295,
+          "in_upper": 647,
+          "ratio": 5.09273570324575
+        },
+        {
+          "item_id": "arenahard_math/287",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 164,
+          "in_upper": 39,
+          "ratio": 4.205128205128205
+        },
+        {
+          "item_id": "arenahard_creative_writing/523",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 162,
+          "in_upper": 41,
+          "ratio": 3.951219512195122
+        },
+        {
+          "item_id": "arenahard_creative_writing/668",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 162,
+          "in_upper": 43,
+          "ratio": 3.7674418604651163
+        },
+        {
+          "item_id": "arenahard_math/333",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 171,
+          "in_upper": 48,
+          "ratio": 3.5625
+        },
+        {
+          "item_id": "arenahard_math/289",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 170,
+          "in_upper": 48,
+          "ratio": 3.5416666666666665
+        },
+        {
+          "item_id": "arenahard_math/311",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 177,
+          "in_upper": 50,
+          "ratio": 3.54
+        },
+        {
+          "item_id": "arenahard_math/365",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 186,
+          "in_upper": 54,
+          "ratio": 3.4444444444444446
+        },
+        {
+          "item_id": "arenahard_creative_writing/697",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 164,
+          "in_upper": 48,
+          "ratio": 3.4166666666666665
+        },
+        {
+          "item_id": "arenahard_math/420",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 170,
+          "in_upper": 50,
+          "ratio": 3.4
+        },
+        {
+          "item_id": "arenahard_creative_writing/750",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 163,
+          "in_upper": 49,
+          "ratio": 3.326530612244898
+        },
+        {
+          "item_id": "arenahard_math/454",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 167,
+          "in_upper": 51,
+          "ratio": 3.2745098039215685
+        },
+        {
+          "item_id": "arenahard_creative_writing/592",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 163,
+          "in_upper": 51,
+          "ratio": 3.196078431372549
+        },
+        {
+          "item_id": "arenahard_creative_writing/674",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 163,
+          "in_upper": 51,
+          "ratio": 3.196078431372549
+        },
+        {
+          "item_id": "arenahard_math/394",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 181,
+          "in_upper": 57,
+          "ratio": 3.175438596491228
+        },
+        {
+          "item_id": "arenahard_math/431",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 173,
+          "in_upper": 56,
+          "ratio": 3.0892857142857144
+        },
+        {
+          "item_id": "arenahard_creative_writing/599",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 168,
+          "in_upper": 55,
+          "ratio": 3.0545454545454547
+        },
+        {
+          "item_id": "arenahard_creative_writing/625",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 164,
+          "in_upper": 54,
+          "ratio": 3.037037037037037
+        },
+        {
+          "item_id": "arenahard_creative_writing/501",
+          "dataset": "arenahard_creative_writing",
+          "model": "intern-s1",
+          "prompt_tokens": 166,
+          "in_upper": 56,
+          "ratio": 2.9642857142857144
+        },
+        {
+          "item_id": "arenahard_math/417",
+          "dataset": "arenahard_math",
+          "model": "intern-s1",
+          "prompt_tokens": 182,
+          "in_upper": 62,
+          "ratio": 2.935483870967742
+        }
+      ],
+      "adjusted": {
+        "bound": "in_upper + prompt_overhead_tokens(model)",
+        "prompt_overhead_tokens": {
+          "DeepSeek-R1-0528-Qwen3-8B": 0,
+          "Llama-3.1-Nemotron-Nano-8B-v1": 0,
+          "NVIDIA-Nemotron-Nano-9B-v2": 0,
+          "Qwen3-8B": 0,
+          "claude-sonnet-4": 0,
+          "deepseek-r1-0528": 0,
+          "deepseek-v3-0324": 0,
+          "gemini-2.5-flash": 0,
+          "gemini-2.5-pro": 0,
+          "glm-4.6": 0,
+          "gpt-5": 0,
+          "gpt-5-chat": 0,
+          "intern-s1": 68,
+          "kimi-k2-0905": 0,
+          "qwen3-235b-a22b-2507": 0,
+          "qwen3-235b-a22b-thinking-2507": 0
+        },
+        "per_split": {
+          "train": {
+            "n": 16904,
+            "max": 1.4741379310344827,
+            "p50": 0.2849587190180721,
+            "p99": 0.640571738052359,
+            "p99_9": 1.1889305418719653,
+            "count_gt_1": 41,
+            "coverage": 0.9975745385707525,
+            "n_anomalies": 143,
+            "anomalies_by_model": {
+              "intern-s1": 143
+            },
+            "anomalies": [
+              {
+                "item_id": "arenahard_creative_writing/674",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 163,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/697",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 14.5
+              },
+              {
+                "item_id": "arenahard_creative_writing/625",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/599",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/646",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/501",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/529",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_math/442",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 168,
+                "others_median": 17.5
+              },
+              {
+                "item_id": "arenahard_math/351",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 19.5
+              },
+              {
+                "item_id": "arenahard_creative_writing/721",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/597",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/618",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_math/394",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 181,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_math/333",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 171,
+                "others_median": 21.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/550",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 21.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/718",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 21.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/734",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 21.0
+              },
+              {
+                "item_id": "arenahard_math/453",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_math/309",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 172,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/544",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 171,
+                "others_median": 22.0
+              }
+            ],
+            "without_anomalies": {
+              "n": 16761,
+              "max": 1.0,
+              "p50": 0.2843601895734597,
+              "p99": 0.5288658641574415,
+              "p99_9": 0.6867981819940152,
+              "count_gt_1": 0,
+              "coverage": 1.0
+            }
+          },
+          "calib": {
+            "n": 6050,
+            "max": 1.4862385321100917,
+            "p50": 0.2894069944247339,
+            "p99": 0.6890276972882258,
+            "p99_9": 1.2497566225165608,
+            "count_gt_1": 19,
+            "coverage": 0.9968595041322315,
+            "n_anomalies": 55,
+            "anomalies_by_model": {
+              "intern-s1": 55
+            },
+            "anomalies": [
+              {
+                "item_id": "arenahard_creative_writing/750",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 163,
+                "others_median": 13.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/523",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 162,
+                "others_median": 13.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/668",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 162,
+                "others_median": 13.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/732",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 17.0
+              },
+              {
+                "item_id": "arenahard_math/353",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 17.0
+              },
+              {
+                "item_id": "arenahard_math/445",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 165,
+                "others_median": 17.0
+              },
+              {
+                "item_id": "arenahard_math/270",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 18.0
+              },
+              {
+                "item_id": "arenahard_math/454",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 167,
+                "others_median": 18.0
+              },
+              {
+                "item_id": "arenahard_math/289",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 19.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/627",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/516",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 172,
+                "others_median": 23.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/706",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 24.0
+              },
+              {
+                "item_id": "arenahard_math/324",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 174,
+                "others_median": 25.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/730",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 175,
+                "others_median": 26.0
+              },
+              {
+                "item_id": "arenahard_math/272",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 175,
+                "others_median": 26.0
+              },
+              {
+                "item_id": "arenahard_math/444",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 26.5
+              },
+              {
+                "item_id": "arenahard_creative_writing/666",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 27.0
+              },
+              {
+                "item_id": "arenahard_math/392",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 179,
+                "others_median": 31.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/715",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 187,
+                "others_median": 33.0
+              },
+              {
+                "item_id": "arenahard_math/317",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 185,
+                "others_median": 33.0
+              }
+            ],
+            "without_anomalies": {
+              "n": 5995,
+              "max": 0.9024390243902439,
+              "p50": 0.28888888888888886,
+              "p99": 0.5131949973460734,
+              "p99_9": 0.7329758768092397,
+              "count_gt_1": 0,
+              "coverage": 1.0
+            }
+          },
+          "test": {
+            "n": 5724,
+            "max": 1.5327102803738317,
+            "p50": 0.28683230954905553,
+            "p99": 0.6903510802469123,
+            "p99_9": 1.312,
+            "count_gt_1": 17,
+            "coverage": 0.9970300489168413,
+            "n_anomalies": 58,
+            "anomalies_by_model": {
+              "intern-s1": 58
+            },
+            "anomalies": [
+              {
+                "item_id": "arenahard_creative_writing/592",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 163,
+                "others_median": 13.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/634",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 14.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/654",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "arenahard_math/287",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 164,
+                "others_median": 15.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/748",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 172,
+                "others_median": 18.0
+              },
+              {
+                "item_id": "arenahard_math/311",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 177,
+                "others_median": 19.5
+              },
+              {
+                "item_id": "arenahard_math/397",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 21.0
+              },
+              {
+                "item_id": "arenahard_math/319",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 172,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/739",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 23.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/703",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 172,
+                "others_median": 23.0
+              },
+              {
+                "item_id": "arenahard_math/332",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 172,
+                "others_median": 23.0
+              },
+              {
+                "item_id": "arenahard_math/337",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 174,
+                "others_median": 24.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/682",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 178,
+                "others_median": 26.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/562",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 177,
+                "others_median": 27.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/553",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 177,
+                "others_median": 28.0
+              },
+              {
+                "item_id": "arenahard_math/455",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 181,
+                "others_median": 30.0
+              },
+              {
+                "item_id": "arenahard_math/352",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 181,
+                "others_median": 31.0
+              },
+              {
+                "item_id": "arenahard_math/365",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 186,
+                "others_median": 32.0
+              },
+              {
+                "item_id": "arenahard_math/417",
+                "dataset": "arenahard_math",
+                "model": "intern-s1",
+                "prompt_tokens": 182,
+                "others_median": 32.0
+              },
+              {
+                "item_id": "arenahard_creative_writing/540",
+                "dataset": "arenahard_creative_writing",
+                "model": "intern-s1",
+                "prompt_tokens": 187,
+                "others_median": 34.0
+              }
+            ],
+            "without_anomalies": {
+              "n": 5666,
+              "max": 0.9444444444444444,
+              "p50": 0.286285018292594,
+              "p99": 0.5524058410713739,
+              "p99_9": 0.914906694152112,
+              "count_gt_1": 0,
+              "coverage": 1.0
+            }
+          },
+          "heldout": {
+            "n": 21843,
+            "max": 5.09273570324575,
+            "p50": 0.272108843537415,
+            "p99": 0.6211416325735423,
+            "p99_9": 0.9118124401914407,
+            "count_gt_1": 14,
+            "coverage": 0.9993590623998535,
+            "n_anomalies": 82,
+            "anomalies_by_model": {
+              "gpt-5": 1,
+              "intern-s1": 81
+            },
+            "anomalies": [
+              {
+                "item_id": "livemathbench/7",
+                "dataset": "livemathbench",
+                "model": "gpt-5",
+                "prompt_tokens": 3295,
+                "others_median": 182.0
+              },
+              {
+                "item_id": "arenahard_coding/186",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 16.0
+              },
+              {
+                "item_id": "arenahard_coding/107",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 166,
+                "others_median": 17.0
+              },
+              {
+                "item_id": "arenahard_coding/64",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 19.0
+              },
+              {
+                "item_id": "arenahard_coding/104",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_coding/246",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 170,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_coding/116",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_coding/137",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 169,
+                "others_median": 20.0
+              },
+              {
+                "item_id": "arenahard_coding/15",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 21.0
+              },
+              {
+                "item_id": "arenahard_coding/78",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 172,
+                "others_median": 22.0
+              },
+              {
+                "item_id": "arenahard_coding/215",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 23.0
+              },
+              {
+                "item_id": "arenahard_coding/63",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 173,
+                "others_median": 24.0
+              },
+              {
+                "item_id": "arenahard_coding/26",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 174,
+                "others_median": 25.0
+              },
+              {
+                "item_id": "arenahard_coding/183",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 26.0
+              },
+              {
+                "item_id": "arenahard_coding/195",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 177,
+                "others_median": 27.0
+              },
+              {
+                "item_id": "arenahard_coding/241",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 177,
+                "others_median": 27.0
+              },
+              {
+                "item_id": "arenahard_coding/135",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 27.0
+              },
+              {
+                "item_id": "arenahard_coding/187",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 27.0
+              },
+              {
+                "item_id": "arenahard_coding/56",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 27.0
+              },
+              {
+                "item_id": "arenahard_coding/82",
+                "dataset": "arenahard_coding",
+                "model": "intern-s1",
+                "prompt_tokens": 176,
+                "others_median": 27.0
+              }
+            ],
+            "without_anomalies": {
+              "n": 21761,
+              "max": 0.8375451263537906,
+              "p50": 0.271617497456765,
+              "p99": 0.5961295980672818,
+              "p99_9": 0.7009861424427977,
+              "count_gt_1": 0,
+              "coverage": 1.0
+            }
+          }
+        },
+        "worst": [
+          {
+            "item_id": "livemathbench/7",
+            "dataset": "livemathbench",
+            "split": "heldout",
+            "model": "gpt-5",
+            "prompt_tokens": 3295,
+            "in_upper": 647,
+            "prompt_overhead": 0,
+            "bound": 647,
+            "ratio": 5.09273570324575,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/287",
+            "dataset": "arenahard_math",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 164,
+            "in_upper": 39,
+            "prompt_overhead": 68,
+            "bound": 107,
+            "ratio": 1.5327102803738317,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/365",
+            "dataset": "arenahard_math",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 186,
+            "in_upper": 54,
+            "prompt_overhead": 68,
+            "bound": 122,
+            "ratio": 1.5245901639344261,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/311",
+            "dataset": "arenahard_math",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 177,
+            "in_upper": 50,
+            "prompt_overhead": 68,
+            "bound": 118,
+            "ratio": 1.5,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/523",
+            "dataset": "arenahard_creative_writing",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 162,
+            "in_upper": 41,
+            "prompt_overhead": 68,
+            "bound": 109,
+            "ratio": 1.4862385321100917,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/333",
+            "dataset": "arenahard_math",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 171,
+            "in_upper": 48,
+            "prompt_overhead": 68,
+            "bound": 116,
+            "ratio": 1.4741379310344827,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/289",
+            "dataset": "arenahard_math",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 170,
+            "in_upper": 48,
+            "prompt_overhead": 68,
+            "bound": 116,
+            "ratio": 1.4655172413793103,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/668",
+            "dataset": "arenahard_creative_writing",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 162,
+            "in_upper": 43,
+            "prompt_overhead": 68,
+            "bound": 111,
+            "ratio": 1.4594594594594594,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/394",
+            "dataset": "arenahard_math",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 181,
+            "in_upper": 57,
+            "prompt_overhead": 68,
+            "bound": 125,
+            "ratio": 1.448,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/420",
+            "dataset": "arenahard_math",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 170,
+            "in_upper": 50,
+            "prompt_overhead": 68,
+            "bound": 118,
+            "ratio": 1.4406779661016949,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/697",
+            "dataset": "arenahard_creative_writing",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 164,
+            "in_upper": 48,
+            "prompt_overhead": 68,
+            "bound": 116,
+            "ratio": 1.4137931034482758,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/454",
+            "dataset": "arenahard_math",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 167,
+            "in_upper": 51,
+            "prompt_overhead": 68,
+            "bound": 119,
+            "ratio": 1.403361344537815,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/417",
+            "dataset": "arenahard_math",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 182,
+            "in_upper": 62,
+            "prompt_overhead": 68,
+            "bound": 130,
+            "ratio": 1.4,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_math/431",
+            "dataset": "arenahard_math",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 173,
+            "in_upper": 56,
+            "prompt_overhead": 68,
+            "bound": 124,
+            "ratio": 1.3951612903225807,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/750",
+            "dataset": "arenahard_creative_writing",
+            "split": "calib",
+            "model": "intern-s1",
+            "prompt_tokens": 163,
+            "in_upper": 49,
+            "prompt_overhead": 68,
+            "bound": 117,
+            "ratio": 1.393162393162393,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/592",
+            "dataset": "arenahard_creative_writing",
+            "split": "test",
+            "model": "intern-s1",
+            "prompt_tokens": 163,
+            "in_upper": 51,
+            "prompt_overhead": 68,
+            "bound": 119,
+            "ratio": 1.3697478991596639,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/674",
+            "dataset": "arenahard_creative_writing",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 163,
+            "in_upper": 51,
+            "prompt_overhead": 68,
+            "bound": 119,
+            "ratio": 1.3697478991596639,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/599",
+            "dataset": "arenahard_creative_writing",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 168,
+            "in_upper": 55,
+            "prompt_overhead": 68,
+            "bound": 123,
+            "ratio": 1.3658536585365855,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/625",
+            "dataset": "arenahard_creative_writing",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 164,
+            "in_upper": 54,
+            "prompt_overhead": 68,
+            "bound": 122,
+            "ratio": 1.3442622950819672,
+            "anomaly": true
+          },
+          {
+            "item_id": "arenahard_creative_writing/501",
+            "dataset": "arenahard_creative_writing",
+            "split": "train",
+            "model": "intern-s1",
+            "prompt_tokens": 166,
+            "in_upper": 56,
+            "prompt_overhead": 68,
+            "bound": 124,
+            "ratio": 1.3387096774193548,
+            "anomaly": true
+          }
+        ]
+      },
+      "sensitivity_no_exclusion": {
+        "prompt_overhead_tokens": {
+          "DeepSeek-R1-0528-Qwen3-8B": 0,
+          "Llama-3.1-Nemotron-Nano-8B-v1": 0,
+          "NVIDIA-Nemotron-Nano-9B-v2": 0,
+          "Qwen3-8B": 0,
+          "claude-sonnet-4": 0,
+          "deepseek-r1-0528": 0,
+          "deepseek-v3-0324": 0,
+          "gemini-2.5-flash": 0,
+          "gemini-2.5-pro": 0,
+          "glm-4.6": 0,
+          "gpt-5": 0,
+          "gpt-5-chat": 0,
+          "intern-s1": 124,
+          "kimi-k2-0905": 0,
+          "qwen3-235b-a22b-2507": 0,
+          "qwen3-235b-a22b-thinking-2507": 0
+        },
+        "per_split": {
+          "train": {
+            "n": 16904,
+            "max": 1.0,
+            "p50": 0.2849083215796897,
+            "p99": 0.6023237170941544,
+            "p99_9": 0.868515793251993,
+            "count_gt_1": 0,
+            "coverage": 1.0
+          },
+          "calib": {
+            "n": 6050,
+            "max": 0.9883720930232558,
+            "p50": 0.28932042998894086,
+            "p99": 0.6012545122475292,
+            "p99_9": 0.9073553817603441,
+            "count_gt_1": 0,
+            "coverage": 1.0
+          },
+          "test": {
+            "n": 5724,
+            "max": 1.0449438202247192,
+            "p50": 0.28683230954905553,
+            "p99": 0.631578947368421,
+            "p99_9": 0.9253903296703376,
+            "count_gt_1": 3,
+            "coverage": 0.999475890985325
+          },
+          "heldout": {
+            "n": 21843,
+            "max": 5.09273570324575,
+            "p50": 0.2717948717948718,
+            "p99": 0.5735460646735803,
+            "p99_9": 0.7336538461538461,
+            "count_gt_1": 1,
+            "coverage": 0.9999542187428466
+          }
+        }
+      }
+    }
+  },
+  "max_ratio": 5.09273570324575,
+  "any_above_1": true,
+  "labels": [
+    "in_upper is the router's upper bound on prompt tokens, computed from the prompt bytes",
+    "prompt_tokens are the counts recorded in the dataset; nothing here is simulated",
+    "prompt_overhead_tokens are fitted on train and calib records only, so the test and heldout rows are an out-of-sample check"
+  ]
+}

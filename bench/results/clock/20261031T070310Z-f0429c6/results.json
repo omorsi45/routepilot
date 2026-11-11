@@ -1,0 +1,43 @@
+{
+  "experiment": "clock",
+  "os": "Windows-11-10.0.26300-SP0",
+  "system": "Windows",
+  "go_version": "go1.27.2",
+  "probe_ms": 200,
+  "probes": [
+    {
+      "clock_step_ns": 344800,
+      "zero_fraction": 0.9999930258937987
+    },
+    {
+      "clock_step_ns": 501200,
+      "zero_fraction": 0.9999922363768076
+    },
+    {
+      "clock_step_ns": 501300,
+      "zero_fraction": 0.9999922033888122
+    },
+    {
+      "clock_step_ns": 501100,
+      "zero_fraction": 0.9999926513527229
+    },
+    {
+      "clock_step_ns": 501400,
+      "zero_fraction": 0.9999927064451428
+    }
+  ],
+  "summary": {
+    "probes": 5,
+    "min_step_ns": 344800,
+    "median_step_ns": 501200,
+    "max_step_ns": 501400,
+    "max_zero_fraction": 0.9999930258937987,
+    "threshold_ns": 1000,
+    "coarse": true
+  },
+  "labels": [
+    "measured on this host with rp-load --clock-probe, which reads time.Now for 200 ms and reports the smallest non-zero difference between two consecutive reads (the clock step) and the share of equal consecutive reads",
+    "nothing here is simulated, fitted or assumed",
+    "a step above 1000 ns is too coarse for the sub-millisecond quantities of the performance experiments, which refuse to run on it"
+  ]
+}

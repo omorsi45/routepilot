@@ -1,0 +1,2145 @@
+{
+  "experiment": "litellm",
+  "settings": {
+    "warmup_s": 10,
+    "duration_s": 60,
+    "levels": [
+      100,
+      500,
+      1000,
+      2000
+    ],
+    "workers": 8,
+    "litellm_version": "1.106.6",
+    "litellm_python": "Python 3.14.9",
+    "litellm_env": {
+      "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+      "LITELLM_LOG": "ERROR"
+    },
+    "max_inflight": 4096,
+    "max_tokens": 16,
+    "mock_args": [
+      "--seed",
+      "1",
+      "--ttft-median-ms",
+      "20",
+      "--ttft-sigma",
+      "0",
+      "--tpot-median-ms",
+      "1",
+      "--tpot-sigma",
+      "0",
+      "--tokens",
+      "16"
+    ]
+  },
+  "runs": [
+    {
+      "name": "direct-100rps-nonstream",
+      "path": "direct",
+      "rps": 100,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {}
+      },
+      "load": {
+        "url": "http://127.0.0.1:39927/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 100,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 5876,
+        "completed": 5876,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.034160147,
+        "offered_rps": 97.93333333333334,
+        "throughput_rps": 97.93333333333334,
+        "latency_ms": {
+          "count": 5876,
+          "min": 36.352,
+          "mean": 37.60218924438394,
+          "p50": 37.599,
+          "p90": 38.175,
+          "p95": 38.367,
+          "p99": 38.751,
+          "p99.9": 46.079,
+          "max": 55.871
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 5876,
+          "min": 0.001,
+          "mean": 0.5722181756296802,
+          "p50": 0.558,
+          "p90": 0.99,
+          "p95": 1.052,
+          "p99": 1.104,
+          "p99.9": 4.259,
+          "max": 7.887
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "gateway-100rps-nonstream",
+      "path": "gateway",
+      "rps": 100,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-routepilot-decision-id": "dec_6a321b36147cfe74180e55ec",
+          "x-routepilot-deployment": "bench-model-mock",
+          "x-routepilot-model": "bench-model",
+          "x-routepilot-policy-version": "pinned",
+          "x-routepilot-request-id": "6a321b36147cfe74180e55ec"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:50851/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 100,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 5876,
+        "completed": 5876,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.035300288,
+        "offered_rps": 97.93333333333334,
+        "throughput_rps": 97.93333333333334,
+        "latency_ms": {
+          "count": 5876,
+          "min": 36.608,
+          "mean": 37.891463580667114,
+          "p50": 37.919,
+          "p90": 38.527,
+          "p95": 38.655,
+          "p99": 38.879,
+          "p99.9": 39.135,
+          "max": 39.583
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 5876,
+          "min": 0.001,
+          "mean": 0.5617884615384621,
+          "p50": 0.569,
+          "p90": 0.978,
+          "p95": 1.039,
+          "p99": 1.088,
+          "p99.9": 1.111,
+          "max": 1.286
+        }
+      },
+      "server": {
+        "overhead": {
+          "count": 5882.0,
+          "mean_ms": 0.1362686246174769,
+          "p50": {
+            "value_ms": 0.15221005392912174,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p95": {
+            "value_ms": 0.21104138289676425,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p99": {
+            "value_ms": 0.33144742857142945,
+            "lower_ms": 0.2154,
+            "upper_ms": 0.4642
+          }
+        },
+        "decision": {
+          "count": 5876.0,
+          "mean_ms": 0.002018891422736546,
+          "p50": {
+            "value_ms": 0.005009377664109122,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p95": {
+            "value_ms": 0.009517817561807331,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p99": {
+            "value_ms": 0.009918567774936063,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          }
+        }
+      }
+    },
+    {
+      "name": "litellm-100rps-nonstream",
+      "path": "litellm",
+      "rps": 100,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-litellm-version": "1.106.6"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:57547/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 100,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 5876,
+        "completed": 5876,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.039762851,
+        "offered_rps": 97.93333333333334,
+        "throughput_rps": 97.93333333333334,
+        "latency_ms": {
+          "count": 5876,
+          "min": 40.352,
+          "mean": 44.16279918311776,
+          "p50": 43.615,
+          "p90": 46.815,
+          "p95": 48.639,
+          "p99": 51.999,
+          "p99.9": 57.343,
+          "max": 60.287
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 5876,
+          "min": 0.001,
+          "mean": 0.5516907760381211,
+          "p50": 0.55,
+          "p90": 0.977,
+          "p95": 1.039,
+          "p99": 1.088,
+          "p99.9": 1.115,
+          "max": 2.877
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "direct-100rps-stream",
+      "path": "direct",
+      "rps": 100,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {}
+      },
+      "load": {
+        "url": "http://127.0.0.1:58231/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 100,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 5876,
+        "completed": 5876,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.035533893,
+        "offered_rps": 97.93333333333334,
+        "throughput_rps": 97.93333333333334,
+        "latency_ms": {
+          "count": 5876,
+          "min": 37.408,
+          "mean": 39.15582300884955,
+          "p50": 39.135,
+          "p90": 39.967,
+          "p95": 40.223,
+          "p99": 40.767,
+          "p99.9": 41.599,
+          "max": 62.079
+        },
+        "ttft_ms": {
+          "count": 5876,
+          "min": 20.208,
+          "mean": 21.38580803267528,
+          "p50": 21.391,
+          "p90": 22.047,
+          "p95": 22.191,
+          "p99": 22.415,
+          "p99.9": 22.591,
+          "max": 26.127
+        },
+        "launch_lag_ms": {
+          "count": 5876,
+          "min": 0.001,
+          "mean": 0.5297503403675973,
+          "p50": 0.524,
+          "p90": 0.982,
+          "p95": 1.04,
+          "p99": 1.091,
+          "p99.9": 1.159,
+          "max": 4.659
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "gateway-100rps-stream",
+      "path": "gateway",
+      "rps": 100,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-routepilot-decision-id": "dec_cef139e654a1576a58ae81e1",
+          "x-routepilot-deployment": "bench-model-mock",
+          "x-routepilot-model": "bench-model",
+          "x-routepilot-policy-version": "pinned",
+          "x-routepilot-request-id": "cef139e654a1576a58ae81e1"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:54825/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 100,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 5876,
+        "completed": 5876,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.036023209,
+        "offered_rps": 97.93333333333334,
+        "throughput_rps": 97.93333333333334,
+        "latency_ms": {
+          "count": 5876,
+          "min": 37.856,
+          "mean": 40.50804356705243,
+          "p50": 40.223,
+          "p90": 41.727,
+          "p95": 42.495,
+          "p99": 50.527,
+          "p99.9": 59.839,
+          "max": 68.607
+        },
+        "ttft_ms": {
+          "count": 5876,
+          "min": 20.624,
+          "mean": 21.908901293396898,
+          "p50": 21.839,
+          "p90": 22.543,
+          "p95": 22.799,
+          "p99": 24.751,
+          "p99.9": 34.783,
+          "max": 39.807
+        },
+        "launch_lag_ms": {
+          "count": 5876,
+          "min": 0.001,
+          "mean": 0.5015064669843432,
+          "p50": 0.469,
+          "p90": 0.956,
+          "p95": 1.028,
+          "p99": 1.109,
+          "p99.9": 3.413,
+          "max": 11.327
+        }
+      },
+      "server": {
+        "overhead": {
+          "count": 5883.0,
+          "mean_ms": 0.12871739401665788,
+          "p50": {
+            "value_ms": 0.13616120121642172,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p95": {
+            "value_ms": 0.21358243537759755,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p99": {
+            "value_ms": 0.4225379615384617,
+            "lower_ms": 0.2154,
+            "upper_ms": 0.4642
+          }
+        },
+        "decision": {
+          "count": 5876.0,
+          "mean_ms": 0.002622041354663027,
+          "p50": {
+            "value_ms": 0.005025658569962369,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p95": {
+            "value_ms": 0.0095487512829285,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p99": {
+            "value_ms": 0.009950803968525488,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          }
+        }
+      }
+    },
+    {
+      "name": "litellm-100rps-stream",
+      "path": "litellm",
+      "rps": 100,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-litellm-version": "1.106.6"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:37313/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 100,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 5876,
+        "completed": 5876,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.043752947,
+        "offered_rps": 97.93333333333334,
+        "throughput_rps": 97.93333333333334,
+        "latency_ms": {
+          "count": 5876,
+          "min": 44.256,
+          "mean": 49.48914363512593,
+          "p50": 48.031,
+          "p90": 54.367,
+          "p95": 58.175,
+          "p99": 69.631,
+          "p99.9": 84.095,
+          "max": 96.511
+        },
+        "ttft_ms": {
+          "count": 5876,
+          "min": 24.976,
+          "mean": 28.168284547311153,
+          "p50": 27.359,
+          "p90": 30.863,
+          "p95": 32.991,
+          "p99": 39.551,
+          "p99.9": 51.007,
+          "max": 71.295
+        },
+        "launch_lag_ms": {
+          "count": 5876,
+          "min": 0.001,
+          "mean": 0.4185879850238253,
+          "p50": 0.344,
+          "p90": 0.884,
+          "p95": 0.993,
+          "p99": 1.083,
+          "p99.9": 2.002,
+          "max": 4.999
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "direct-500rps-nonstream",
+      "path": "direct",
+      "rps": 500,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {}
+      },
+      "load": {
+        "url": "http://127.0.0.1:37005/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 500,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 29900,
+        "completed": 29900,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.03708345,
+        "offered_rps": 498.3333333333333,
+        "throughput_rps": 498.3333333333333,
+        "latency_ms": {
+          "count": 29900,
+          "min": 36.128,
+          "mean": 37.366320802675574,
+          "p50": 37.343,
+          "p90": 37.983,
+          "p95": 38.175,
+          "p99": 38.559,
+          "p99.9": 44.511,
+          "max": 51.167
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 29900,
+          "min": 0.001,
+          "mean": 0.5041508026755853,
+          "p50": 0.483,
+          "p90": 0.955,
+          "p95": 1.02,
+          "p99": 1.093,
+          "p99.9": 3.699,
+          "max": 8.775
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "gateway-500rps-nonstream",
+      "path": "gateway",
+      "rps": 500,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-routepilot-decision-id": "dec_edfb5bdd2b299732a72f74f2",
+          "x-routepilot-deployment": "bench-model-mock",
+          "x-routepilot-model": "bench-model",
+          "x-routepilot-policy-version": "pinned",
+          "x-routepilot-request-id": "edfb5bdd2b299732a72f74f2"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:35011/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 500,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 29900,
+        "completed": 29900,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.037725408,
+        "offered_rps": 498.3333333333333,
+        "throughput_rps": 498.3333333333333,
+        "latency_ms": {
+          "count": 29900,
+          "min": 36.48,
+          "mean": 37.67243772575248,
+          "p50": 37.663,
+          "p90": 38.335,
+          "p95": 38.527,
+          "p99": 38.847,
+          "p99.9": 42.271,
+          "max": 46.879
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 29900,
+          "min": 0.001,
+          "mean": 0.49328397993311107,
+          "p50": 0.471,
+          "p90": 0.944,
+          "p95": 1.012,
+          "p99": 1.088,
+          "p99.9": 1.708,
+          "max": 5.247
+        }
+      },
+      "server": {
+        "overhead": {
+          "count": 29915.0,
+          "mean_ms": 0.11731493224135074,
+          "p50": {
+            "value_ms": 0.13188776096822996,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p95": {
+            "value_ms": 0.21022795007564296,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p99": {
+            "value_ms": 0.36528861056751394,
+            "lower_ms": 0.2154,
+            "upper_ms": 0.4642
+          }
+        },
+        "decision": {
+          "count": 29900.0,
+          "mean_ms": 0.0015780278260869654,
+          "p50": {
+            "value_ms": 0.005011061205336194,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p95": {
+            "value_ms": 0.009521016290138769,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p99": {
+            "value_ms": 0.009921901186565664,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          }
+        }
+      }
+    },
+    {
+      "name": "litellm-500rps-nonstream",
+      "path": "litellm",
+      "rps": 500,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-litellm-version": "1.106.6"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:53359/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 500,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 29900,
+        "completed": 29900,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.04444258,
+        "offered_rps": 498.3333333333333,
+        "throughput_rps": 498.3333333333333,
+        "latency_ms": {
+          "count": 29900,
+          "min": 41.792,
+          "mean": 59.09356307692314,
+          "p50": 50.303,
+          "p90": 78.975,
+          "p95": 106.815,
+          "p99": 191.487,
+          "p99.9": 295.679,
+          "max": 390.911
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 29900,
+          "min": 0.001,
+          "mean": 0.5598669565217396,
+          "p50": 0.453,
+          "p90": 0.978,
+          "p95": 1.068,
+          "p99": 2.985,
+          "p99.9": 11.903,
+          "max": 40.511
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "direct-500rps-stream",
+      "path": "direct",
+      "rps": 500,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {}
+      },
+      "load": {
+        "url": "http://127.0.0.1:37271/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 500,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 29900,
+        "completed": 29900,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.037796009,
+        "offered_rps": 498.3333333333333,
+        "throughput_rps": 498.3333333333333,
+        "latency_ms": {
+          "count": 29900,
+          "min": 38.112,
+          "mean": 41.651532842809395,
+          "p50": 41.599,
+          "p90": 43.039,
+          "p95": 43.487,
+          "p99": 44.415,
+          "p99.9": 45.503,
+          "max": 46.911
+        },
+        "ttft_ms": {
+          "count": 29900,
+          "min": 20.192,
+          "mean": 21.286518260869574,
+          "p50": 21.279,
+          "p90": 21.999,
+          "p95": 22.191,
+          "p99": 22.495,
+          "p99.9": 22.863,
+          "max": 25.535
+        },
+        "launch_lag_ms": {
+          "count": 29900,
+          "min": 0.001,
+          "mean": 0.4195731772575254,
+          "p50": 0.358,
+          "p90": 0.921,
+          "p95": 1.009,
+          "p99": 1.123,
+          "p99.9": 1.339,
+          "max": 3.823
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "gateway-500rps-stream",
+      "path": "gateway",
+      "rps": 500,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-routepilot-decision-id": "dec_26be04eabe5fc493f3c4dacd",
+          "x-routepilot-deployment": "bench-model-mock",
+          "x-routepilot-model": "bench-model",
+          "x-routepilot-policy-version": "pinned",
+          "x-routepilot-request-id": "26be04eabe5fc493f3c4dacd"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:48183/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 500,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 29900,
+        "completed": 29900,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.03853822,
+        "offered_rps": 498.3333333333333,
+        "throughput_rps": 498.3333333333333,
+        "latency_ms": {
+          "count": 29900,
+          "min": 37.952,
+          "mean": 43.10900441471574,
+          "p50": 43.071,
+          "p90": 44.927,
+          "p95": 45.503,
+          "p99": 46.623,
+          "p99.9": 47.903,
+          "max": 49.951
+        },
+        "ttft_ms": {
+          "count": 29900,
+          "min": 20.464,
+          "mean": 21.72334287625418,
+          "p50": 21.679,
+          "p90": 22.479,
+          "p95": 22.735,
+          "p99": 23.295,
+          "p99.9": 24.207,
+          "max": 25.871
+        },
+        "launch_lag_ms": {
+          "count": 29900,
+          "min": 0.001,
+          "mean": 0.32493260869565244,
+          "p50": 0.233,
+          "p90": 0.784,
+          "p95": 0.898,
+          "p99": 1.038,
+          "p99.9": 1.114,
+          "max": 1.615
+        }
+      },
+      "server": {
+        "overhead": {
+          "count": 29920.0,
+          "mean_ms": 0.11681469278074798,
+          "p50": {
+            "value_ms": 0.08676031224572824,
+            "lower_ms": 0.046419999999999996,
+            "upper_ms": 0.1
+          },
+          "p95": {
+            "value_ms": 0.32815279307631784,
+            "lower_ms": 0.2154,
+            "upper_ms": 0.4642
+          },
+          "p99": {
+            "value_ms": 0.8340272902338371,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
+          }
+        },
+        "decision": {
+          "count": 29900.0,
+          "mean_ms": 0.0020874692642140836,
+          "p50": {
+            "value_ms": 0.00501930501930502,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p95": {
+            "value_ms": 0.009536679536679537,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p99": {
+            "value_ms": 0.009938223938223939,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          }
+        }
+      }
+    },
+    {
+      "name": "litellm-500rps-stream",
+      "path": "litellm",
+      "rps": 500,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-litellm-version": "1.106.6"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:51633/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 500,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 29900,
+        "completed": 25960,
+        "errors": 463,
+        "dropped": 3477,
+        "errors_by_kind": {
+          "timeout": 463
+        },
+        "elapsed_s": 64.086154469,
+        "offered_rps": 498.3333333333333,
+        "throughput_rps": 432.6666666666667,
+        "latency_ms": {
+          "count": 25960,
+          "min": 1775.616,
+          "mean": 7420.835224653309,
+          "p50": 6881.279,
+          "p90": 10141.695,
+          "p95": 15728.639,
+          "p99": 26820.607,
+          "p99.9": 29802.495,
+          "max": 30015.487
+        },
+        "ttft_ms": {
+          "count": 25960,
+          "min": 1010.688,
+          "mean": 2714.0329812018526,
+          "p50": 1642.495,
+          "p90": 3053.567,
+          "p95": 11419.647,
+          "p99": 19218.431,
+          "p99.9": 22085.631,
+          "max": 22478.847
+        },
+        "launch_lag_ms": {
+          "count": 29900,
+          "min": 0.001,
+          "mean": 0.13496839464882954,
+          "p50": 0.094,
+          "p90": 0.259,
+          "p95": 0.364,
+          "p99": 0.867,
+          "p99.9": 1.808,
+          "max": 4.059
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "direct-1000rps-nonstream",
+      "path": "direct",
+      "rps": 1000,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {}
+      },
+      "load": {
+        "url": "http://127.0.0.1:51483/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 1000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 59708,
+        "completed": 59708,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.03540173,
+        "offered_rps": 995.1333333333333,
+        "throughput_rps": 995.1333333333333,
+        "latency_ms": {
+          "count": 59708,
+          "min": 36.16,
+          "mean": 37.25724499229585,
+          "p50": 37.279,
+          "p90": 37.919,
+          "p95": 38.079,
+          "p99": 38.335,
+          "p99.9": 38.623,
+          "max": 41.727
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 59708,
+          "min": 0.001,
+          "mean": 0.46048631674147505,
+          "p50": 0.429,
+          "p90": 0.934,
+          "p95": 1.003,
+          "p99": 1.081,
+          "p99.9": 1.147,
+          "max": 1.729
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "gateway-1000rps-nonstream",
+      "path": "gateway",
+      "rps": 1000,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-routepilot-decision-id": "dec_831f4d03cbb605c253d99e56",
+          "x-routepilot-deployment": "bench-model-mock",
+          "x-routepilot-model": "bench-model",
+          "x-routepilot-policy-version": "pinned",
+          "x-routepilot-request-id": "831f4d03cbb605c253d99e56"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:54265/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 1000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 59708,
+        "completed": 59708,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.0371616,
+        "offered_rps": 995.1333333333333,
+        "throughput_rps": 995.1333333333333,
+        "latency_ms": {
+          "count": 59708,
+          "min": 36.416,
+          "mean": 37.51684384002144,
+          "p50": 37.503,
+          "p90": 38.175,
+          "p95": 38.367,
+          "p99": 38.623,
+          "p99.9": 38.879,
+          "max": 40.703
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 59708,
+          "min": 0.001,
+          "mean": 0.445219602063375,
+          "p50": 0.401,
+          "p90": 0.92,
+          "p95": 0.994,
+          "p99": 1.07,
+          "p99.9": 1.129,
+          "max": 3.399
+        }
+      },
+      "server": {
+        "overhead": {
+          "count": 59758.0,
+          "mean_ms": 0.10003348592657016,
+          "p50": {
+            "value_ms": 0.09302059439948769,
+            "lower_ms": 0.046419999999999996,
+            "upper_ms": 0.1
+          },
+          "p95": {
+            "value_ms": 0.2042189251037428,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p99": {
+            "value_ms": 0.2153322133677128,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          }
+        },
+        "decision": {
+          "count": 59708.0,
+          "mean_ms": 0.0013181972097542436,
+          "p50": {
+            "value_ms": 0.005009396603798912,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p95": {
+            "value_ms": 0.009517853547217936,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p99": {
+            "value_ms": 0.009918605275521847,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          }
+        }
+      }
+    },
+    {
+      "name": "litellm-1000rps-nonstream",
+      "path": "litellm",
+      "rps": 1000,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-litellm-version": "1.106.6"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:49277/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 1000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 59708,
+        "completed": 59708,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.055720985,
+        "offered_rps": 995.1333333333333,
+        "throughput_rps": 995.1333333333333,
+        "latency_ms": {
+          "count": 59708,
+          "min": 41.44,
+          "mean": 67.45185529577259,
+          "p50": 61.247,
+          "p90": 93.183,
+          "p95": 107.199,
+          "p99": 150.911,
+          "p99.9": 361.215,
+          "max": 446.975
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 59708,
+          "min": 0.001,
+          "mean": 0.4052190158772699,
+          "p50": 0.344,
+          "p90": 0.885,
+          "p95": 0.977,
+          "p99": 1.074,
+          "p99.9": 1.142,
+          "max": 4.519
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "direct-1000rps-stream",
+      "path": "direct",
+      "rps": 1000,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {}
+      },
+      "load": {
+        "url": "http://127.0.0.1:46969/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 1000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 59708,
+        "completed": 59708,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.03815445,
+        "offered_rps": 995.1333333333333,
+        "throughput_rps": 995.1333333333333,
+        "latency_ms": {
+          "count": 59708,
+          "min": 38.176,
+          "mean": 43.24261539492197,
+          "p50": 43.231,
+          "p90": 44.991,
+          "p95": 45.503,
+          "p99": 46.463,
+          "p99.9": 47.583,
+          "max": 55.263
+        },
+        "ttft_ms": {
+          "count": 59708,
+          "min": 20.096,
+          "mean": 21.199454143498365,
+          "p50": 21.167,
+          "p90": 21.935,
+          "p95": 22.175,
+          "p99": 22.623,
+          "p99.9": 23.215,
+          "max": 32.703
+        },
+        "launch_lag_ms": {
+          "count": 59708,
+          "min": 0.001,
+          "mean": 0.30943712735311873,
+          "p50": 0.188,
+          "p90": 0.8,
+          "p95": 0.953,
+          "p99": 1.196,
+          "p99.9": 1.639,
+          "max": 2.083
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "gateway-1000rps-stream",
+      "path": "gateway",
+      "rps": 1000,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-routepilot-decision-id": "dec_6fb76dc3504cc52cf2935dc7",
+          "x-routepilot-deployment": "bench-model-mock",
+          "x-routepilot-model": "bench-model",
+          "x-routepilot-policy-version": "pinned",
+          "x-routepilot-request-id": "6fb76dc3504cc52cf2935dc7"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:51461/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 1000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 59708,
+        "completed": 59708,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.038736174,
+        "offered_rps": 995.1333333333333,
+        "throughput_rps": 995.1333333333333,
+        "latency_ms": {
+          "count": 59708,
+          "min": 38.24,
+          "mean": 43.30566731426277,
+          "p50": 43.263,
+          "p90": 45.407,
+          "p95": 46.047,
+          "p99": 47.199,
+          "p99.9": 48.543,
+          "max": 50.591
+        },
+        "ttft_ms": {
+          "count": 59708,
+          "min": 20.432,
+          "mean": 21.70352649561198,
+          "p50": 21.615,
+          "p90": 22.543,
+          "p95": 22.879,
+          "p99": 23.727,
+          "p99.9": 25.071,
+          "max": 27.343
+        },
+        "launch_lag_ms": {
+          "count": 59708,
+          "min": 0.001,
+          "mean": 0.21791602465331295,
+          "p50": 0.11,
+          "p90": 0.619,
+          "p95": 0.806,
+          "p99": 1.016,
+          "p99.9": 1.122,
+          "max": 3.135
+        }
+      },
+      "server": {
+        "overhead": {
+          "count": 59765.0,
+          "mean_ms": 0.10215662650380629,
+          "p50": {
+            "value_ms": 0.07773267103935419,
+            "lower_ms": 0.046419999999999996,
+            "upper_ms": 0.1
+          },
+          "p95": {
+            "value_ms": 0.22556481223922115,
+            "lower_ms": 0.2154,
+            "upper_ms": 0.4642
+          },
+          "p99": {
+            "value_ms": 0.8902073349056598,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
+          }
+        },
+        "decision": {
+          "count": 59708.0,
+          "mean_ms": 0.0017564493870169022,
+          "p50": {
+            "value_ms": 0.005017563320391939,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p95": {
+            "value_ms": 0.009533370308744685,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p99": {
+            "value_ms": 0.00993477537437604,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          }
+        }
+      }
+    },
+    {
+      "name": "litellm-1000rps-stream",
+      "path": "litellm",
+      "rps": 1000,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-litellm-version": "1.106.6"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:52317/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 1000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 59708,
+        "completed": 22858,
+        "errors": 2407,
+        "dropped": 34443,
+        "errors_by_kind": {
+          "read": 181,
+          "timeout": 2226
+        },
+        "elapsed_s": 89.980684943,
+        "offered_rps": 995.1333333333333,
+        "throughput_rps": 380.96666666666664,
+        "latency_ms": {
+          "count": 22858,
+          "min": 2060.288,
+          "mean": 6298.6976708373495,
+          "p50": 5656.575,
+          "p90": 6447.103,
+          "p95": 11780.095,
+          "p99": 28459.007,
+          "p99.9": 29818.879,
+          "max": 29999.103
+        },
+        "ttft_ms": {
+          "count": 22858,
+          "min": 1186.816,
+          "mean": 3327.246962638904,
+          "p50": 2193.407,
+          "p90": 3180.543,
+          "p95": 11649.023,
+          "p99": 27836.415,
+          "p99.9": 29622.271,
+          "max": 29835.263
+        },
+        "launch_lag_ms": {
+          "count": 59708,
+          "min": 0.001,
+          "mean": 0.14671625242848538,
+          "p50": 0.098,
+          "p90": 0.292,
+          "p95": 0.444,
+          "p99": 0.914,
+          "p99.9": 1.671,
+          "max": 5.535
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "direct-2000rps-nonstream",
+      "path": "direct",
+      "rps": 2000,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {}
+      },
+      "load": {
+        "url": "http://127.0.0.1:39573/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 2000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 119503,
+        "completed": 119503,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.03744564,
+        "offered_rps": 1991.7166666666667,
+        "throughput_rps": 1991.7166666666667,
+        "latency_ms": {
+          "count": 119503,
+          "min": 36.128,
+          "mean": 37.13114120984412,
+          "p50": 37.151,
+          "p90": 37.759,
+          "p95": 37.919,
+          "p99": 38.239,
+          "p99.9": 38.591,
+          "max": 46.175
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 119503,
+          "min": 0.001,
+          "mean": 0.43957411111018146,
+          "p50": 0.402,
+          "p90": 0.929,
+          "p95": 0.999,
+          "p99": 1.072,
+          "p99.9": 1.149,
+          "max": 4.307
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "gateway-2000rps-nonstream",
+      "path": "gateway",
+      "rps": 2000,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-routepilot-decision-id": "dec_eeacab468a1967a37a707a4f",
+          "x-routepilot-deployment": "bench-model-mock",
+          "x-routepilot-model": "bench-model",
+          "x-routepilot-policy-version": "pinned",
+          "x-routepilot-request-id": "eeacab468a1967a37a707a4f"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:48275/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 2000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 119503,
+        "completed": 119503,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.036827356,
+        "offered_rps": 1991.7166666666667,
+        "throughput_rps": 1991.7166666666667,
+        "latency_ms": {
+          "count": 119503,
+          "min": 36.416,
+          "mean": 37.96008963791702,
+          "p50": 37.471,
+          "p90": 38.239,
+          "p95": 38.495,
+          "p99": 54.719,
+          "p99.9": 109.631,
+          "max": 158.079
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 119503,
+          "min": 0.001,
+          "mean": 0.41206691882212193,
+          "p50": 0.337,
+          "p90": 0.897,
+          "p95": 0.989,
+          "p99": 1.096,
+          "p99.9": 5.363,
+          "max": 12.623
+        }
+      },
+      "server": {
+        "overhead": {
+          "count": 119579.0,
+          "mean_ms": 0.10603066840331335,
+          "p50": {
+            "value_ms": 0.08904374469274487,
+            "lower_ms": 0.046419999999999996,
+            "upper_ms": 0.1
+          },
+          "p95": {
+            "value_ms": 0.20347473226363166,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p99": {
+            "value_ms": 0.29791398116760637,
+            "lower_ms": 0.2154,
+            "upper_ms": 0.4642
+          }
+        },
+        "decision": {
+          "count": 119505.0,
+          "mean_ms": 0.00203353410317543,
+          "p50": {
+            "value_ms": 0.0050145184165694585,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p95": {
+            "value_ms": 0.009527584991481972,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p99": {
+            "value_ms": 0.009928746464807526,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          }
+        }
+      }
+    },
+    {
+      "name": "litellm-2000rps-nonstream",
+      "path": "litellm",
+      "rps": 2000,
+      "stream": false,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-litellm-version": "1.106.6"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:42867/v1/chat/completions",
+        "model": "bench-model",
+        "stream": false,
+        "rps_target": 2000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 119503,
+        "completed": 72889,
+        "errors": 2855,
+        "dropped": 43759,
+        "errors_by_kind": {
+          "read": 1548,
+          "timeout": 1307
+        },
+        "elapsed_s": 81.417632817,
+        "offered_rps": 1991.7166666666667,
+        "throughput_rps": 1214.8166666666666,
+        "latency_ms": {
+          "count": 72889,
+          "min": 539.648,
+          "mean": 1872.4252120347428,
+          "p50": 1510.399,
+          "p90": 2086.911,
+          "p95": 2322.431,
+          "p99": 16326.655,
+          "p99.9": 28049.407,
+          "max": 29949.951
+        },
+        "ttft_ms": null,
+        "launch_lag_ms": {
+          "count": 119503,
+          "min": 0.001,
+          "mean": 0.35841757947499187,
+          "p50": 0.269,
+          "p90": 0.864,
+          "p95": 0.971,
+          "p99": 1.076,
+          "p99.9": 1.181,
+          "max": 4.759
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "direct-2000rps-stream",
+      "path": "direct",
+      "rps": 2000,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {}
+      },
+      "load": {
+        "url": "http://127.0.0.1:42597/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 2000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 119503,
+        "completed": 119503,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.039205661,
+        "offered_rps": 1991.7166666666667,
+        "throughput_rps": 1991.7166666666667,
+        "latency_ms": {
+          "count": 119503,
+          "min": 37.92,
+          "mean": 43.84293401839289,
+          "p50": 43.327,
+          "p90": 45.407,
+          "p95": 46.079,
+          "p99": 67.519,
+          "p99.9": 114.431,
+          "max": 158.975
+        },
+        "ttft_ms": {
+          "count": 119503,
+          "min": 20.112,
+          "mean": 21.36299413403849,
+          "p50": 21.055,
+          "p90": 21.967,
+          "p95": 22.287,
+          "p99": 27.519,
+          "p99.9": 59.871,
+          "max": 75.455
+        },
+        "launch_lag_ms": {
+          "count": 119503,
+          "min": 0.001,
+          "mean": 0.2579610888429576,
+          "p50": 0.122,
+          "p90": 0.732,
+          "p95": 0.925,
+          "p99": 1.301,
+          "p99.9": 3.787,
+          "max": 12.247
+        }
+      },
+      "server": null
+    },
+    {
+      "name": "gateway-2000rps-stream",
+      "path": "gateway",
+      "rps": 2000,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-routepilot-decision-id": "dec_27d0d2ab1f77703807f97736",
+          "x-routepilot-deployment": "bench-model-mock",
+          "x-routepilot-model": "bench-model",
+          "x-routepilot-policy-version": "pinned",
+          "x-routepilot-request-id": "27d0d2ab1f77703807f97736"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:52127/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 2000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 119503,
+        "completed": 119503,
+        "errors": 0,
+        "dropped": 0,
+        "errors_by_kind": {},
+        "elapsed_s": 60.045543673,
+        "offered_rps": 1991.7166666666667,
+        "throughput_rps": 1991.7166666666667,
+        "latency_ms": {
+          "count": 119503,
+          "min": 37.12,
+          "mean": 41.86534738040052,
+          "p50": 41.823,
+          "p90": 43.711,
+          "p95": 44.287,
+          "p99": 45.503,
+          "p99.9": 47.039,
+          "max": 50.239
+        },
+        "ttft_ms": {
+          "count": 119503,
+          "min": 20.368,
+          "mean": 21.626671865978256,
+          "p50": 21.503,
+          "p90": 22.527,
+          "p95": 22.895,
+          "p99": 23.839,
+          "p99.9": 25.471,
+          "max": 31.231
+        },
+        "launch_lag_ms": {
+          "count": 119503,
+          "min": 0.001,
+          "mean": 0.12929346543601425,
+          "p50": 0.063,
+          "p90": 0.326,
+          "p95": 0.511,
+          "p99": 0.899,
+          "p99.9": 1.33,
+          "max": 2.571
+        }
+      },
+      "server": {
+        "overhead": {
+          "count": 119587.0,
+          "mean_ms": 0.08869336291570012,
+          "p50": {
+            "value_ms": 0.07508881803484822,
+            "lower_ms": 0.046419999999999996,
+            "upper_ms": 0.1
+          },
+          "p95": {
+            "value_ms": 0.17475124476110634,
+            "lower_ms": 0.1,
+            "upper_ms": 0.2154
+          },
+          "p99": {
+            "value_ms": 0.8036221950078024,
+            "lower_ms": 0.4642,
+            "upper_ms": 1.0
+          }
+        },
+        "decision": {
+          "count": 119505.0,
+          "mean_ms": 0.0017108975775071422,
+          "p50": {
+            "value_ms": 0.005015402306568853,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p95": {
+            "value_ms": 0.00952926438248082,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          },
+          "p99": {
+            "value_ms": 0.00993049656700633,
+            "lower_ms": 0.0,
+            "upper_ms": 0.01
+          }
+        }
+      }
+    },
+    {
+      "name": "litellm-2000rps-stream",
+      "path": "litellm",
+      "rps": 2000,
+      "stream": true,
+      "model": "bench-model",
+      "preflight": {
+        "status": 200,
+        "headers": {
+          "x-litellm-version": "1.106.6"
+        }
+      },
+      "load": {
+        "url": "http://127.0.0.1:35895/v1/chat/completions",
+        "model": "bench-model",
+        "stream": true,
+        "rps_target": 2000,
+        "warmup_s": 10,
+        "duration_s": 60,
+        "seed": 1,
+        "max_inflight": 4096,
+        "max_tokens": 16,
+        "scheduled": 119503,
+        "completed": 24336,
+        "errors": 1903,
+        "dropped": 93264,
+        "errors_by_kind": {
+          "read": 134,
+          "timeout": 1769
+        },
+        "elapsed_s": 86.667314893,
+        "offered_rps": 1991.7166666666667,
+        "throughput_rps": 405.6,
+        "latency_ms": {
+          "count": 24336,
+          "min": 2301.952,
+          "mean": 6078.092917817215,
+          "p50": 5611.519,
+          "p90": 6414.335,
+          "p95": 10280.959,
+          "p99": 26214.399,
+          "p99.9": 29769.727,
+          "max": 29999.103
+        },
+        "ttft_ms": {
+          "count": 24336,
+          "min": 1238.016,
+          "mean": 2811.1633714661357,
+          "p50": 2057.215,
+          "p90": 2639.871,
+          "p95": 10133.503,
+          "p99": 23199.743,
+          "p99.9": 29573.119,
+          "max": 29868.031
+        },
+        "launch_lag_ms": {
+          "count": 119503,
+          "min": 0.001,
+          "mean": 0.14687106599834293,
+          "p50": 0.093,
+          "p90": 0.269,
+          "p95": 0.413,
+          "p99": 1.003,
+          "p99.9": 3.401,
+          "max": 10.343
+        }
+      },
+      "server": null
+    }
+  ],
+  "comparisons": [
+    {
+      "rps": 100,
+      "stream": false,
+      "routepilot_vs_direct_ms": {
+        "p50": 0.32,
+        "p90": 0.352,
+        "p95": 0.288,
+        "p99": 0.128,
+        "p99.9": -6.944
+      },
+      "litellm_vs_direct_ms": {
+        "p50": 6.016,
+        "p90": 8.64,
+        "p95": 10.272,
+        "p99": 13.248,
+        "p99.9": 11.264
+      },
+      "litellm_vs_routepilot_ms": {
+        "p50": 5.696,
+        "p90": 8.288,
+        "p95": 9.984,
+        "p99": 13.12,
+        "p99.9": 18.208
+      },
+      "ttft_diff_ms": null
+    },
+    {
+      "rps": 100,
+      "stream": true,
+      "routepilot_vs_direct_ms": {
+        "p50": 1.088,
+        "p90": 1.76,
+        "p95": 2.272,
+        "p99": 9.76,
+        "p99.9": 18.24
+      },
+      "litellm_vs_direct_ms": {
+        "p50": 8.896,
+        "p90": 14.4,
+        "p95": 17.952,
+        "p99": 28.864,
+        "p99.9": 42.496
+      },
+      "litellm_vs_routepilot_ms": {
+        "p50": 7.808,
+        "p90": 12.64,
+        "p95": 15.68,
+        "p99": 19.104,
+        "p99.9": 24.256
+      },
+      "ttft_diff_ms": {
+        "routepilot_vs_direct": {
+          "p50": 0.448,
+          "p90": 0.496,
+          "p95": 0.608,
+          "p99": 2.336,
+          "p99.9": 12.192
+        },
+        "litellm_vs_direct": {
+          "p50": 5.968,
+          "p90": 8.816,
+          "p95": 10.8,
+          "p99": 17.136,
+          "p99.9": 28.416
+        },
+        "litellm_vs_routepilot": {
+          "p50": 5.52,
+          "p90": 8.32,
+          "p95": 10.192,
+          "p99": 14.8,
+          "p99.9": 16.224
+        }
+      }
+    },
+    {
+      "rps": 500,
+      "stream": false,
+      "routepilot_vs_direct_ms": {
+        "p50": 0.32,
+        "p90": 0.352,
+        "p95": 0.352,
+        "p99": 0.288,
+        "p99.9": -2.24
+      },
+      "litellm_vs_direct_ms": {
+        "p50": 12.96,
+        "p90": 40.992,
+        "p95": 68.64,
+        "p99": 152.928,
+        "p99.9": 251.168
+      },
+      "litellm_vs_routepilot_ms": {
+        "p50": 12.64,
+        "p90": 40.64,
+        "p95": 68.288,
+        "p99": 152.64,
+        "p99.9": 253.408
+      },
+      "ttft_diff_ms": null
+    },
+    {
+      "rps": 500,
+      "stream": true,
+      "routepilot_vs_direct_ms": {
+        "p50": 1.472,
+        "p90": 1.888,
+        "p95": 2.016,
+        "p99": 2.208,
+        "p99.9": 2.4
+      },
+      "litellm_vs_direct_ms": {
+        "p50": 6839.68,
+        "p90": 10098.656,
+        "p95": 15685.152,
+        "p99": 26776.192,
+        "p99.9": 29756.992
+      },
+      "litellm_vs_routepilot_ms": {
+        "p50": 6838.208,
+        "p90": 10096.768,
+        "p95": 15683.136,
+        "p99": 26773.984,
+        "p99.9": 29754.592
+      },
+      "ttft_diff_ms": {
+        "routepilot_vs_direct": {
+          "p50": 0.4,
+          "p90": 0.48,
+          "p95": 0.544,
+          "p99": 0.8,
+          "p99.9": 1.344
+        },
+        "litellm_vs_direct": {
+          "p50": 1621.216,
+          "p90": 3031.568,
+          "p95": 11397.456,
+          "p99": 19195.936,
+          "p99.9": 22062.768
+        },
+        "litellm_vs_routepilot": {
+          "p50": 1620.816,
+          "p90": 3031.088,
+          "p95": 11396.912,
+          "p99": 19195.136,
+          "p99.9": 22061.424
+        }
+      }
+    },
+    {
+      "rps": 1000,
+      "stream": false,
+      "routepilot_vs_direct_ms": {
+        "p50": 0.224,
+        "p90": 0.256,
+        "p95": 0.288,
+        "p99": 0.288,
+        "p99.9": 0.256
+      },
+      "litellm_vs_direct_ms": {
+        "p50": 23.968,
+        "p90": 55.264,
+        "p95": 69.12,
+        "p99": 112.576,
+        "p99.9": 322.592
+      },
+      "litellm_vs_routepilot_ms": {
+        "p50": 23.744,
+        "p90": 55.008,
+        "p95": 68.832,
+        "p99": 112.288,
+        "p99.9": 322.336
+      },
+      "ttft_diff_ms": null
+    },
+    {
+      "rps": 1000,
+      "stream": true,
+      "routepilot_vs_direct_ms": {
+        "p50": 0.032,
+        "p90": 0.416,
+        "p95": 0.544,
+        "p99": 0.736,
+        "p99.9": 0.96
+      },
+      "litellm_vs_direct_ms": {
+        "p50": 5613.344,
+        "p90": 6402.112,
+        "p95": 11734.592,
+        "p99": 28412.544,
+        "p99.9": 29771.296
+      },
+      "litellm_vs_routepilot_ms": {
+        "p50": 5613.312,
+        "p90": 6401.696,
+        "p95": 11734.048,
+        "p99": 28411.808,
+        "p99.9": 29770.336
+      },
+      "ttft_diff_ms": {
+        "routepilot_vs_direct": {
+          "p50": 0.448,
+          "p90": 0.608,
+          "p95": 0.704,
+          "p99": 1.104,
+          "p99.9": 1.856
+        },
+        "litellm_vs_direct": {
+          "p50": 2172.24,
+          "p90": 3158.608,
+          "p95": 11626.848,
+          "p99": 27813.792,
+          "p99.9": 29599.056
+        },
+        "litellm_vs_routepilot": {
+          "p50": 2171.792,
+          "p90": 3158.0,
+          "p95": 11626.144,
+          "p99": 27812.688,
+          "p99.9": 29597.2
+        }
+      }
+    },
+    {
+      "rps": 2000,
+      "stream": false,
+      "routepilot_vs_direct_ms": {
+        "p50": 0.32,
+        "p90": 0.48,
+        "p95": 0.576,
+        "p99": 16.48,
+        "p99.9": 71.04
+      },
+      "litellm_vs_direct_ms": {
+        "p50": 1473.248,
+        "p90": 2049.152,
+        "p95": 2284.512,
+        "p99": 16288.416,
+        "p99.9": 28010.816
+      },
+      "litellm_vs_routepilot_ms": {
+        "p50": 1472.928,
+        "p90": 2048.672,
+        "p95": 2283.936,
+        "p99": 16271.936,
+        "p99.9": 27939.776
+      },
+      "ttft_diff_ms": null
+    },
+    {
+      "rps": 2000,
+      "stream": true,
+      "routepilot_vs_direct_ms": {
+        "p50": -1.504,
+        "p90": -1.696,
+        "p95": -1.792,
+        "p99": -22.016,
+        "p99.9": -67.392
+      },
+      "litellm_vs_direct_ms": {
+        "p50": 5568.192,
+        "p90": 6368.928,
+        "p95": 10234.88,
+        "p99": 26146.88,
+        "p99.9": 29655.296
+      },
+      "litellm_vs_routepilot_ms": {
+        "p50": 5569.696,
+        "p90": 6370.624,
+        "p95": 10236.672,
+        "p99": 26168.896,
+        "p99.9": 29722.688
+      },
+      "ttft_diff_ms": {
+        "routepilot_vs_direct": {
+          "p50": 0.448,
+          "p90": 0.56,
+          "p95": 0.608,
+          "p99": -3.68,
+          "p99.9": -34.4
+        },
+        "litellm_vs_direct": {
+          "p50": 2036.16,
+          "p90": 2617.904,
+          "p95": 10111.216,
+          "p99": 23172.224,
+          "p99.9": 29513.248
+        },
+        "litellm_vs_routepilot": {
+          "p50": 2035.712,
+          "p90": 2617.344,
+          "p95": 10110.608,
+          "p99": 23175.904,
+          "p99.9": 29547.648
+        }
+      }
+    }
+  ],
+  "clock": {
+    "clock_step_ns": 30,
+    "zero_fraction": 0.0,
+    "coarse": false
+  },
+  "wall_time_s": 1900.1
+}

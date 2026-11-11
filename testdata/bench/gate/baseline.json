@@ -1,0 +1,10 @@
+{
+  "pool": "smoke",
+  "split": "test",
+  "policy": "rules",
+  "items": 10,
+  "success_rate": 0.6,
+  "mean_cost_picousd": 4237.0,
+  "git_sha": "fe438f970208eef353f4fd85c9b8d53377d73659",
+  "updated_at": "2026-10-28T01:12:06Z"
+}

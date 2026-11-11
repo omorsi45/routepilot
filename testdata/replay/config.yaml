@@ -1,0 +1,57 @@
+# Fixture for the replay tests: three invented models and one tenant. The
+# replay provider is never called. Ranks and prices disagree on purpose:
+# cheap-a is the cheapest, top-c the strongest, mid-b has the lowest rank.
+providers:
+  - name: replay
+    type: openaicompat
+    base_url: http://127.0.0.1:1/v1
+
+models:
+  - id: cheap-a
+    rank: 2
+    context_window: 1048576
+    max_output_tokens: 65536
+    capabilities: [streaming]
+    input_price_per_mtok: "0.100000"
+    output_price_per_mtok: "0.400000"
+    deployments:
+      - name: cheap-a-replay
+        provider: replay
+        upstream_model: cheap-a
+  - id: mid-b
+    rank: 1
+    context_window: 1048576
+    max_output_tokens: 65536
+    capabilities: [streaming]
+    input_price_per_mtok: "1.000000"
+    output_price_per_mtok: "4.000000"
+    deployments:
+      - name: mid-b-replay
+        provider: replay
+        upstream_model: mid-b
+  - id: top-c
+    rank: 3
+    context_window: 1048576
+    max_output_tokens: 65536
+    capabilities: [streaming]
+    input_price_per_mtok: "5.000000"
+    output_price_per_mtok: "20.000000"
+    deployments:
+      - name: top-c-replay
+        provider: replay
+        upstream_model: top-c
+
+routing:
+  policy: rules
+  default_model: mid-b
+  rules:
+    - name: code
+      model: top-c
+      when:
+        contains_any: ["def "]
+
+tenants:
+  - id: replay
+    api_key_sha256: cf8ff434c72b3a3a99361e47c9041fd978617260da7f0fd9b74d03bb83864b17
+    allowed_models: ["*"]
+    default_max_tokens: 1024

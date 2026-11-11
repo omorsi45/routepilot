@@ -1,0 +1,513 @@
+{
+  "pool": "flagship",
+  "split": "test",
+  "best_single": "gemini-2.5-pro",
+  "artifact_version": "dea4486d7575",
+  "lambda": 6.719579687342048,
+  "policy_config": {
+    "mode": "dual",
+    "default_floor": 0,
+    "epsilon": 0,
+    "ood_action": "conservative",
+    "on_infeasible": "best_effort"
+  },
+  "overall": {
+    "n": 1735,
+    "best_success": 0.5273775216138329,
+    "routed_success": 0.48184438040345823,
+    "success_delta": -0.04553314121037466,
+    "best_cost_usd": 0.06706422485590778,
+    "routed_cost_usd": 0.004337157850144093,
+    "cost_reduction": 0.9353282937443506,
+    "both_right": 663,
+    "both_wrong": 647,
+    "losses": 252,
+    "gains": 173,
+    "net": -79
+  },
+  "overall_vs_best_single": {
+    "success_delta": -0.04553314121037466,
+    "success_delta_ci": [
+      -0.06974063400576364,
+      -0.022478386167147035
+    ],
+    "cost_reduction": 0.9353282937443506,
+    "cost_reduction_ci": [
+      0.9259192500941833,
+      0.9439264564969495
+    ],
+    "bootstrap": {
+      "n": 1000,
+      "seed": 0,
+      "alpha": 0.05
+    }
+  },
+  "by_dataset": [
+    {
+      "dataset": "arc-agi",
+      "n": 78,
+      "best_success": 0.46153846153846156,
+      "routed_success": 0.2564102564102564,
+      "success_delta": -0.20512820512820518,
+      "best_cost_usd": 0.19977556730769233,
+      "routed_cost_usd": 0.0031021070512820513,
+      "cost_reduction": 0.9844720398340593,
+      "both_right": 16,
+      "both_wrong": 38,
+      "losses": 20,
+      "gains": 4,
+      "net": -16
+    },
+    {
+      "dataset": "hle",
+      "n": 432,
+      "best_success": 0.2152777777777778,
+      "routed_success": 0.09027777777777778,
+      "success_delta": -0.125,
+      "best_cost_usd": 0.12452752806712963,
+      "routed_cost_usd": 0.005341514074074074,
+      "cost_reduction": 0.9571057567994556,
+      "both_right": 23,
+      "both_wrong": 323,
+      "losses": 70,
+      "gains": 16,
+      "net": -54
+    },
+    {
+      "dataset": "gpqa",
+      "n": 33,
+      "best_success": 0.8181818181818182,
+      "routed_success": 0.696969696969697,
+      "success_delta": -0.12121212121212122,
+      "best_cost_usd": 0.10584204545454544,
+      "routed_cost_usd": 0.009195638181818181,
+      "cost_reduction": 0.913119232131929,
+      "both_right": 20,
+      "both_wrong": 3,
+      "losses": 7,
+      "gains": 3,
+      "net": -4
+    },
+    {
+      "dataset": "livecodebench",
+      "n": 205,
+      "best_success": 0.8097560975609757,
+      "routed_success": 0.7024390243902439,
+      "success_delta": -0.1073170731707318,
+      "best_cost_usd": 0.13713067073170732,
+      "routed_cost_usd": 0.0068189297073170735,
+      "cost_reduction": 0.9502742189553047,
+      "both_right": 134,
+      "both_wrong": 29,
+      "losses": 32,
+      "gains": 10,
+      "net": -22
+    },
+    {
+      "dataset": "aime",
+      "n": 14,
+      "best_success": 0.7142857142857143,
+      "routed_success": 0.6428571428571429,
+      "success_delta": -0.0714285714285714,
+      "best_cost_usd": 0.17507267857142855,
+      "routed_cost_usd": 0.007949900000000001,
+      "cost_reduction": 0.9545908586943994,
+      "both_right": 8,
+      "both_wrong": 3,
+      "losses": 2,
+      "gains": 1,
+      "net": -1
+    },
+    {
+      "dataset": "arenahard_math",
+      "n": 58,
+      "best_success": 0.7931034482758621,
+      "routed_success": 0.7586206896551724,
+      "success_delta": -0.034482758620689724,
+      "best_cost_usd": 0.05522303879310344,
+      "routed_cost_usd": 0.011125539482758622,
+      "cost_reduction": 0.7985344572499686,
+      "both_right": 38,
+      "both_wrong": 6,
+      "losses": 8,
+      "gains": 6,
+      "net": -2
+    },
+    {
+      "dataset": "arenahard_creative_writing",
+      "n": 51,
+      "best_success": 0.9607843137254902,
+      "routed_success": 0.9803921568627451,
+      "success_delta": 0.019607843137254832,
+      "best_cost_usd": 0.03208186274509804,
+      "routed_cost_usd": 0.0022942200000000005,
+      "cost_reduction": 0.9284885663208398,
+      "both_right": 48,
+      "both_wrong": 0,
+      "losses": 1,
+      "gains": 2,
+      "net": 1
+    },
+    {
+      "dataset": "simpleqa",
+      "n": 864,
+      "best_success": 0.5648148148148148,
+      "routed_success": 0.5868055555555556,
+      "success_delta": 0.02199074074074081,
+      "best_cost_usd": 0.009355717592592593,
+      "routed_cost_usd": 0.0027784128240740742,
+      "cost_reduction": 0.7030251504947211,
+      "both_right": 376,
+      "both_wrong": 245,
+      "losses": 112,
+      "gains": 131,
+      "net": 19
+    }
+  ],
+  "by_chosen_model": [
+    {
+      "chosen": "gemini-2.5-flash",
+      "n": 12,
+      "best_success": 0.8333333333333334,
+      "routed_success": 0.3333333333333333,
+      "success_delta": -0.5,
+      "best_cost_usd": 0.13292937500000002,
+      "routed_cost_usd": 0.005088491666666668,
+      "cost_reduction": 0.9617203370837585,
+      "both_right": 4,
+      "both_wrong": 2,
+      "losses": 6,
+      "gains": 0,
+      "net": -6
+    },
+    {
+      "chosen": "claude-sonnet-4",
+      "n": 3,
+      "best_success": 0.6666666666666666,
+      "routed_success": 0.3333333333333333,
+      "success_delta": -0.3333333333333333,
+      "best_cost_usd": 0.13830583333333332,
+      "routed_cost_usd": 0.015467,
+      "cost_reduction": 0.8881681298089379,
+      "both_right": 1,
+      "both_wrong": 1,
+      "losses": 1,
+      "gains": 0,
+      "net": -1
+    },
+    {
+      "chosen": "intern-s1",
+      "n": 56,
+      "best_success": 0.32142857142857145,
+      "routed_success": 0.125,
+      "success_delta": -0.19642857142857145,
+      "best_cost_usd": 0.11150171205357143,
+      "routed_cost_usd": 0.0051657075,
+      "cost_reduction": 0.9536714961155205,
+      "both_right": 5,
+      "both_wrong": 36,
+      "losses": 13,
+      "gains": 2,
+      "net": -11
+    },
+    {
+      "chosen": "deepseek-v3-0324",
+      "n": 67,
+      "best_success": 0.5671641791044776,
+      "routed_success": 0.417910447761194,
+      "success_delta": -0.14925373134328357,
+      "best_cost_usd": 0.13498253731343282,
+      "routed_cost_usd": 0.0012172120895522387,
+      "cost_reduction": 0.9909824477019139,
+      "both_right": 26,
+      "both_wrong": 27,
+      "losses": 12,
+      "gains": 2,
+      "net": -10
+    },
+    {
+      "chosen": "kimi-k2-0905",
+      "n": 153,
+      "best_success": 0.6339869281045751,
+      "routed_success": 0.5032679738562091,
+      "success_delta": -0.130718954248366,
+      "best_cost_usd": 0.12446142973856211,
+      "routed_cost_usd": 0.0022433169934640523,
+      "cost_reduction": 0.9819758056919621,
+      "both_right": 68,
+      "both_wrong": 47,
+      "losses": 29,
+      "gains": 9,
+      "net": -20
+    },
+    {
+      "chosen": "gpt-5-chat",
+      "n": 98,
+      "best_success": 0.6224489795918368,
+      "routed_success": 0.5,
+      "success_delta": -0.12244897959183676,
+      "best_cost_usd": 0.020830625000000002,
+      "routed_cost_usd": 0.0016249948979591838,
+      "cost_reduction": 0.9219901036114286,
+      "both_right": 43,
+      "both_wrong": 31,
+      "losses": 18,
+      "gains": 6,
+      "net": -12
+    },
+    {
+      "chosen": "qwen3-235b-a22b-thinking-2507",
+      "n": 19,
+      "best_success": 0.5263157894736842,
+      "routed_success": 0.42105263157894735,
+      "success_delta": -0.10526315789473684,
+      "best_cost_usd": 0.1376459210526316,
+      "routed_cost_usd": 0.00946442105263158,
+      "cost_reduction": 0.9312408171615004,
+      "both_right": 7,
+      "both_wrong": 8,
+      "losses": 3,
+      "gains": 1,
+      "net": -2
+    },
+    {
+      "chosen": "glm-4.6",
+      "n": 33,
+      "best_success": 0.3939393939393939,
+      "routed_success": 0.3333333333333333,
+      "success_delta": -0.06060606060606061,
+      "best_cost_usd": 0.10761791666666666,
+      "routed_cost_usd": 0.018360548484848485,
+      "cost_reduction": 0.8293913406471337,
+      "both_right": 10,
+      "both_wrong": 19,
+      "losses": 3,
+      "gains": 1,
+      "net": -2
+    },
+    {
+      "chosen": "deepseek-r1-0528",
+      "n": 62,
+      "best_success": 0.45161290322580644,
+      "routed_success": 0.43548387096774194,
+      "success_delta": -0.016129032258064502,
+      "best_cost_usd": 0.10557697580645162,
+      "routed_cost_usd": 0.021228473387096776,
+      "cost_reduction": 0.7989289499444107,
+      "both_right": 22,
+      "both_wrong": 29,
+      "losses": 6,
+      "gains": 5,
+      "net": -1
+    },
+    {
+      "chosen": "qwen3-235b-a22b-2507",
+      "n": 966,
+      "best_success": 0.5010351966873706,
+      "routed_success": 0.4855072463768116,
+      "success_delta": -0.015527950310559036,
+      "best_cost_usd": 0.0622821783126294,
+      "routed_cost_usd": 0.0009518801138716355,
+      "cost_reduction": 0.9847166534687722,
+      "both_right": 337,
+      "both_wrong": 350,
+      "losses": 147,
+      "gains": 132,
+      "net": -15
+    },
+    {
+      "chosen": "gemini-2.5-pro",
+      "n": 140,
+      "best_success": 0.55,
+      "routed_success": 0.55,
+      "success_delta": 0.0,
+      "best_cost_usd": 0.010741285714285714,
+      "routed_cost_usd": 0.010741285714285714,
+      "cost_reduction": 0.0,
+      "both_right": 77,
+      "both_wrong": 63,
+      "losses": 0,
+      "gains": 0,
+      "net": 0
+    },
+    {
+      "chosen": "gpt-5",
+      "n": 126,
+      "best_success": 0.6111111111111112,
+      "routed_success": 0.6190476190476191,
+      "success_delta": 0.007936507936507908,
+      "best_cost_usd": 0.028520902777777773,
+      "routed_cost_usd": 0.01602390873015873,
+      "cost_reduction": 0.4381696520965721,
+      "both_right": 63,
+      "both_wrong": 34,
+      "losses": 14,
+      "gains": 15,
+      "net": 1
+    }
+  ],
+  "by_ood": [
+    {
+      "ood_label": "in distribution",
+      "n": 1713,
+      "best_success": 0.5224751897256276,
+      "routed_success": 0.47694103911266783,
+      "success_delta": -0.045534150612959734,
+      "best_cost_usd": 0.06754888798890835,
+      "routed_cost_usd": 0.004385728692352598,
+      "cost_reduction": 0.9350732658534254,
+      "both_right": 646,
+      "both_wrong": 647,
+      "losses": 249,
+      "gains": 171,
+      "net": -78
+    },
+    {
+      "ood_label": "out of distribution",
+      "n": 22,
+      "best_success": 0.9090909090909091,
+      "routed_success": 0.8636363636363636,
+      "success_delta": -0.045454545454545414,
+      "best_cost_usd": 0.029326590909090903,
+      "routed_cost_usd": 0.0005552554545454545,
+      "cost_reduction": 0.9810664848066833,
+      "both_right": 17,
+      "both_wrong": 0,
+      "losses": 3,
+      "gains": 2,
+      "net": -1
+    }
+  ],
+  "top_losses": [
+    {
+      "rank": 1,
+      "item_id": "arenahard_math/299",
+      "dataset": "arenahard_math",
+      "chosen": "qwen3-235b-a22b-2507"
+    },
+    {
+      "rank": 2,
+      "item_id": "arenahard_math/411",
+      "dataset": "arenahard_math",
+      "chosen": "qwen3-235b-a22b-2507"
+    },
+    {
+      "rank": 3,
+      "item_id": "livecodebench/491",
+      "dataset": "livecodebench",
+      "chosen": "gemini-2.5-flash"
+    },
+    {
+      "rank": 4,
+      "item_id": "livecodebench/862",
+      "dataset": "livecodebench",
+      "chosen": "kimi-k2-0905"
+    },
+    {
+      "rank": 5,
+      "item_id": "simpleqa/2073",
+      "dataset": "simpleqa",
+      "chosen": "qwen3-235b-a22b-2507"
+    },
+    {
+      "rank": 6,
+      "item_id": "simpleqa/2078",
+      "dataset": "simpleqa",
+      "chosen": "qwen3-235b-a22b-2507"
+    },
+    {
+      "rank": 7,
+      "item_id": "aime/30",
+      "dataset": "aime",
+      "chosen": "gpt-5"
+    },
+    {
+      "rank": 8,
+      "item_id": "livecodebench/435",
+      "dataset": "livecodebench",
+      "chosen": "gpt-5"
+    },
+    {
+      "rank": 9,
+      "item_id": "livecodebench/1006",
+      "dataset": "livecodebench",
+      "chosen": "deepseek-v3-0324"
+    },
+    {
+      "rank": 10,
+      "item_id": "livecodebench/826",
+      "dataset": "livecodebench",
+      "chosen": "deepseek-v3-0324"
+    },
+    {
+      "rank": 11,
+      "item_id": "livecodebench/884",
+      "dataset": "livecodebench",
+      "chosen": "deepseek-v3-0324"
+    },
+    {
+      "rank": 12,
+      "item_id": "livecodebench/912",
+      "dataset": "livecodebench",
+      "chosen": "deepseek-v3-0324"
+    },
+    {
+      "rank": 13,
+      "item_id": "gpqa/141",
+      "dataset": "gpqa",
+      "chosen": "kimi-k2-0905"
+    },
+    {
+      "rank": 14,
+      "item_id": "gpqa/193",
+      "dataset": "gpqa",
+      "chosen": "kimi-k2-0905"
+    },
+    {
+      "rank": 15,
+      "item_id": "livecodebench/179",
+      "dataset": "livecodebench",
+      "chosen": "kimi-k2-0905"
+    },
+    {
+      "rank": 16,
+      "item_id": "livecodebench/823",
+      "dataset": "livecodebench",
+      "chosen": "kimi-k2-0905"
+    },
+    {
+      "rank": 17,
+      "item_id": "gpqa/106",
+      "dataset": "gpqa",
+      "chosen": "kimi-k2-0905"
+    },
+    {
+      "rank": 18,
+      "item_id": "gpqa/94",
+      "dataset": "gpqa",
+      "chosen": "kimi-k2-0905"
+    },
+    {
+      "rank": 19,
+      "item_id": "livecodebench/1009",
+      "dataset": "livecodebench",
+      "chosen": "kimi-k2-0905"
+    },
+    {
+      "rank": 20,
+      "item_id": "livecodebench/146",
+      "dataset": "livecodebench",
+      "chosen": "kimi-k2-0905"
+    }
+  ],
+  "losses_total": 252,
+  "wall_time_s": 9.083809199997631,
+  "labels": [
+    "costs are the recorded costs of each model on each item",
+    "latency is not used anywhere in this analysis",
+    "the learned point is the one the headline reports: lambda tuned on the calibration split",
+    "a loss is an item Best Single got right and the routed model got wrong; a gain is the reverse",
+    "the test split is read once per replay; nothing is chosen on it",
+    "no prompt text is in this report"
+  ]
+}

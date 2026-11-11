@@ -1,0 +1,40 @@
+{
+  "run_id": "20261028T223648Z-1dadba6",
+  "experiment": "bandits",
+  "git_sha": "1dadba65a518bf7ef105bc12f8f4bd79054c763c",
+  "git_dirty": false,
+  "policy_version": "dea4486d7575",
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {
+    "bandit_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "hyperparameter_seed": 0,
+    "svd": 0,
+    "bootstrap": 0
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 31.2,
+    "os": "Windows-11-10.0.26300-SP0"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.7",
+  "started_at": "2026-10-28T22:36:48Z",
+  "ended_at": "2026-10-28T22:38:47Z",
+  "command": [
+    "python",
+    "bench/scripts/bandits.py",
+    "--pool",
+    "flagship"
+  ]
+}

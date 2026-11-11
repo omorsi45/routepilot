@@ -1,0 +1,31 @@
+{
+  "run_id": "20261028T193224Z-9ac474d",
+  "experiment": "overhead",
+  "git_sha": "9ac474d942ae4210c51697e826c7096694af95a4",
+  "git_dirty": false,
+  "policy_version": "dea4486d7575+ef0a989c",
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {
+    "loadgen": 1,
+    "mock": 1
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 15.2,
+    "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.9",
+  "started_at": "2026-10-28T19:32:24Z",
+  "ended_at": "2026-10-28T19:53:05Z",
+  "command": [
+    "python",
+    "bench/scripts/overhead.py",
+    "--scratch-root",
+    "/home/omar_morsi/rp-scratch"
+  ],
+  "measurement": {
+    "clock_step_ns": 30,
+    "zero_fraction": 0.0
+  }
+}

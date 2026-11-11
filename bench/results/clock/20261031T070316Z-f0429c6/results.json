@@ -1,0 +1,43 @@
+{
+  "experiment": "clock",
+  "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "system": "Linux",
+  "go_version": "go1.27.2",
+  "probe_ms": 200,
+  "probes": [
+    {
+      "clock_step_ns": 30,
+      "zero_fraction": 0.0
+    },
+    {
+      "clock_step_ns": 30,
+      "zero_fraction": 0.0
+    },
+    {
+      "clock_step_ns": 30,
+      "zero_fraction": 0.0
+    },
+    {
+      "clock_step_ns": 30,
+      "zero_fraction": 0.0
+    },
+    {
+      "clock_step_ns": 30,
+      "zero_fraction": 0.0
+    }
+  ],
+  "summary": {
+    "probes": 5,
+    "min_step_ns": 30,
+    "median_step_ns": 30,
+    "max_step_ns": 30,
+    "max_zero_fraction": 0.0,
+    "threshold_ns": 1000,
+    "coarse": false
+  },
+  "labels": [
+    "measured on this host with rp-load --clock-probe, which reads time.Now for 200 ms and reports the smallest non-zero difference between two consecutive reads (the clock step) and the share of equal consecutive reads",
+    "nothing here is simulated, fitted or assumed",
+    "a step above 1000 ns is too coarse for the sub-millisecond quantities of the performance experiments, which refuse to run on it"
+  ]
+}

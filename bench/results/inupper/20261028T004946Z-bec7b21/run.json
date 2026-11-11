@@ -1,0 +1,22 @@
+{
+  "run_id": "20261028T004946Z-bec7b21",
+  "experiment": "inupper",
+  "git_sha": "bec7b2105426f974483bcf2d30020b88a92e6781",
+  "git_dirty": false,
+  "policy_version": null,
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {},
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 31.2,
+    "os": "Windows-11-10.0.26300-SP0"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.7",
+  "started_at": "2026-10-28T00:49:46Z",
+  "ended_at": "2026-10-28T00:49:47Z",
+  "command": [
+    "python",
+    "bench/scripts/inupper.py"
+  ]
+}

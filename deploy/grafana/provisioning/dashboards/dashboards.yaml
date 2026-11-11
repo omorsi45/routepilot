@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: routepilot
+    folder: RoutePilot
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      # docker-compose.yml mounts deploy/grafana/dashboards here.
+      path: /var/lib/grafana/dashboards

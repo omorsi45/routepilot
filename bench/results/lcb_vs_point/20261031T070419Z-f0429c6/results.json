@@ -1,0 +1,1737 @@
+{
+  "pool": "flagship",
+  "artifact_version": "dea4486d7575",
+  "floors": [
+    0.05,
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6
+  ],
+  "arms": [
+    "lcb",
+    "point"
+  ],
+  "n_items": {
+    "test": 1735,
+    "calib": 1773
+  },
+  "policy_config": {
+    "mode": "dual",
+    "default_floor": 0,
+    "epsilon": 0,
+    "ood_action": "conservative",
+    "on_infeasible": "best_effort"
+  },
+  "policy_versions": {
+    "lcb": "dea4486d7575+f99adab8",
+    "point": "dea4486d7575+f99adab8+floor-point"
+  },
+  "results": {
+    "test": {
+      "lcb": {
+        "floors": [
+          {
+            "floor": 0.05,
+            "n": 1735,
+            "n_not_relaxed": 1735,
+            "not_relaxed_share": 1.0,
+            "relaxed_share": 0.0,
+            "relaxed_quality_share": 0.0,
+            "realized_success": 0.4628242074927954,
+            "realized_ci": [
+              0.43947014607540297,
+              0.48634252687351925
+            ],
+            "met": true,
+            "mean_cost_usd": 0.007814929268011528,
+            "success_rate": 0.4628242074927954,
+            "model_counts": {
+              "claude-sonnet-4": 28,
+              "deepseek-r1-0528": 68,
+              "deepseek-v3-0324": 255,
+              "gemini-2.5-flash": 7,
+              "gemini-2.5-pro": 18,
+              "glm-4.6": 8,
+              "gpt-5": 90,
+              "intern-s1": 161,
+              "kimi-k2-0905": 47,
+              "qwen3-235b-a22b-2507": 1047,
+              "qwen3-235b-a22b-thinking-2507": 6
+            }
+          },
+          {
+            "floor": 0.1,
+            "n": 1735,
+            "n_not_relaxed": 1735,
+            "not_relaxed_share": 1.0,
+            "relaxed_share": 0.0,
+            "relaxed_quality_share": 0.0,
+            "realized_success": 0.4795389048991354,
+            "realized_ci": [
+              0.4561026547721167,
+              0.5030655605718637
+            ],
+            "met": true,
+            "mean_cost_usd": 0.013412243223342939,
+            "success_rate": 0.4795389048991354,
+            "model_counts": {
+              "claude-sonnet-4": 2,
+              "deepseek-r1-0528": 168,
+              "deepseek-v3-0324": 238,
+              "gemini-2.5-flash": 6,
+              "gemini-2.5-pro": 15,
+              "glm-4.6": 65,
+              "gpt-5": 183,
+              "gpt-5-chat": 1,
+              "intern-s1": 43,
+              "kimi-k2-0905": 56,
+              "qwen3-235b-a22b-2507": 953,
+              "qwen3-235b-a22b-thinking-2507": 5
+            }
+          },
+          {
+            "floor": 0.15,
+            "n": 1735,
+            "n_not_relaxed": 1626,
+            "not_relaxed_share": 0.9371757925072046,
+            "relaxed_share": 0.0628242074927954,
+            "relaxed_quality_share": 0.0628242074927954,
+            "realized_success": 0.511070110701107,
+            "realized_ci": [
+              0.48677572763838534,
+              0.5353123103139135
+            ],
+            "met": true,
+            "mean_cost_usd": 0.017232750301152736,
+            "success_rate": 0.49164265129683,
+            "model_counts": {
+              "claude-sonnet-4": 2,
+              "deepseek-r1-0528": 88,
+              "deepseek-v3-0324": 224,
+              "gemini-2.5-flash": 8,
+              "gemini-2.5-pro": 27,
+              "glm-4.6": 28,
+              "gpt-5": 318,
+              "gpt-5-chat": 1,
+              "intern-s1": 10,
+              "kimi-k2-0905": 60,
+              "qwen3-235b-a22b-2507": 961,
+              "qwen3-235b-a22b-thinking-2507": 8
+            }
+          },
+          {
+            "floor": 0.2,
+            "n": 1735,
+            "n_not_relaxed": 1490,
+            "not_relaxed_share": 0.8587896253602305,
+            "relaxed_share": 0.14121037463976946,
+            "relaxed_quality_share": 0.14121037463976946,
+            "realized_success": 0.540268456375839,
+            "realized_ci": [
+              0.5148919254155868,
+              0.5654378842081635
+            ],
+            "met": true,
+            "mean_cost_usd": 0.020995029701729107,
+            "success_rate": 0.4968299711815562,
+            "model_counts": {
+              "deepseek-r1-0528": 13,
+              "deepseek-v3-0324": 225,
+              "gemini-2.5-flash": 4,
+              "gemini-2.5-pro": 72,
+              "glm-4.6": 49,
+              "gpt-5": 340,
+              "gpt-5-chat": 4,
+              "intern-s1": 18,
+              "kimi-k2-0905": 34,
+              "qwen3-235b-a22b-2507": 972,
+              "qwen3-235b-a22b-thinking-2507": 4
+            }
+          },
+          {
+            "floor": 0.25,
+            "n": 1735,
+            "n_not_relaxed": 1329,
+            "not_relaxed_share": 0.7659942363112392,
+            "relaxed_share": 0.2340057636887608,
+            "relaxed_quality_share": 0.2340057636887608,
+            "realized_success": 0.5936794582392777,
+            "realized_ci": [
+              0.5670405591279482,
+              0.6197783594619606
+            ],
+            "met": true,
+            "mean_cost_usd": 0.025162498752161384,
+            "success_rate": 0.5077809798270894,
+            "model_counts": {
+              "claude-sonnet-4": 2,
+              "deepseek-r1-0528": 16,
+              "deepseek-v3-0324": 219,
+              "gemini-2.5-flash": 15,
+              "gemini-2.5-pro": 161,
+              "glm-4.6": 29,
+              "gpt-5": 359,
+              "gpt-5-chat": 25,
+              "intern-s1": 13,
+              "kimi-k2-0905": 51,
+              "qwen3-235b-a22b-2507": 839,
+              "qwen3-235b-a22b-thinking-2507": 6
+            }
+          },
+          {
+            "floor": 0.3,
+            "n": 1735,
+            "n_not_relaxed": 1310,
+            "not_relaxed_share": 0.7550432276657061,
+            "relaxed_share": 0.24495677233429394,
+            "relaxed_quality_share": 0.24495677233429394,
+            "realized_success": 0.6053435114503817,
+            "realized_ci": [
+              0.5786043168129207,
+              0.6314666914767761
+            ],
+            "met": true,
+            "mean_cost_usd": 0.025799758057636887,
+            "success_rate": 0.5118155619596542,
+            "model_counts": {
+              "deepseek-r1-0528": 13,
+              "deepseek-v3-0324": 201,
+              "gemini-2.5-pro": 178,
+              "glm-4.6": 18,
+              "gpt-5": 386,
+              "gpt-5-chat": 12,
+              "intern-s1": 11,
+              "kimi-k2-0905": 51,
+              "qwen3-235b-a22b-2507": 860,
+              "qwen3-235b-a22b-thinking-2507": 5
+            }
+          },
+          {
+            "floor": 0.35,
+            "n": 1735,
+            "n_not_relaxed": 1270,
+            "not_relaxed_share": 0.7319884726224783,
+            "relaxed_share": 0.2680115273775216,
+            "relaxed_quality_share": 0.2680115273775216,
+            "realized_success": 0.6259842519685039,
+            "realized_ci": [
+              0.5990300516647817,
+              0.6521786036737156
+            ],
+            "met": true,
+            "mean_cost_usd": 0.026538578587896256,
+            "success_rate": 0.521613832853026,
+            "model_counts": {
+              "claude-sonnet-4": 1,
+              "deepseek-r1-0528": 17,
+              "deepseek-v3-0324": 240,
+              "gemini-2.5-flash": 2,
+              "gemini-2.5-pro": 241,
+              "glm-4.6": 18,
+              "gpt-5": 420,
+              "gpt-5-chat": 46,
+              "intern-s1": 11,
+              "kimi-k2-0905": 29,
+              "qwen3-235b-a22b-2507": 699,
+              "qwen3-235b-a22b-thinking-2507": 11
+            }
+          },
+          {
+            "floor": 0.4,
+            "n": 1735,
+            "n_not_relaxed": 1093,
+            "not_relaxed_share": 0.6299711815561959,
+            "relaxed_share": 0.37002881844380403,
+            "relaxed_quality_share": 0.37002881844380403,
+            "realized_success": 0.6340347666971637,
+            "realized_ci": [
+              0.6050544007634915,
+              0.6620762748939004
+            ],
+            "met": true,
+            "mean_cost_usd": 0.027604138763688762,
+            "success_rate": 0.5193083573487032,
+            "model_counts": {
+              "deepseek-r1-0528": 11,
+              "deepseek-v3-0324": 262,
+              "gemini-2.5-pro": 286,
+              "glm-4.6": 19,
+              "gpt-5": 434,
+              "gpt-5-chat": 167,
+              "intern-s1": 12,
+              "kimi-k2-0905": 13,
+              "qwen3-235b-a22b-2507": 460,
+              "qwen3-235b-a22b-thinking-2507": 71
+            }
+          },
+          {
+            "floor": 0.45,
+            "n": 1735,
+            "n_not_relaxed": 910,
+            "not_relaxed_share": 0.5244956772334294,
+            "relaxed_share": 0.4755043227665706,
+            "relaxed_quality_share": 0.4755043227665706,
+            "realized_success": 0.6758241758241759,
+            "realized_ci": [
+              0.6447287908797388,
+              0.7054413583185004
+            ],
+            "met": true,
+            "mean_cost_usd": 0.028259204031700288,
+            "success_rate": 0.5268011527377522,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 149,
+              "gemini-2.5-pro": 298,
+              "glm-4.6": 33,
+              "gpt-5": 495,
+              "gpt-5-chat": 85,
+              "intern-s1": 16,
+              "kimi-k2-0905": 38,
+              "qwen3-235b-a22b-2507": 467,
+              "qwen3-235b-a22b-thinking-2507": 142
+            }
+          },
+          {
+            "floor": 0.5,
+            "n": 1735,
+            "n_not_relaxed": 704,
+            "not_relaxed_share": 0.40576368876080693,
+            "relaxed_share": 0.5942363112391931,
+            "relaxed_quality_share": 0.5942363112391931,
+            "realized_success": 0.7130681818181818,
+            "realized_ci": [
+              0.6785695021832048,
+              0.7452542174306946
+            ],
+            "met": true,
+            "mean_cost_usd": 0.030146089365994236,
+            "success_rate": 0.5337175792507205,
+            "model_counts": {
+              "deepseek-r1-0528": 33,
+              "deepseek-v3-0324": 159,
+              "gemini-2.5-flash": 3,
+              "gemini-2.5-pro": 317,
+              "glm-4.6": 26,
+              "gpt-5": 583,
+              "gpt-5-chat": 76,
+              "intern-s1": 22,
+              "kimi-k2-0905": 20,
+              "qwen3-235b-a22b-2507": 343,
+              "qwen3-235b-a22b-thinking-2507": 153
+            }
+          },
+          {
+            "floor": 0.55,
+            "n": 1735,
+            "n_not_relaxed": 529,
+            "not_relaxed_share": 0.3048991354466859,
+            "relaxed_share": 0.6951008645533141,
+            "relaxed_quality_share": 0.6951008645533141,
+            "realized_success": 0.7523629489603024,
+            "realized_ci": [
+              0.7138487209639708,
+              0.7872384139608681
+            ],
+            "met": true,
+            "mean_cost_usd": 0.03172155915417867,
+            "success_rate": 0.5412103746397694,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 57,
+              "gemini-2.5-flash": 10,
+              "gemini-2.5-pro": 354,
+              "glm-4.6": 59,
+              "gpt-5": 637,
+              "gpt-5-chat": 65,
+              "intern-s1": 15,
+              "kimi-k2-0905": 74,
+              "qwen3-235b-a22b-2507": 286,
+              "qwen3-235b-a22b-thinking-2507": 166
+            }
+          },
+          {
+            "floor": 0.6,
+            "n": 1735,
+            "n_not_relaxed": 528,
+            "not_relaxed_share": 0.3043227665706052,
+            "relaxed_share": 0.6956772334293948,
+            "relaxed_quality_share": 0.6956772334293948,
+            "realized_success": 0.7481060606060606,
+            "realized_ci": [
+              0.7093772123410168,
+              0.78325079855363
+            ],
+            "met": true,
+            "mean_cost_usd": 0.03194416151008646,
+            "success_rate": 0.5400576368876081,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 57,
+              "gemini-2.5-pro": 355,
+              "glm-4.6": 65,
+              "gpt-5": 644,
+              "gpt-5-chat": 57,
+              "intern-s1": 15,
+              "kimi-k2-0905": 76,
+              "qwen3-235b-a22b-2507": 286,
+              "qwen3-235b-a22b-thinking-2507": 168
+            }
+          }
+        ],
+        "summary": {
+          "floors": 12,
+          "with_decisions": 12,
+          "met": 12,
+          "missed_floors": []
+        },
+        "reliability": [
+          {
+            "decile": 1,
+            "n": 1426,
+            "mean_l": 0.1352217667106644,
+            "realized_success": 0.197054698457223
+          },
+          {
+            "decile": 2,
+            "n": 1426,
+            "mean_l": 0.24951041137226432,
+            "realized_success": 0.3863955119214586
+          },
+          {
+            "decile": 3,
+            "n": 1426,
+            "mean_l": 0.3405649046398454,
+            "realized_success": 0.4726507713884993
+          },
+          {
+            "decile": 4,
+            "n": 1426,
+            "mean_l": 0.39588083607770297,
+            "realized_success": 0.5476858345021038
+          },
+          {
+            "decile": 5,
+            "n": 1426,
+            "mean_l": 0.4240046243888664,
+            "realized_success": 0.5953716690042076
+          },
+          {
+            "decile": 6,
+            "n": 1425,
+            "mean_l": 0.4840709296247577,
+            "realized_success": 0.6287719298245614
+          },
+          {
+            "decile": 7,
+            "n": 1426,
+            "mean_l": 0.5149432696262383,
+            "realized_success": 0.6402524544179523
+          },
+          {
+            "decile": 8,
+            "n": 1426,
+            "mean_l": 0.5459075485885033,
+            "realized_success": 0.7187938288920056
+          },
+          {
+            "decile": 9,
+            "n": 1426,
+            "mean_l": 0.6773625079855496,
+            "realized_success": 0.7889200561009818
+          },
+          {
+            "decile": 10,
+            "n": 1426,
+            "mean_l": 0.7836220054504035,
+            "realized_success": 0.8106591865357644
+          }
+        ]
+      },
+      "point": {
+        "floors": [
+          {
+            "floor": 0.05,
+            "n": 1735,
+            "n_not_relaxed": 1734,
+            "not_relaxed_share": 0.9994236311239193,
+            "relaxed_share": 0.0005763688760806917,
+            "relaxed_quality_share": 0.0005763688760806917,
+            "realized_success": 0.4429065743944637,
+            "realized_ci": [
+              0.4196783391485743,
+              0.46638721706881564
+            ],
+            "met": true,
+            "mean_cost_usd": 0.0010982424149855907,
+            "success_rate": 0.4426512968299712,
+            "model_counts": {
+              "deepseek-r1-0528": 15,
+              "deepseek-v3-0324": 253,
+              "gemini-2.5-flash": 11,
+              "gemini-2.5-pro": 1,
+              "gpt-5": 1,
+              "gpt-5-chat": 2,
+              "intern-s1": 2,
+              "kimi-k2-0905": 276,
+              "qwen3-235b-a22b-2507": 1157,
+              "qwen3-235b-a22b-thinking-2507": 17
+            }
+          },
+          {
+            "floor": 0.1,
+            "n": 1735,
+            "n_not_relaxed": 1715,
+            "not_relaxed_share": 0.9884726224783862,
+            "relaxed_share": 0.011527377521613832,
+            "relaxed_quality_share": 0.011527377521613832,
+            "realized_success": 0.4629737609329446,
+            "realized_ci": [
+              0.4394838399137069,
+              0.48662918270173694
+            ],
+            "met": true,
+            "mean_cost_usd": 0.006415179319884726,
+            "success_rate": 0.45994236311239195,
+            "model_counts": {
+              "claude-sonnet-4": 4,
+              "deepseek-r1-0528": 67,
+              "deepseek-v3-0324": 251,
+              "gemini-2.5-flash": 6,
+              "gemini-2.5-pro": 20,
+              "glm-4.6": 43,
+              "gpt-5": 57,
+              "intern-s1": 7,
+              "kimi-k2-0905": 114,
+              "qwen3-235b-a22b-2507": 1160,
+              "qwen3-235b-a22b-thinking-2507": 6
+            }
+          },
+          {
+            "floor": 0.15,
+            "n": 1735,
+            "n_not_relaxed": 1714,
+            "not_relaxed_share": 0.9878962536023055,
+            "relaxed_share": 0.012103746397694525,
+            "relaxed_quality_share": 0.012103746397694525,
+            "realized_success": 0.47316219369894985,
+            "realized_ci": [
+              0.44961191217730856,
+              0.49683250530699585
+            ],
+            "met": true,
+            "mean_cost_usd": 0.012644118406340058,
+            "success_rate": 0.4697406340057637,
+            "model_counts": {
+              "claude-sonnet-4": 29,
+              "deepseek-r1-0528": 172,
+              "deepseek-v3-0324": 238,
+              "gemini-2.5-flash": 10,
+              "gemini-2.5-pro": 49,
+              "glm-4.6": 58,
+              "gpt-5": 116,
+              "gpt-5-chat": 13,
+              "intern-s1": 28,
+              "kimi-k2-0905": 68,
+              "qwen3-235b-a22b-2507": 950,
+              "qwen3-235b-a22b-thinking-2507": 4
+            }
+          },
+          {
+            "floor": 0.2,
+            "n": 1735,
+            "n_not_relaxed": 1695,
+            "not_relaxed_share": 0.9769452449567724,
+            "relaxed_share": 0.023054755043227664,
+            "relaxed_quality_share": 0.023054755043227664,
+            "realized_success": 0.4849557522123894,
+            "realized_ci": [
+              0.46122435344943313,
+              0.50875518776474
+            ],
+            "met": true,
+            "mean_cost_usd": 0.013762517390489913,
+            "success_rate": 0.4801152737752161,
+            "model_counts": {
+              "claude-sonnet-4": 2,
+              "deepseek-r1-0528": 178,
+              "deepseek-v3-0324": 235,
+              "gemini-2.5-flash": 9,
+              "gemini-2.5-pro": 17,
+              "glm-4.6": 69,
+              "gpt-5": 188,
+              "gpt-5-chat": 1,
+              "intern-s1": 23,
+              "kimi-k2-0905": 58,
+              "qwen3-235b-a22b-2507": 953,
+              "qwen3-235b-a22b-thinking-2507": 2
+            }
+          },
+          {
+            "floor": 0.25,
+            "n": 1735,
+            "n_not_relaxed": 1592,
+            "not_relaxed_share": 0.9175792507204611,
+            "relaxed_share": 0.08242074927953891,
+            "relaxed_quality_share": 0.08242074927953891,
+            "realized_success": 0.5144472361809045,
+            "realized_ci": [
+              0.48989122682479636,
+              0.5389336916807339
+            ],
+            "met": true,
+            "mean_cost_usd": 0.01784570644524496,
+            "success_rate": 0.49221902017291064,
+            "model_counts": {
+              "claude-sonnet-4": 4,
+              "deepseek-r1-0528": 90,
+              "deepseek-v3-0324": 224,
+              "gemini-2.5-flash": 9,
+              "gemini-2.5-pro": 36,
+              "glm-4.6": 34,
+              "gpt-5": 316,
+              "gpt-5-chat": 3,
+              "intern-s1": 8,
+              "kimi-k2-0905": 43,
+              "qwen3-235b-a22b-2507": 964,
+              "qwen3-235b-a22b-thinking-2507": 4
+            }
+          },
+          {
+            "floor": 0.3,
+            "n": 1735,
+            "n_not_relaxed": 1481,
+            "not_relaxed_share": 0.8536023054755043,
+            "relaxed_share": 0.14639769452449566,
+            "relaxed_quality_share": 0.14639769452449566,
+            "realized_success": 0.5476029709655638,
+            "realized_ci": [
+              0.5221631826557496,
+              0.5727964503452252
+            ],
+            "met": true,
+            "mean_cost_usd": 0.022462524463976945,
+            "success_rate": 0.5002881844380404,
+            "model_counts": {
+              "deepseek-r1-0528": 13,
+              "deepseek-v3-0324": 192,
+              "gemini-2.5-flash": 4,
+              "gemini-2.5-pro": 84,
+              "glm-4.6": 22,
+              "gpt-5": 380,
+              "gpt-5-chat": 7,
+              "intern-s1": 7,
+              "kimi-k2-0905": 39,
+              "qwen3-235b-a22b-2507": 982,
+              "qwen3-235b-a22b-thinking-2507": 5
+            }
+          },
+          {
+            "floor": 0.35,
+            "n": 1735,
+            "n_not_relaxed": 1336,
+            "not_relaxed_share": 0.770028818443804,
+            "relaxed_share": 0.22997118155619597,
+            "relaxed_quality_share": 0.22997118155619597,
+            "realized_success": 0.5875748502994012,
+            "realized_ci": [
+              0.5609637732880725,
+              0.6136837556780627
+            ],
+            "met": true,
+            "mean_cost_usd": 0.024525096912103743,
+            "success_rate": 0.5043227665706052,
+            "model_counts": {
+              "deepseek-r1-0528": 11,
+              "deepseek-v3-0324": 194,
+              "gemini-2.5-flash": 4,
+              "gemini-2.5-pro": 125,
+              "glm-4.6": 25,
+              "gpt-5": 349,
+              "gpt-5-chat": 8,
+              "intern-s1": 13,
+              "kimi-k2-0905": 34,
+              "qwen3-235b-a22b-2507": 968,
+              "qwen3-235b-a22b-thinking-2507": 4
+            }
+          },
+          {
+            "floor": 0.4,
+            "n": 1735,
+            "n_not_relaxed": 1299,
+            "not_relaxed_share": 0.7487031700288185,
+            "relaxed_share": 0.2512968299711816,
+            "relaxed_quality_share": 0.2512968299711816,
+            "realized_success": 0.605080831408776,
+            "realized_ci": [
+              0.5782253888157272,
+              0.6313166073642345
+            ],
+            "met": true,
+            "mean_cost_usd": 0.025691704870317,
+            "success_rate": 0.5106628242074928,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 206,
+              "gemini-2.5-pro": 173,
+              "glm-4.6": 18,
+              "gpt-5": 376,
+              "gpt-5-chat": 37,
+              "intern-s1": 13,
+              "kimi-k2-0905": 48,
+              "qwen3-235b-a22b-2507": 841,
+              "qwen3-235b-a22b-thinking-2507": 11
+            }
+          },
+          {
+            "floor": 0.45,
+            "n": 1735,
+            "n_not_relaxed": 1275,
+            "not_relaxed_share": 0.7348703170028819,
+            "relaxed_share": 0.26512968299711814,
+            "relaxed_quality_share": 0.26512968299711814,
+            "realized_success": 0.6188235294117647,
+            "realized_ci": [
+              0.5918455472152067,
+              0.6450876534530434
+            ],
+            "met": true,
+            "mean_cost_usd": 0.026359968208933715,
+            "success_rate": 0.5164265129682997,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 193,
+              "gemini-2.5-flash": 1,
+              "gemini-2.5-pro": 188,
+              "glm-4.6": 19,
+              "gpt-5": 419,
+              "gpt-5-chat": 22,
+              "intern-s1": 16,
+              "kimi-k2-0905": 19,
+              "qwen3-235b-a22b-2507": 838,
+              "qwen3-235b-a22b-thinking-2507": 8
+            }
+          },
+          {
+            "floor": 0.5,
+            "n": 1735,
+            "n_not_relaxed": 1105,
+            "not_relaxed_share": 0.6368876080691642,
+            "relaxed_share": 0.3631123919308357,
+            "relaxed_quality_share": 0.3631123919308357,
+            "realized_success": 0.6524886877828054,
+            "realized_ci": [
+              0.623927931120796,
+              0.6799928839793153
+            ],
+            "met": true,
+            "mean_cost_usd": 0.027519033943804037,
+            "success_rate": 0.5273775216138329,
+            "model_counts": {
+              "claude-sonnet-4": 1,
+              "deepseek-r1-0528": 14,
+              "deepseek-v3-0324": 145,
+              "gemini-2.5-flash": 6,
+              "gemini-2.5-pro": 255,
+              "glm-4.6": 22,
+              "gpt-5": 445,
+              "gpt-5-chat": 46,
+              "intern-s1": 13,
+              "kimi-k2-0905": 23,
+              "qwen3-235b-a22b-2507": 729,
+              "qwen3-235b-a22b-thinking-2507": 36
+            }
+          },
+          {
+            "floor": 0.55,
+            "n": 1735,
+            "n_not_relaxed": 982,
+            "not_relaxed_share": 0.5659942363112392,
+            "relaxed_share": 0.4340057636887608,
+            "relaxed_quality_share": 0.4340057636887608,
+            "realized_success": 0.6720977596741344,
+            "realized_ci": [
+              0.6421150771926432,
+              0.7007392397515362
+            ],
+            "met": true,
+            "mean_cost_usd": 0.0289731336426513,
+            "success_rate": 0.5342939481268012,
+            "model_counts": {
+              "deepseek-r1-0528": 23,
+              "deepseek-v3-0324": 149,
+              "gemini-2.5-pro": 327,
+              "glm-4.6": 18,
+              "gpt-5": 539,
+              "gpt-5-chat": 75,
+              "intern-s1": 13,
+              "kimi-k2-0905": 41,
+              "qwen3-235b-a22b-2507": 468,
+              "qwen3-235b-a22b-thinking-2507": 82
+            }
+          },
+          {
+            "floor": 0.6,
+            "n": 1735,
+            "n_not_relaxed": 860,
+            "not_relaxed_share": 0.4956772334293948,
+            "relaxed_share": 0.5043227665706052,
+            "relaxed_quality_share": 0.5043227665706052,
+            "realized_success": 0.6941860465116279,
+            "realized_ci": [
+              0.6625849704782848,
+              0.7240600516679564
+            ],
+            "met": true,
+            "mean_cost_usd": 0.029707993867435157,
+            "success_rate": 0.5389048991354467,
+            "model_counts": {
+              "deepseek-r1-0528": 16,
+              "deepseek-v3-0324": 159,
+              "gemini-2.5-flash": 2,
+              "gemini-2.5-pro": 422,
+              "glm-4.6": 25,
+              "gpt-5": 549,
+              "gpt-5-chat": 66,
+              "intern-s1": 14,
+              "kimi-k2-0905": 57,
+              "qwen3-235b-a22b-2507": 313,
+              "qwen3-235b-a22b-thinking-2507": 112
+            }
+          }
+        ],
+        "summary": {
+          "floors": 12,
+          "with_decisions": 12,
+          "met": 12,
+          "missed_floors": []
+        },
+        "reliability": [
+          {
+            "decile": 1,
+            "n": 1679,
+            "mean_l": 0.08148020631809391,
+            "realized_success": 0.1429422275163788
+          },
+          {
+            "decile": 2,
+            "n": 1679,
+            "mean_l": 0.19690841802366263,
+            "realized_success": 0.285288862418106
+          },
+          {
+            "decile": 3,
+            "n": 1679,
+            "mean_l": 0.29645092918539334,
+            "realized_success": 0.44371649791542583
+          },
+          {
+            "decile": 4,
+            "n": 1678,
+            "mean_l": 0.37171285914266317,
+            "realized_success": 0.5196662693682956
+          },
+          {
+            "decile": 5,
+            "n": 1679,
+            "mean_l": 0.39588083607770297,
+            "realized_success": 0.5533055390113163
+          },
+          {
+            "decile": 6,
+            "n": 1679,
+            "mean_l": 0.4376661522426771,
+            "realized_success": 0.6265634306134604
+          },
+          {
+            "decile": 7,
+            "n": 1678,
+            "mean_l": 0.48790349430456464,
+            "realized_success": 0.6388557806912991
+          },
+          {
+            "decile": 8,
+            "n": 1679,
+            "mean_l": 0.5258555925595597,
+            "realized_success": 0.6563430613460393
+          },
+          {
+            "decile": 9,
+            "n": 1679,
+            "mean_l": 0.5774969470329147,
+            "realized_success": 0.7456819535437761
+          },
+          {
+            "decile": 10,
+            "n": 1679,
+            "mean_l": 0.7713778109228718,
+            "realized_success": 0.8457415128052412
+          }
+        ]
+      }
+    },
+    "calib": {
+      "lcb": {
+        "floors": [
+          {
+            "floor": 0.05,
+            "n": 1773,
+            "n_not_relaxed": 1773,
+            "not_relaxed_share": 1.0,
+            "relaxed_share": 0.0,
+            "relaxed_quality_share": 0.0,
+            "realized_success": 0.44895657078398193,
+            "realized_ci": [
+              0.42593968609547245,
+              0.4721941631034549
+            ],
+            "met": true,
+            "mean_cost_usd": 0.00830840432036097,
+            "success_rate": 0.44895657078398193,
+            "model_counts": {
+              "claude-sonnet-4": 28,
+              "deepseek-r1-0528": 82,
+              "deepseek-v3-0324": 265,
+              "gemini-2.5-flash": 9,
+              "gemini-2.5-pro": 22,
+              "glm-4.6": 14,
+              "gpt-5": 95,
+              "intern-s1": 159,
+              "kimi-k2-0905": 35,
+              "qwen3-235b-a22b-2507": 1062,
+              "qwen3-235b-a22b-thinking-2507": 2
+            }
+          },
+          {
+            "floor": 0.1,
+            "n": 1773,
+            "n_not_relaxed": 1773,
+            "not_relaxed_share": 1.0,
+            "relaxed_share": 0.0,
+            "relaxed_quality_share": 0.0,
+            "realized_success": 0.4630569655950367,
+            "realized_ci": [
+              0.4399518056340381,
+              0.4863218642281691
+            ],
+            "met": true,
+            "mean_cost_usd": 0.012844722188381275,
+            "success_rate": 0.4630569655950367,
+            "model_counts": {
+              "claude-sonnet-4": 1,
+              "deepseek-r1-0528": 170,
+              "deepseek-v3-0324": 240,
+              "gemini-2.5-flash": 10,
+              "gemini-2.5-pro": 14,
+              "glm-4.6": 61,
+              "gpt-5": 187,
+              "gpt-5-chat": 1,
+              "intern-s1": 54,
+              "kimi-k2-0905": 47,
+              "qwen3-235b-a22b-2507": 985,
+              "qwen3-235b-a22b-thinking-2507": 3
+            }
+          },
+          {
+            "floor": 0.15,
+            "n": 1773,
+            "n_not_relaxed": 1664,
+            "not_relaxed_share": 0.9385222786238014,
+            "relaxed_share": 0.06147772137619854,
+            "relaxed_quality_share": 0.06147772137619854,
+            "realized_success": 0.5042067307692307,
+            "realized_ci": [
+              0.4802017860353899,
+              0.5281922971824421
+            ],
+            "met": true,
+            "mean_cost_usd": 0.0182486834179357,
+            "success_rate": 0.48336153412295546,
+            "model_counts": {
+              "claude-sonnet-4": 1,
+              "deepseek-r1-0528": 83,
+              "deepseek-v3-0324": 226,
+              "gemini-2.5-flash": 11,
+              "gemini-2.5-pro": 37,
+              "glm-4.6": 24,
+              "gpt-5": 327,
+              "gpt-5-chat": 1,
+              "intern-s1": 12,
+              "kimi-k2-0905": 51,
+              "qwen3-235b-a22b-2507": 994,
+              "qwen3-235b-a22b-thinking-2507": 6
+            }
+          },
+          {
+            "floor": 0.2,
+            "n": 1773,
+            "n_not_relaxed": 1526,
+            "not_relaxed_share": 0.8606880992667795,
+            "relaxed_share": 0.13931190073322053,
+            "relaxed_quality_share": 0.13931190073322053,
+            "realized_success": 0.528178243774574,
+            "realized_ci": [
+              0.5030921797272331,
+              0.5531227956878585
+            ],
+            "met": true,
+            "mean_cost_usd": 0.02240360902566272,
+            "success_rate": 0.4861816130851664,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 227,
+              "gemini-2.5-flash": 6,
+              "gemini-2.5-pro": 82,
+              "glm-4.6": 41,
+              "gpt-5": 350,
+              "gpt-5-chat": 4,
+              "intern-s1": 25,
+              "kimi-k2-0905": 18,
+              "qwen3-235b-a22b-2507": 1007,
+              "qwen3-235b-a22b-thinking-2507": 1
+            }
+          },
+          {
+            "floor": 0.25,
+            "n": 1773,
+            "n_not_relaxed": 1371,
+            "not_relaxed_share": 0.7732656514382402,
+            "relaxed_share": 0.22673434856175972,
+            "relaxed_quality_share": 0.22673434856175972,
+            "realized_success": 0.5703865791393143,
+            "realized_ci": [
+              0.5440226891976521,
+              0.596357133328971
+            ],
+            "met": true,
+            "mean_cost_usd": 0.025130980225606316,
+            "success_rate": 0.49802594472645234,
+            "model_counts": {
+              "claude-sonnet-4": 7,
+              "deepseek-r1-0528": 19,
+              "deepseek-v3-0324": 236,
+              "gemini-2.5-flash": 15,
+              "gemini-2.5-pro": 147,
+              "glm-4.6": 21,
+              "gpt-5": 377,
+              "gpt-5-chat": 24,
+              "intern-s1": 12,
+              "kimi-k2-0905": 24,
+              "qwen3-235b-a22b-2507": 888,
+              "qwen3-235b-a22b-thinking-2507": 3
+            }
+          },
+          {
+            "floor": 0.3,
+            "n": 1773,
+            "n_not_relaxed": 1344,
+            "not_relaxed_share": 0.7580372250423012,
+            "relaxed_share": 0.24196277495769883,
+            "relaxed_quality_share": 0.24196277495769883,
+            "realized_success": 0.5840773809523809,
+            "realized_ci": [
+              0.5575236753248921,
+              0.6101518316947384
+            ],
+            "met": true,
+            "mean_cost_usd": 0.026109650721940218,
+            "success_rate": 0.5047941342357586,
+            "model_counts": {
+              "deepseek-r1-0528": 14,
+              "deepseek-v3-0324": 222,
+              "gemini-2.5-flash": 5,
+              "gemini-2.5-pro": 156,
+              "glm-4.6": 16,
+              "gpt-5": 411,
+              "gpt-5-chat": 10,
+              "intern-s1": 8,
+              "kimi-k2-0905": 24,
+              "qwen3-235b-a22b-2507": 902,
+              "qwen3-235b-a22b-thinking-2507": 5
+            }
+          },
+          {
+            "floor": 0.35,
+            "n": 1773,
+            "n_not_relaxed": 1294,
+            "not_relaxed_share": 0.7298364354201917,
+            "relaxed_share": 0.2701635645798082,
+            "relaxed_quality_share": 0.2701635645798082,
+            "realized_success": 0.5850077279752705,
+            "realized_ci": [
+              0.5579485598119918,
+              0.6115636702793739
+            ],
+            "met": true,
+            "mean_cost_usd": 0.027117263754935138,
+            "success_rate": 0.5002820078962211,
+            "model_counts": {
+              "deepseek-r1-0528": 17,
+              "deepseek-v3-0324": 271,
+              "gemini-2.5-flash": 7,
+              "gemini-2.5-pro": 227,
+              "glm-4.6": 17,
+              "gpt-5": 452,
+              "gpt-5-chat": 47,
+              "intern-s1": 8,
+              "kimi-k2-0905": 15,
+              "qwen3-235b-a22b-2507": 702,
+              "qwen3-235b-a22b-thinking-2507": 10
+            }
+          },
+          {
+            "floor": 0.4,
+            "n": 1773,
+            "n_not_relaxed": 1123,
+            "not_relaxed_share": 0.6333897349125776,
+            "relaxed_share": 0.36661026508742245,
+            "relaxed_quality_share": 0.36661026508742245,
+            "realized_success": 0.6215494211932324,
+            "realized_ci": [
+              0.5928142479775397,
+              0.6494558582990154
+            ],
+            "met": true,
+            "mean_cost_usd": 0.028214491051889452,
+            "success_rate": 0.5047941342357586,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 285,
+              "gemini-2.5-flash": 1,
+              "gemini-2.5-pro": 280,
+              "glm-4.6": 16,
+              "gpt-5": 475,
+              "gpt-5-chat": 182,
+              "intern-s1": 9,
+              "kimi-k2-0905": 14,
+              "qwen3-235b-a22b-2507": 436,
+              "qwen3-235b-a22b-thinking-2507": 63
+            }
+          },
+          {
+            "floor": 0.45,
+            "n": 1773,
+            "n_not_relaxed": 931,
+            "not_relaxed_share": 0.5250987027636774,
+            "relaxed_share": 0.47490129723632263,
+            "relaxed_quality_share": 0.47490129723632263,
+            "realized_success": 0.664876476906552,
+            "realized_ci": [
+              0.6339325565110691,
+              0.6944653735158898
+            ],
+            "met": true,
+            "mean_cost_usd": 0.029353314042583192,
+            "success_rate": 0.5115623237450648,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 164,
+              "gemini-2.5-flash": 1,
+              "gemini-2.5-pro": 275,
+              "glm-4.6": 33,
+              "gpt-5": 539,
+              "gpt-5-chat": 94,
+              "intern-s1": 11,
+              "kimi-k2-0905": 50,
+              "qwen3-235b-a22b-2507": 444,
+              "qwen3-235b-a22b-thinking-2507": 150
+            }
+          },
+          {
+            "floor": 0.5,
+            "n": 1773,
+            "n_not_relaxed": 723,
+            "not_relaxed_share": 0.4077834179357022,
+            "relaxed_share": 0.5922165820642978,
+            "relaxed_quality_share": 0.5922165820642978,
+            "realized_success": 0.7136929460580913,
+            "realized_ci": [
+              0.6796816946480359,
+              0.7454454031864649
+            ],
+            "met": true,
+            "mean_cost_usd": 0.031522084139875915,
+            "success_rate": 0.5250987027636774,
+            "model_counts": {
+              "deepseek-r1-0528": 41,
+              "deepseek-v3-0324": 175,
+              "gemini-2.5-flash": 4,
+              "gemini-2.5-pro": 294,
+              "glm-4.6": 24,
+              "gpt-5": 621,
+              "gpt-5-chat": 80,
+              "intern-s1": 18,
+              "kimi-k2-0905": 20,
+              "qwen3-235b-a22b-2507": 329,
+              "qwen3-235b-a22b-thinking-2507": 167
+            }
+          },
+          {
+            "floor": 0.55,
+            "n": 1773,
+            "n_not_relaxed": 531,
+            "not_relaxed_share": 0.29949238578680204,
+            "relaxed_share": 0.700507614213198,
+            "relaxed_quality_share": 0.700507614213198,
+            "realized_success": 0.7551789077212806,
+            "realized_ci": [
+              0.7168594939387989,
+              0.7898327145650792
+            ],
+            "met": true,
+            "mean_cost_usd": 0.03352260482656514,
+            "success_rate": 0.5307388606880993,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 49,
+              "gemini-2.5-flash": 9,
+              "gemini-2.5-pro": 329,
+              "glm-4.6": 58,
+              "gpt-5": 670,
+              "gpt-5-chat": 81,
+              "intern-s1": 16,
+              "kimi-k2-0905": 91,
+              "qwen3-235b-a22b-2507": 278,
+              "qwen3-235b-a22b-thinking-2507": 180
+            }
+          },
+          {
+            "floor": 0.6,
+            "n": 1773,
+            "n_not_relaxed": 530,
+            "not_relaxed_share": 0.29892836999435984,
+            "relaxed_share": 0.7010716300056402,
+            "relaxed_quality_share": 0.7010716300056402,
+            "realized_success": 0.7660377358490567,
+            "realized_ci": [
+              0.7281603430466637,
+              0.8000863776013576
+            ],
+            "met": true,
+            "mean_cost_usd": 0.03362936290609137,
+            "success_rate": 0.5341229554427523,
+            "model_counts": {
+              "deepseek-r1-0528": 12,
+              "deepseek-v3-0324": 50,
+              "gemini-2.5-pro": 331,
+              "glm-4.6": 63,
+              "gpt-5": 682,
+              "gpt-5-chat": 65,
+              "intern-s1": 16,
+              "kimi-k2-0905": 92,
+              "qwen3-235b-a22b-2507": 278,
+              "qwen3-235b-a22b-thinking-2507": 184
+            }
+          }
+        ],
+        "summary": {
+          "floors": 12,
+          "with_decisions": 12,
+          "met": 12,
+          "missed_floors": []
+        },
+        "reliability": [
+          {
+            "decile": 1,
+            "n": 1459,
+            "mean_l": 0.13596791634117147,
+            "realized_success": 0.181631254283756
+          },
+          {
+            "decile": 2,
+            "n": 1458,
+            "mean_l": 0.25284462500659377,
+            "realized_success": 0.41838134430727025
+          },
+          {
+            "decile": 3,
+            "n": 1458,
+            "mean_l": 0.33392491408374675,
+            "realized_success": 0.4444444444444444
+          },
+          {
+            "decile": 4,
+            "n": 1458,
+            "mean_l": 0.395880836077703,
+            "realized_success": 0.5411522633744856
+          },
+          {
+            "decile": 5,
+            "n": 1459,
+            "mean_l": 0.4185050304237038,
+            "realized_success": 0.5065113091158328
+          },
+          {
+            "decile": 6,
+            "n": 1458,
+            "mean_l": 0.4788739125046741,
+            "realized_success": 0.5768175582990398
+          },
+          {
+            "decile": 7,
+            "n": 1458,
+            "mean_l": 0.5156936527450533,
+            "realized_success": 0.6323731138545954
+          },
+          {
+            "decile": 8,
+            "n": 1458,
+            "mean_l": 0.5435025384164213,
+            "realized_success": 0.7249657064471879
+          },
+          {
+            "decile": 9,
+            "n": 1458,
+            "mean_l": 0.6602732106599445,
+            "realized_success": 0.7469135802469136
+          },
+          {
+            "decile": 10,
+            "n": 1459,
+            "mean_l": 0.7828165872026562,
+            "realized_success": 0.8677176148046607
+          }
+        ]
+      },
+      "point": {
+        "floors": [
+          {
+            "floor": 0.05,
+            "n": 1773,
+            "n_not_relaxed": 1773,
+            "not_relaxed_share": 1.0,
+            "relaxed_share": 0.0,
+            "relaxed_quality_share": 0.0,
+            "realized_success": 0.43429216018048505,
+            "realized_ci": [
+              0.41138696861490287,
+              0.45748146709421356
+            ],
+            "met": true,
+            "mean_cost_usd": 0.0010444367738296672,
+            "success_rate": 0.43429216018048505,
+            "model_counts": {
+              "deepseek-r1-0528": 13,
+              "deepseek-v3-0324": 263,
+              "gemini-2.5-flash": 12,
+              "glm-4.6": 2,
+              "intern-s1": 6,
+              "kimi-k2-0905": 253,
+              "qwen3-235b-a22b-2507": 1209,
+              "qwen3-235b-a22b-thinking-2507": 15
+            }
+          },
+          {
+            "floor": 0.1,
+            "n": 1773,
+            "n_not_relaxed": 1757,
+            "not_relaxed_share": 0.990975747320925,
+            "relaxed_share": 0.009024252679075015,
+            "relaxed_quality_share": 0.009024252679075015,
+            "realized_success": 0.45133750711439957,
+            "realized_ci": [
+              0.4282004733175091,
+              0.4746868654956966
+            ],
+            "met": true,
+            "mean_cost_usd": 0.007630226508742245,
+            "success_rate": 0.4478285391990976,
+            "model_counts": {
+              "claude-sonnet-4": 2,
+              "deepseek-r1-0528": 74,
+              "deepseek-v3-0324": 263,
+              "gemini-2.5-flash": 9,
+              "gemini-2.5-pro": 29,
+              "glm-4.6": 43,
+              "gpt-5": 66,
+              "intern-s1": 17,
+              "kimi-k2-0905": 100,
+              "qwen3-235b-a22b-2507": 1169,
+              "qwen3-235b-a22b-thinking-2507": 1
+            }
+          },
+          {
+            "floor": 0.15,
+            "n": 1773,
+            "n_not_relaxed": 1755,
+            "not_relaxed_share": 0.9898477157360406,
+            "relaxed_share": 0.01015228426395939,
+            "relaxed_quality_share": 0.01015228426395939,
+            "realized_success": 0.46780626780626783,
+            "realized_ci": [
+              0.44455786648119483,
+              0.4911952968130833
+            ],
+            "met": true,
+            "mean_cost_usd": 0.013294830716300056,
+            "success_rate": 0.46362098138747887,
+            "model_counts": {
+              "claude-sonnet-4": 28,
+              "deepseek-r1-0528": 164,
+              "deepseek-v3-0324": 240,
+              "gemini-2.5-flash": 12,
+              "gemini-2.5-pro": 55,
+              "glm-4.6": 56,
+              "gpt-5": 122,
+              "gpt-5-chat": 15,
+              "intern-s1": 39,
+              "kimi-k2-0905": 55,
+              "qwen3-235b-a22b-2507": 985,
+              "qwen3-235b-a22b-thinking-2507": 2
+            }
+          },
+          {
+            "floor": 0.2,
+            "n": 1773,
+            "n_not_relaxed": 1735,
+            "not_relaxed_share": 0.9785673998871969,
+            "relaxed_share": 0.02143260011280316,
+            "relaxed_quality_share": 0.02143260011280316,
+            "realized_success": 0.4749279538904899,
+            "realized_ci": [
+              0.4515117469692448,
+              0.4984549394381679
+            ],
+            "met": true,
+            "mean_cost_usd": 0.013636532194021432,
+            "success_rate": 0.4653130287648054,
+            "model_counts": {
+              "claude-sonnet-4": 1,
+              "deepseek-r1-0528": 196,
+              "deepseek-v3-0324": 236,
+              "gemini-2.5-flash": 14,
+              "gemini-2.5-pro": 14,
+              "glm-4.6": 67,
+              "gpt-5": 191,
+              "intern-s1": 18,
+              "kimi-k2-0905": 49,
+              "qwen3-235b-a22b-2507": 987
+            }
+          },
+          {
+            "floor": 0.25,
+            "n": 1773,
+            "n_not_relaxed": 1623,
+            "not_relaxed_share": 0.9153976311336718,
+            "relaxed_share": 0.08460236886632826,
+            "relaxed_quality_share": 0.08460236886632826,
+            "realized_success": 0.512014787430684,
+            "realized_ci": [
+              0.48769681721492125,
+              0.5362760166387346
+            ],
+            "met": true,
+            "mean_cost_usd": 0.019178658200789622,
+            "success_rate": 0.48392554991539766,
+            "model_counts": {
+              "claude-sonnet-4": 1,
+              "deepseek-r1-0528": 93,
+              "deepseek-v3-0324": 226,
+              "gemini-2.5-flash": 11,
+              "gemini-2.5-pro": 47,
+              "glm-4.6": 30,
+              "gpt-5": 324,
+              "gpt-5-chat": 2,
+              "intern-s1": 3,
+              "kimi-k2-0905": 38,
+              "qwen3-235b-a22b-2507": 996,
+              "qwen3-235b-a22b-thinking-2507": 2
+            }
+          },
+          {
+            "floor": 0.3,
+            "n": 1773,
+            "n_not_relaxed": 1518,
+            "not_relaxed_share": 0.856175972927242,
+            "relaxed_share": 0.14382402707275804,
+            "relaxed_quality_share": 0.14382402707275804,
+            "realized_success": 0.5342555994729907,
+            "realized_ci": [
+              0.5091072110706918,
+              0.5592310507062281
+            ],
+            "met": true,
+            "mean_cost_usd": 0.02397507934715172,
+            "success_rate": 0.4906937394247039,
+            "model_counts": {
+              "deepseek-r1-0528": 13,
+              "deepseek-v3-0324": 201,
+              "gemini-2.5-flash": 7,
+              "gemini-2.5-pro": 91,
+              "glm-4.6": 16,
+              "gpt-5": 395,
+              "gpt-5-chat": 5,
+              "intern-s1": 4,
+              "kimi-k2-0905": 20,
+              "qwen3-235b-a22b-2507": 1017,
+              "qwen3-235b-a22b-thinking-2507": 4
+            }
+          },
+          {
+            "floor": 0.35,
+            "n": 1773,
+            "n_not_relaxed": 1372,
+            "not_relaxed_share": 0.7738296672306825,
+            "relaxed_share": 0.22617033276931753,
+            "relaxed_quality_share": 0.22617033276931753,
+            "realized_success": 0.5626822157434402,
+            "realized_ci": [
+              0.5362949857129986,
+              0.5887194183011486
+            ],
+            "met": true,
+            "mean_cost_usd": 0.024901436480541453,
+            "success_rate": 0.49238578680203043,
+            "model_counts": {
+              "deepseek-r1-0528": 16,
+              "deepseek-v3-0324": 203,
+              "gemini-2.5-flash": 5,
+              "gemini-2.5-pro": 121,
+              "glm-4.6": 21,
+              "gpt-5": 374,
+              "gpt-5-chat": 4,
+              "intern-s1": 12,
+              "kimi-k2-0905": 15,
+              "qwen3-235b-a22b-2507": 1000,
+              "qwen3-235b-a22b-thinking-2507": 2
+            }
+          },
+          {
+            "floor": 0.4,
+            "n": 1773,
+            "n_not_relaxed": 1330,
+            "not_relaxed_share": 0.7501410039481106,
+            "relaxed_share": 0.24985899605188946,
+            "relaxed_quality_share": 0.24985899605188946,
+            "realized_success": 0.5834586466165413,
+            "realized_ci": [
+              0.556760834230169,
+              0.6096757377640717
+            ],
+            "met": true,
+            "mean_cost_usd": 0.025906381950084604,
+            "success_rate": 0.5025380710659898,
+            "model_counts": {
+              "deepseek-r1-0528": 14,
+              "deepseek-v3-0324": 224,
+              "gemini-2.5-flash": 5,
+              "gemini-2.5-pro": 155,
+              "glm-4.6": 16,
+              "gpt-5": 404,
+              "gpt-5-chat": 33,
+              "intern-s1": 12,
+              "kimi-k2-0905": 25,
+              "qwen3-235b-a22b-2507": 878,
+              "qwen3-235b-a22b-thinking-2507": 7
+            }
+          },
+          {
+            "floor": 0.45,
+            "n": 1773,
+            "n_not_relaxed": 1307,
+            "not_relaxed_share": 0.7371686407219402,
+            "relaxed_share": 0.2628313592780598,
+            "relaxed_quality_share": 0.2628313592780598,
+            "realized_success": 0.5914307574598316,
+            "realized_ci": [
+              0.5645506762261865,
+              0.6177749577249767
+            ],
+            "met": true,
+            "mean_cost_usd": 0.02678459271150592,
+            "success_rate": 0.5042301184433164,
+            "model_counts": {
+              "deepseek-r1-0528": 14,
+              "deepseek-v3-0324": 208,
+              "gemini-2.5-flash": 7,
+              "gemini-2.5-pro": 166,
+              "glm-4.6": 17,
+              "gpt-5": 438,
+              "gpt-5-chat": 20,
+              "intern-s1": 16,
+              "kimi-k2-0905": 11,
+              "qwen3-235b-a22b-2507": 869,
+              "qwen3-235b-a22b-thinking-2507": 7
+            }
+          },
+          {
+            "floor": 0.5,
+            "n": 1773,
+            "n_not_relaxed": 1127,
+            "not_relaxed_share": 0.6356457980823463,
+            "relaxed_share": 0.3643542019176537,
+            "relaxed_quality_share": 0.3643542019176537,
+            "realized_success": 0.6344276841171251,
+            "realized_ci": [
+              0.6058984489553104,
+              0.6620436198646177
+            ],
+            "met": true,
+            "mean_cost_usd": 0.02814232408347434,
+            "success_rate": 0.5126903553299492,
+            "model_counts": {
+              "deepseek-r1-0528": 17,
+              "deepseek-v3-0324": 154,
+              "gemini-2.5-flash": 9,
+              "gemini-2.5-pro": 236,
+              "glm-4.6": 26,
+              "gpt-5": 487,
+              "gpt-5-chat": 54,
+              "intern-s1": 9,
+              "kimi-k2-0905": 27,
+              "qwen3-235b-a22b-2507": 722,
+              "qwen3-235b-a22b-thinking-2507": 32
+            }
+          },
+          {
+            "floor": 0.55,
+            "n": 1773,
+            "n_not_relaxed": 988,
+            "not_relaxed_share": 0.5572476029328821,
+            "relaxed_share": 0.4427523970671179,
+            "relaxed_quality_share": 0.4427523970671179,
+            "realized_success": 0.6619433198380567,
+            "realized_ci": [
+              0.6318698081995141,
+              0.6907623999367841
+            ],
+            "met": true,
+            "mean_cost_usd": 0.029703787144670053,
+            "success_rate": 0.5177664974619289,
+            "model_counts": {
+              "deepseek-r1-0528": 23,
+              "deepseek-v3-0324": 162,
+              "gemini-2.5-flash": 1,
+              "gemini-2.5-pro": 313,
+              "glm-4.6": 17,
+              "gpt-5": 569,
+              "gpt-5-chat": 86,
+              "intern-s1": 10,
+              "kimi-k2-0905": 55,
+              "qwen3-235b-a22b-2507": 443,
+              "qwen3-235b-a22b-thinking-2507": 94
+            }
+          },
+          {
+            "floor": 0.6,
+            "n": 1773,
+            "n_not_relaxed": 869,
+            "not_relaxed_share": 0.4901297236322617,
+            "relaxed_share": 0.5098702763677383,
+            "relaxed_quality_share": 0.5098702763677383,
+            "realized_success": 0.6892980437284235,
+            "realized_ci": [
+              0.657752382288959,
+              0.7191774675163802
+            ],
+            "met": true,
+            "mean_cost_usd": 0.0310485132642414,
+            "success_rate": 0.5228426395939086,
+            "model_counts": {
+              "deepseek-r1-0528": 17,
+              "deepseek-v3-0324": 173,
+              "gemini-2.5-flash": 1,
+              "gemini-2.5-pro": 407,
+              "glm-4.6": 19,
+              "gpt-5": 578,
+              "gpt-5-chat": 72,
+              "intern-s1": 11,
+              "kimi-k2-0905": 71,
+              "qwen3-235b-a22b-2507": 302,
+              "qwen3-235b-a22b-thinking-2507": 122
+            }
+          }
+        ],
+        "summary": {
+          "floors": 12,
+          "with_decisions": 12,
+          "met": 12,
+          "missed_floors": []
+        },
+        "reliability": [
+          {
+            "decile": 1,
+            "n": 1716,
+            "mean_l": 0.08295429272050758,
+            "realized_success": 0.14160839160839161
+          },
+          {
+            "decile": 2,
+            "n": 1715,
+            "mean_l": 0.19728901212119235,
+            "realized_success": 0.3183673469387755
+          },
+          {
+            "decile": 3,
+            "n": 1715,
+            "mean_l": 0.2998764311050771,
+            "realized_success": 0.446064139941691
+          },
+          {
+            "decile": 4,
+            "n": 1716,
+            "mean_l": 0.36264209995541336,
+            "realized_success": 0.48543123543123545
+          },
+          {
+            "decile": 5,
+            "n": 1715,
+            "mean_l": 0.395880836077703,
+            "realized_success": 0.5422740524781341
+          },
+          {
+            "decile": 6,
+            "n": 1715,
+            "mean_l": 0.4261326985158261,
+            "realized_success": 0.5381924198250729
+          },
+          {
+            "decile": 7,
+            "n": 1716,
+            "mean_l": 0.48715551415962716,
+            "realized_success": 0.5891608391608392
+          },
+          {
+            "decile": 8,
+            "n": 1715,
+            "mean_l": 0.5240645864890763,
+            "realized_success": 0.6402332361516035
+          },
+          {
+            "decile": 9,
+            "n": 1715,
+            "mean_l": 0.5631444834072465,
+            "realized_success": 0.7650145772594752
+          },
+          {
+            "decile": 10,
+            "n": 1716,
+            "mean_l": 0.7702025925459395,
+            "realized_success": 0.8613053613053613
+          }
+        ]
+      }
+    }
+  },
+  "replays": {
+    "test": 24,
+    "calib": 24
+  },
+  "wall_time_s": 3.906649999997171,
+  "labels": [
+    "no latency is measured or simulated in this experiment",
+    "costs are the recorded costs of each model on each item",
+    "the floors are fixed in advance and nothing is chosen from these results",
+    "a decision whose floor the router relaxed made no promise and is left out of the realized success",
+    "the calibration rows are in-sample for the calibrators and lower-bound tables, so only the test rows are evidence of compliance",
+    "the point arm is an experiment switch (--floor-on point); the gateway always compares the lower confidence bound"
+  ]
+}

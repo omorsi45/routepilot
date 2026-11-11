@@ -1,0 +1,240 @@
+{
+  "phase": "collect",
+  "measure_run": "20261029T015819Z-00deb40",
+  "models": [
+    {
+      "id": "qwen2.5-0.5b",
+      "tag": "qwen2.5:0.5b",
+      "params_b": 0.5
+    },
+    {
+      "id": "qwen2.5-1.5b",
+      "tag": "qwen2.5:1.5b",
+      "params_b": 1.5
+    },
+    {
+      "id": "qwen2.5-3b",
+      "tag": "qwen2.5:3b",
+      "params_b": 3.0
+    }
+  ],
+  "assumed_prices_usd_per_mtok": {
+    "qwen2.5-0.5b": {
+      "in": 0.01,
+      "out": 0.03
+    },
+    "qwen2.5-1.5b": {
+      "in": 0.03,
+      "out": 0.09
+    },
+    "qwen2.5-3b": {
+      "in": 0.06,
+      "out": 0.18
+    }
+  },
+  "plan": {
+    "budget_minutes": 90.0,
+    "cap": 600,
+    "worst_case_request_s": {
+      "qwen2.5-0.5b": 2.2317658589892067,
+      "qwen2.5-1.5b": 4.0071527233841975,
+      "qwen2.5-3b": 4.9877274973547285
+    },
+    "planned_mmlupro": 281,
+    "used_mmlupro": 281,
+    "gpqa_items": 198,
+    "max_tokens": 384,
+    "seed": 0
+  },
+  "stopped_by_budget": false,
+  "request_time_s": 4583.280193400016,
+  "wall_time_s": 4618.629944699998,
+  "warmups": [
+    {
+      "model": "qwen2.5-0.5b",
+      "ok": true,
+      "wall_ms": 62.733200000366196
+    },
+    {
+      "model": "qwen2.5-1.5b",
+      "ok": true,
+      "wall_ms": 70.44999999925494
+    },
+    {
+      "model": "qwen2.5-3b",
+      "ok": true,
+      "wall_ms": 79.8849999991944
+    }
+  ],
+  "decisions_missing": 0,
+  "ollama_loaded": {
+    "qwen2.5-0.5b": [
+      {
+        "name": "qwen2.5:0.5b",
+        "size_bytes": 481810185,
+        "size_vram_bytes": 481810185,
+        "context_length": 4096
+      }
+    ],
+    "qwen2.5-1.5b": [
+      {
+        "name": "qwen2.5:1.5b",
+        "size_bytes": 1166236712,
+        "size_vram_bytes": 1166236712,
+        "context_length": 4096
+      }
+    ],
+    "qwen2.5-3b": [
+      {
+        "name": "qwen2.5:3b",
+        "size_bytes": 2159374499,
+        "size_vram_bytes": 2159374499,
+        "context_length": 4096
+      }
+    ]
+  },
+  "ground_truth": {
+    "items": 479,
+    "items_with_disagreeing_records": 0,
+    "records_voting": 11739,
+    "records_with_another_prompt": 0
+  },
+  "per_model": {
+    "qwen2.5-0.5b": {
+      "tag": "qwen2.5:0.5b",
+      "requests": 479,
+      "ok": 478,
+      "failed": 1,
+      "failure_kinds": {
+        "the stream ended without a usage report": 1
+      },
+      "in_outcomes": 478,
+      "accuracy": 0.10251046025104603,
+      "accuracy_by_dataset": {
+        "gpqa": {
+          "n": 198,
+          "accuracy": 0.09595959595959595
+        },
+        "mmlupro": {
+          "n": 280,
+          "accuracy": 0.10714285714285714
+        }
+      },
+      "graded_by": {
+        "last_letter": 240,
+        "none": 161,
+        "cue": 77
+      },
+      "hit_max_tokens": 386,
+      "prompt_tokens_mean": 275.0962343096234,
+      "prompt_tokens_max": 2840,
+      "completion_tokens_mean": 367.1569037656904,
+      "completion_tokens_max": 384,
+      "total_tokens_max": 3224,
+      "mean_cost_usd_assumed": 1.3765669456066948e-05,
+      "ttft_ms": {
+        "mean": 37.57112970711297,
+        "p50": 35.0,
+        "p95": 54.0
+      },
+      "e2e_ms": {
+        "mean": 2160.213389121339,
+        "p50": 2168.0,
+        "p95": 2618.15
+      }
+    },
+    "qwen2.5-1.5b": {
+      "tag": "qwen2.5:1.5b",
+      "requests": 479,
+      "ok": 479,
+      "failed": 0,
+      "failure_kinds": {},
+      "in_outcomes": 479,
+      "accuracy": 0.17954070981210857,
+      "accuracy_by_dataset": {
+        "gpqa": {
+          "n": 198,
+          "accuracy": 0.16161616161616163
+        },
+        "mmlupro": {
+          "n": 281,
+          "accuracy": 0.19217081850533807
+        }
+      },
+      "graded_by": {
+        "cue": 199,
+        "last_letter": 157,
+        "none": 123
+      },
+      "hit_max_tokens": 276,
+      "prompt_tokens_mean": 274.98956158663884,
+      "prompt_tokens_max": 2840,
+      "completion_tokens_mean": 333.3883089770355,
+      "completion_tokens_max": 384,
+      "total_tokens_max": 3224,
+      "mean_cost_usd_assumed": 3.825463465553236e-05,
+      "ttft_ms": {
+        "mean": 61.48225469728601,
+        "p50": 57.0,
+        "p95": 90.09999999999997
+      },
+      "e2e_ms": {
+        "mean": 2510.8058455114824,
+        "p50": 2540.0,
+        "p95": 3807.6999999999994
+      }
+    },
+    "qwen2.5-3b": {
+      "tag": "qwen2.5:3b",
+      "requests": 479,
+      "ok": 479,
+      "failed": 0,
+      "failure_kinds": {},
+      "in_outcomes": 479,
+      "accuracy": 0.19206680584551147,
+      "accuracy_by_dataset": {
+        "gpqa": {
+          "n": 198,
+          "accuracy": 0.16666666666666666
+        },
+        "mmlupro": {
+          "n": 281,
+          "accuracy": 0.2099644128113879
+        }
+      },
+      "graded_by": {
+        "last_letter": 220,
+        "none": 135,
+        "cue": 124
+      },
+      "hit_max_tokens": 353,
+      "prompt_tokens_mean": 274.98956158663884,
+      "prompt_tokens_max": 2840,
+      "completion_tokens_mean": 361.96868475991647,
+      "completion_tokens_max": 384,
+      "total_tokens_max": 3224,
+      "mean_cost_usd_assumed": 8.165373695198331e-05,
+      "ttft_ms": {
+        "mean": 107.68267223382045,
+        "p50": 96.0,
+        "p95": 185.09999999999997
+      },
+      "e2e_ms": {
+        "mean": 4872.774530271398,
+        "p50": 4089.0,
+        "p95": 8197.8
+      }
+    }
+  },
+  "realized_items": 478,
+  "realized_by_dataset": {
+    "gpqa": 198,
+    "mmlupro": 280
+  },
+  "labels": [
+    "latency and token counts are measured on this machine through RoutePilot (decision log)",
+    "prices are an ASSUMPTION (Ruling V1-R42): proportional to the parameter count, 0.02 USD per million input tokens and 0.06 per million output tokens per billion parameters",
+    "answers are graded by the last standalone option letter after an answer cue, else the last standalone option letter, against the ground truth of the release",
+    "no prompt text and no model output is in this report"
+  ]
+}

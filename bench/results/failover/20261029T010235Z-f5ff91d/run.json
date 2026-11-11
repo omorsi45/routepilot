@@ -1,0 +1,27 @@
+{
+  "run_id": "20261029T010235Z-f5ff91d",
+  "experiment": "failover",
+  "git_sha": "f5ff91d312a9c6c2a01616f76f95cea1979c9aa4",
+  "git_dirty": false,
+  "policy_version": null,
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {
+    "loadgen_prestream": 1,
+    "loadgen_midstream": 2,
+    "mock_a": 1,
+    "mock_b": 2
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 31.2,
+    "os": "Windows-11-10.0.26300-SP0"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.7",
+  "started_at": "2026-10-29T01:02:35Z",
+  "ended_at": "2026-10-29T01:05:15Z",
+  "command": [
+    "python",
+    "bench/scripts/failover.py"
+  ]
+}

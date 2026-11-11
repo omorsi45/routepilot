@@ -1,0 +1,29 @@
+# LiteLLM proxy config for the comparison (bench/scripts/litellm_compare.py).
+#
+# The script treats this file as a template: it fills in the mock's loopback port and writes the
+# result under the scratch directory. One model, bench-model, goes to the same rp-mock that the
+# direct and RoutePilot paths use, through LiteLLM's OpenAI-compatible provider.
+#
+# There is no master key and no database: the proxy listens on 127.0.0.1 only and nothing else
+# runs on this machine's loopback that is not part of the experiment. LiteLLM
+# 1.106.6 refuses to start without a master key unless it is told that this is intended, which
+# is what general_settings.dangerously_permit_weak_or_unset_master_key does. Because there is
+# no key, the proxy does no key lookup per request; RoutePilot does check the tenant key on every
+# request, so this setting can only favor LiteLLM in the comparison. api_key below is a fake key
+# the mock ignores. telemetry is off; drop_params drops request parameters the provider does not
+# support instead of failing. The worker count, the cost map setting and the log level are not in
+# this file: they are the command line and the environment the script sets (see
+# bench/litellm/README.md).
+model_list:
+  - model_name: bench-model
+    litellm_params:
+      model: openai/bench-model
+      api_base: "http://127.0.0.1:{{MOCK_PORT}}/v1"
+      api_key: test-key-litellm
+
+litellm_settings:
+  telemetry: false
+  drop_params: true
+
+general_settings:
+  dangerously_permit_weak_or_unset_master_key: true

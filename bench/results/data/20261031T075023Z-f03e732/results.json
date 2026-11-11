@@ -1,0 +1,1502 @@
+{
+  "experiment": "data",
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "heldout_datasets": [
+    "arenahard_coding",
+    "livemathbench",
+    "mmlupro"
+  ],
+  "heldout_domains": {
+    "arenahard_coding": "code",
+    "livemathbench": "math",
+    "mmlupro": "knowledge"
+  },
+  "split_salt": "routepilot-split-v1",
+  "split_totals": {
+    "train": 5185,
+    "calib": 1773,
+    "test": 1736,
+    "heldout": 3374
+  },
+  "items_per_dataset_split": {
+    "aime": {
+      "train": 36,
+      "calib": 10,
+      "test": 14,
+      "heldout": 0
+    },
+    "arc-agi": {
+      "train": 251,
+      "calib": 71,
+      "test": 78,
+      "heldout": 0
+    },
+    "arenahard_coding": {
+      "train": 0,
+      "calib": 0,
+      "test": 0,
+      "heldout": 253
+    },
+    "arenahard_creative_writing": {
+      "train": 151,
+      "calib": 48,
+      "test": 51,
+      "heldout": 0
+    },
+    "arenahard_math": {
+      "train": 131,
+      "calib": 58,
+      "test": 58,
+      "heldout": 0
+    },
+    "gpqa": {
+      "train": 131,
+      "calib": 34,
+      "test": 33,
+      "heldout": 0
+    },
+    "hle": {
+      "train": 1271,
+      "calib": 454,
+      "test": 433,
+      "heldout": 0
+    },
+    "livecodebench": {
+      "train": 618,
+      "calib": 232,
+      "test": 205,
+      "heldout": 0
+    },
+    "livemathbench": {
+      "train": 0,
+      "calib": 0,
+      "test": 0,
+      "heldout": 121
+    },
+    "mmlupro": {
+      "train": 0,
+      "calib": 0,
+      "test": 0,
+      "heldout": 3000
+    },
+    "simpleqa": {
+      "train": 2596,
+      "calib": 866,
+      "test": 864,
+      "heldout": 0
+    }
+  },
+  "pools": {
+    "flagship": {
+      "n_items": 12067,
+      "models": [
+        "claude-sonnet-4",
+        "deepseek-r1-0528",
+        "deepseek-v3-0324",
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "glm-4.6",
+        "gpt-5",
+        "gpt-5-chat",
+        "intern-s1",
+        "kimi-k2-0905",
+        "qwen3-235b-a22b-2507",
+        "qwen3-235b-a22b-thinking-2507"
+      ],
+      "datasets": [
+        "aime",
+        "arc-agi",
+        "arenahard_coding",
+        "arenahard_creative_writing",
+        "arenahard_math",
+        "gpqa",
+        "hle",
+        "livecodebench",
+        "livemathbench",
+        "mmlupro",
+        "simpleqa"
+      ],
+      "items_per_split": {
+        "train": 5185,
+        "calib": 1773,
+        "test": 1735,
+        "heldout": 3374
+      },
+      "items_per_dataset_split": {
+        "aime": {
+          "train": 36,
+          "calib": 10,
+          "test": 14,
+          "heldout": 0
+        },
+        "arc-agi": {
+          "train": 251,
+          "calib": 71,
+          "test": 78,
+          "heldout": 0
+        },
+        "arenahard_coding": {
+          "train": 0,
+          "calib": 0,
+          "test": 0,
+          "heldout": 253
+        },
+        "arenahard_creative_writing": {
+          "train": 151,
+          "calib": 48,
+          "test": 51,
+          "heldout": 0
+        },
+        "arenahard_math": {
+          "train": 131,
+          "calib": 58,
+          "test": 58,
+          "heldout": 0
+        },
+        "gpqa": {
+          "train": 131,
+          "calib": 34,
+          "test": 33,
+          "heldout": 0
+        },
+        "hle": {
+          "train": 1271,
+          "calib": 454,
+          "test": 432,
+          "heldout": 0
+        },
+        "livecodebench": {
+          "train": 618,
+          "calib": 232,
+          "test": 205,
+          "heldout": 0
+        },
+        "livemathbench": {
+          "train": 0,
+          "calib": 0,
+          "test": 0,
+          "heldout": 121
+        },
+        "mmlupro": {
+          "train": 0,
+          "calib": 0,
+          "test": 0,
+          "heldout": 3000
+        },
+        "simpleqa": {
+          "train": 2596,
+          "calib": 866,
+          "test": 864,
+          "heldout": 0
+        }
+      },
+      "best_single": "gemini-2.5-pro",
+      "cheapest": "deepseek-v3-0324",
+      "rank": {
+        "gemini-2.5-pro": 12,
+        "gpt-5": 11,
+        "qwen3-235b-a22b-2507": 10,
+        "qwen3-235b-a22b-thinking-2507": 9,
+        "gpt-5-chat": 8,
+        "deepseek-r1-0528": 7,
+        "glm-4.6": 6,
+        "kimi-k2-0905": 5,
+        "gemini-2.5-flash": 4,
+        "deepseek-v3-0324": 3,
+        "intern-s1": 2,
+        "claude-sonnet-4": 1
+      },
+      "success_by_split": {
+        "claude-sonnet-4": {
+          "train": 0.22333654773384765,
+          "calib": 0.2182741116751269,
+          "test": 0.22881844380403457,
+          "heldout": 0.8144635447540012
+        },
+        "deepseek-r1-0528": {
+          "train": 0.34869816779170687,
+          "calib": 0.34461364918217713,
+          "test": 0.34812680115273775,
+          "heldout": 0.8280972139893301
+        },
+        "deepseek-v3-0324": {
+          "train": 0.29566055930568946,
+          "calib": 0.28031584884376765,
+          "test": 0.2904899135446686,
+          "heldout": 0.7717842323651453
+        },
+        "gemini-2.5-flash": {
+          "train": 0.30626808100289293,
+          "calib": 0.29949238578680204,
+          "test": 0.30720461095100865,
+          "heldout": 0.7928275044457617
+        },
+        "gemini-2.5-pro": {
+          "train": 0.5108968177434908,
+          "calib": 0.5014100394811055,
+          "test": 0.5273775216138329,
+          "heldout": 0.8446947243627742
+        },
+        "glm-4.6": {
+          "train": 0.3107039537126326,
+          "calib": 0.3197969543147208,
+          "test": 0.3331412103746398,
+          "heldout": 0.7966804979253111
+        },
+        "gpt-5": {
+          "train": 0.49450337512054005,
+          "calib": 0.5143824027072758,
+          "test": 0.515850144092219,
+          "heldout": 0.8681090693538827
+        },
+        "gpt-5-chat": {
+          "train": 0.35988428158148505,
+          "calib": 0.3688663282571912,
+          "test": 0.368299711815562,
+          "heldout": 0.8088322465915827
+        },
+        "intern-s1": {
+          "train": 0.2206364513018322,
+          "calib": 0.22786238014664412,
+          "test": 0.21729106628242076,
+          "heldout": 0.8135743924125667
+        },
+        "kimi-k2-0905": {
+          "train": 0.30665380906460943,
+          "calib": 0.3197969543147208,
+          "test": 0.3216138328530259,
+          "heldout": 0.8014226437462952
+        },
+        "qwen3-235b-a22b-2507": {
+          "train": 0.4443587270973963,
+          "calib": 0.4427523970671179,
+          "test": 0.45936599423631125,
+          "heldout": 0.8251333728512151
+        },
+        "qwen3-235b-a22b-thinking-2507": {
+          "train": 0.43278688524590164,
+          "calib": 0.4404963338973491,
+          "test": 0.4282420749279539,
+          "heldout": 0.7863070539419087
+        }
+      },
+      "prices": {
+        "claude-sonnet-4": {
+          "in_usd_per_mtok": 2.999999999999982,
+          "out_usd_per_mtok": 14.999999999999998,
+          "fit_rmse_usd": 1.928793176437434e-17,
+          "fit_r2": 1.0,
+          "n_fit": 6957,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "deepseek-r1-0528": {
+          "in_usd_per_mtok": 0.5000000000000001,
+          "out_usd_per_mtok": 2.1500000000000035,
+          "fit_rmse_usd": 4.3820793192961817e-17,
+          "fit_r2": 1.0,
+          "n_fit": 6958,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "deepseek-v3-0324": {
+          "in_usd_per_mtok": 0.24999999999999947,
+          "out_usd_per_mtok": 0.8799999999999965,
+          "fit_rmse_usd": 5.107837839964327e-18,
+          "fit_r2": 1.0,
+          "n_fit": 6958,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "gemini-2.5-flash": {
+          "in_usd_per_mtok": 0.1858928860028256,
+          "out_usd_per_mtok": 2.476623877280521,
+          "fit_rmse_usd": 0.002721220576745595,
+          "fit_r2": 0.991173643450403,
+          "n_fit": 6938,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "gemini-2.5-pro": {
+          "in_usd_per_mtok": 1.158172445886528,
+          "out_usd_per_mtok": 10.001945379860057,
+          "fit_rmse_usd": 0.00024836884506398006,
+          "fit_r2": 0.9999924381434472,
+          "n_fit": 6821,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "glm-4.6": {
+          "in_usd_per_mtok": 0.5638632427167964,
+          "out_usd_per_mtok": 2.200328262453122,
+          "fit_rmse_usd": 0.00021216297327750108,
+          "fit_r2": 0.9999692861154926,
+          "n_fit": 6939,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "gpt-5": {
+          "in_usd_per_mtok": 1.1356578666302082,
+          "out_usd_per_mtok": 10.003940058870374,
+          "fit_rmse_usd": 0.0003266623705418248,
+          "fit_r2": 0.9999713690715807,
+          "n_fit": 6535,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "gpt-5-chat": {
+          "in_usd_per_mtok": 1.5038526556937235,
+          "out_usd_per_mtok": 8.851673375910273,
+          "fit_rmse_usd": 0.0021843348825990854,
+          "fit_r2": 0.8812822941369115,
+          "n_fit": 6958,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "intern-s1": {
+          "in_usd_per_mtok": 0.17999999999999952,
+          "out_usd_per_mtok": 0.54,
+          "fit_rmse_usd": 7.881068235565243e-19,
+          "fit_r2": 1.0,
+          "n_fit": 6958,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "kimi-k2-0905": {
+          "in_usd_per_mtok": 0.4983456443274953,
+          "out_usd_per_mtok": 2.0044648480027494,
+          "fit_rmse_usd": 9.522364772825364e-05,
+          "fit_r2": 0.998579342783356,
+          "n_fit": 6956,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "qwen3-235b-a22b-2507": {
+          "in_usd_per_mtok": 0.023544591717419534,
+          "out_usd_per_mtok": 0.6674390564221371,
+          "fit_rmse_usd": 0.0005935818018986143,
+          "fit_r2": 0.8870589813324612,
+          "n_fit": 6805,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "qwen3-235b-a22b-thinking-2507": {
+          "in_usd_per_mtok": 1.431895830767874,
+          "out_usd_per_mtok": 1.5360092251700947,
+          "fit_rmse_usd": 0.0048499567329176405,
+          "fit_r2": 0.6885235609644117,
+          "n_fit": 6016,
+          "price_source": "fitted_from_recorded_cost"
+        }
+      },
+      "low_r2_models": [
+        "gpt-5-chat",
+        "qwen3-235b-a22b-2507",
+        "qwen3-235b-a22b-thinking-2507"
+      ]
+    },
+    "mixed": {
+      "n_items": 3182,
+      "models": [
+        "DeepSeek-R1-0528-Qwen3-8B",
+        "Llama-3.1-Nemotron-Nano-8B-v1",
+        "NVIDIA-Nemotron-Nano-9B-v2",
+        "Qwen3-8B",
+        "claude-sonnet-4",
+        "deepseek-r1-0528",
+        "deepseek-v3-0324",
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "glm-4.6",
+        "gpt-5",
+        "gpt-5-chat",
+        "intern-s1",
+        "kimi-k2-0905",
+        "qwen3-235b-a22b-2507",
+        "qwen3-235b-a22b-thinking-2507"
+      ],
+      "datasets": [
+        "aime",
+        "arenahard_coding",
+        "arenahard_creative_writing",
+        "arenahard_math",
+        "gpqa",
+        "livecodebench",
+        "livemathbench",
+        "mmlupro"
+      ],
+      "items_per_split": {
+        "train": 1067,
+        "calib": 382,
+        "test": 361,
+        "heldout": 1372
+      },
+      "items_per_dataset_split": {
+        "aime": {
+          "train": 36,
+          "calib": 10,
+          "test": 14,
+          "heldout": 0
+        },
+        "arenahard_coding": {
+          "train": 0,
+          "calib": 0,
+          "test": 0,
+          "heldout": 253
+        },
+        "arenahard_creative_writing": {
+          "train": 151,
+          "calib": 48,
+          "test": 51,
+          "heldout": 0
+        },
+        "arenahard_math": {
+          "train": 131,
+          "calib": 58,
+          "test": 58,
+          "heldout": 0
+        },
+        "gpqa": {
+          "train": 131,
+          "calib": 34,
+          "test": 33,
+          "heldout": 0
+        },
+        "livecodebench": {
+          "train": 618,
+          "calib": 232,
+          "test": 205,
+          "heldout": 0
+        },
+        "livemathbench": {
+          "train": 0,
+          "calib": 0,
+          "test": 0,
+          "heldout": 121
+        },
+        "mmlupro": {
+          "train": 0,
+          "calib": 0,
+          "test": 0,
+          "heldout": 998
+        }
+      },
+      "best_single": "gpt-5",
+      "cheapest": "Llama-3.1-Nemotron-Nano-8B-v1",
+      "rank": {
+        "gpt-5": 16,
+        "gemini-2.5-pro": 15,
+        "qwen3-235b-a22b-thinking-2507": 14,
+        "deepseek-r1-0528": 13,
+        "kimi-k2-0905": 12,
+        "qwen3-235b-a22b-2507": 11,
+        "gpt-5-chat": 10,
+        "glm-4.6": 9,
+        "deepseek-v3-0324": 8,
+        "gemini-2.5-flash": 7,
+        "claude-sonnet-4": 6,
+        "intern-s1": 5,
+        "Qwen3-8B": 4,
+        "DeepSeek-R1-0528-Qwen3-8B": 3,
+        "NVIDIA-Nemotron-Nano-9B-v2": 2,
+        "Llama-3.1-Nemotron-Nano-8B-v1": 1
+      },
+      "success_by_split": {
+        "DeepSeek-R1-0528-Qwen3-8B": {
+          "train": 0.5754451733833177,
+          "calib": 0.5314136125654451,
+          "test": 0.5623268698060941,
+          "heldout": 0.6137026239067055
+        },
+        "Llama-3.1-Nemotron-Nano-8B-v1": {
+          "train": 0.35051546391752575,
+          "calib": 0.3403141361256545,
+          "test": 0.2853185595567867,
+          "heldout": 0.3688046647230321
+        },
+        "NVIDIA-Nemotron-Nano-9B-v2": {
+          "train": 0.5332708528584817,
+          "calib": 0.4973821989528796,
+          "test": 0.48476454293628807,
+          "heldout": 0.6034985422740525
+        },
+        "Qwen3-8B": {
+          "train": 0.5838800374882849,
+          "calib": 0.5575916230366492,
+          "test": 0.5678670360110804,
+          "heldout": 0.6173469387755102
+        },
+        "claude-sonnet-4": {
+          "train": 0.6026241799437676,
+          "calib": 0.5942408376963351,
+          "test": 0.6177285318559557,
+          "heldout": 0.7776967930029155
+        },
+        "deepseek-r1-0528": {
+          "train": 0.7938144329896907,
+          "calib": 0.7722513089005235,
+          "test": 0.7479224376731302,
+          "heldout": 0.7959183673469388
+        },
+        "deepseek-v3-0324": {
+          "train": 0.6635426429240863,
+          "calib": 0.662303664921466,
+          "test": 0.6731301939058172,
+          "heldout": 0.7463556851311953
+        },
+        "gemini-2.5-flash": {
+          "train": 0.6316776007497656,
+          "calib": 0.6570680628272252,
+          "test": 0.6260387811634349,
+          "heldout": 0.7580174927113703
+        },
+        "gemini-2.5-pro": {
+          "train": 0.8275538894095595,
+          "calib": 0.8036649214659686,
+          "test": 0.8254847645429363,
+          "heldout": 0.814868804664723
+        },
+        "glm-4.6": {
+          "train": 0.6813495782567948,
+          "calib": 0.6884816753926701,
+          "test": 0.6980609418282548,
+          "heldout": 0.7711370262390671
+        },
+        "gpt-5": {
+          "train": 0.8341143392689785,
+          "calib": 0.8664921465968587,
+          "test": 0.8365650969529086,
+          "heldout": 0.8491253644314869
+        },
+        "gpt-5-chat": {
+          "train": 0.6907216494845361,
+          "calib": 0.6701570680628273,
+          "test": 0.7063711911357341,
+          "heldout": 0.7835276967930029
+        },
+        "intern-s1": {
+          "train": 0.6007497656982193,
+          "calib": 0.5968586387434555,
+          "test": 0.5789473684210527,
+          "heldout": 0.8010204081632653
+        },
+        "kimi-k2-0905": {
+          "train": 0.7047797563261481,
+          "calib": 0.7094240837696335,
+          "test": 0.7451523545706371,
+          "heldout": 0.7951895043731778
+        },
+        "qwen3-235b-a22b-2507": {
+          "train": 0.6888472352389878,
+          "calib": 0.6884816753926701,
+          "test": 0.7257617728531855,
+          "heldout": 0.815597667638484
+        },
+        "qwen3-235b-a22b-thinking-2507": {
+          "train": 0.7966260543580131,
+          "calib": 0.7958115183246073,
+          "test": 0.817174515235457,
+          "heldout": 0.7798833819241983
+        }
+      },
+      "prices": {
+        "DeepSeek-R1-0528-Qwen3-8B": {
+          "in_usd_per_mtok": 0.029999999999999992,
+          "out_usd_per_mtok": 0.11,
+          "fit_rmse_usd": 1.9027133213083074e-19,
+          "fit_r2": 1.0,
+          "n_fit": 1061,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "Llama-3.1-Nemotron-Nano-8B-v1": {
+          "in_usd_per_mtok": 0.015000000000000005,
+          "out_usd_per_mtok": 0.019999999999999997,
+          "fit_rmse_usd": 2.053041091247009e-20,
+          "fit_r2": 1.0,
+          "n_fit": 1061,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "NVIDIA-Nemotron-Nano-9B-v2": {
+          "in_usd_per_mtok": 0.03999999999999997,
+          "out_usd_per_mtok": 0.16000000000000006,
+          "fit_rmse_usd": 9.92515357978884e-19,
+          "fit_r2": 1.0,
+          "n_fit": 1061,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "Qwen3-8B": {
+          "in_usd_per_mtok": 0.03500000000000003,
+          "out_usd_per_mtok": 0.13799999999999993,
+          "fit_rmse_usd": 1.1409707864158562e-18,
+          "fit_r2": 1.0,
+          "n_fit": 1061,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "claude-sonnet-4": {
+          "in_usd_per_mtok": 3.000000000000003,
+          "out_usd_per_mtok": 14.999999999999996,
+          "fit_rmse_usd": 3.25508770521081e-18,
+          "fit_r2": 1.0,
+          "n_fit": 1448,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "deepseek-r1-0528": {
+          "in_usd_per_mtok": 0.5000000000000003,
+          "out_usd_per_mtok": 2.149999999999999,
+          "fit_rmse_usd": 1.4449268238010406e-17,
+          "fit_r2": 1.0,
+          "n_fit": 1449,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "deepseek-v3-0324": {
+          "in_usd_per_mtok": 0.2500000000000002,
+          "out_usd_per_mtok": 0.8799999999999997,
+          "fit_rmse_usd": 7.596799666229876e-19,
+          "fit_r2": 1.0,
+          "n_fit": 1449,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "gemini-2.5-flash": {
+          "in_usd_per_mtok": 0.0,
+          "out_usd_per_mtok": 2.268352993093116,
+          "fit_rmse_usd": 0.005617177994200446,
+          "fit_r2": 0.9116202392993489,
+          "n_fit": 1447,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "gemini-2.5-pro": {
+          "in_usd_per_mtok": 1.2499999999999964,
+          "out_usd_per_mtok": 9.999999999999991,
+          "fit_rmse_usd": 1.2810605718491298e-16,
+          "fit_r2": 1.0,
+          "n_fit": 1365,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "glm-4.6": {
+          "in_usd_per_mtok": 0.0,
+          "out_usd_per_mtok": 2.19819331761813,
+          "fit_rmse_usd": 0.0003452741590844416,
+          "fit_r2": 0.9996080270849484,
+          "n_fit": 1446,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "gpt-5": {
+          "in_usd_per_mtok": 1.2500365603591157,
+          "out_usd_per_mtok": 9.999998881246782,
+          "fit_rmse_usd": 2.3060692671795936e-07,
+          "fit_r2": 0.999999999986839,
+          "n_fit": 1446,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "gpt-5-chat": {
+          "in_usd_per_mtok": 3.9382294025407267,
+          "out_usd_per_mtok": 5.964810177578225,
+          "fit_rmse_usd": 0.003911181116741624,
+          "fit_r2": 0.42323175684237635,
+          "n_fit": 1449,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "intern-s1": {
+          "in_usd_per_mtok": 0.17999999999999997,
+          "out_usd_per_mtok": 0.5399999999999998,
+          "fit_rmse_usd": 2.8980824324389974e-18,
+          "fit_r2": 1.0,
+          "n_fit": 1449,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "kimi-k2-0905": {
+          "in_usd_per_mtok": 0.4882848236256905,
+          "out_usd_per_mtok": 2.0065030445860645,
+          "fit_rmse_usd": 0.00020867571445718156,
+          "fit_r2": 0.9971840659653711,
+          "n_fit": 1447,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "qwen3-235b-a22b-2507": {
+          "in_usd_per_mtok": 0.0,
+          "out_usd_per_mtok": 0.6613253519699916,
+          "fit_rmse_usd": 0.0002249853467480887,
+          "fit_r2": 0.9720331888238604,
+          "n_fit": 1448,
+          "price_source": "fitted_from_recorded_cost"
+        },
+        "qwen3-235b-a22b-thinking-2507": {
+          "in_usd_per_mtok": 4.424604376866846,
+          "out_usd_per_mtok": 1.281048923856451,
+          "fit_rmse_usd": 0.006538158981253545,
+          "fit_r2": 0.5836854017300501,
+          "n_fit": 1318,
+          "price_source": "fitted_from_recorded_cost"
+        }
+      },
+      "low_r2_models": [
+        "gpt-5-chat",
+        "qwen3-235b-a22b-thinking-2507"
+      ],
+      "seven_b_models": [
+        "DeepSeek-R1-0528-Qwen3-8B",
+        "Llama-3.1-Nemotron-Nano-8B-v1",
+        "NVIDIA-Nemotron-Nano-9B-v2",
+        "Qwen3-8B"
+      ],
+      "seven_b_cost_basis": "fitted from recorded costs"
+    }
+  },
+  "r2_range": {
+    "flagship": [
+      0.6885235609644117,
+      1.0
+    ],
+    "mixed": [
+      0.42323175684237635,
+      1.0
+    ]
+  },
+  "zero_cost_flagship": {
+    "claude-sonnet-4": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      }
+    },
+    "deepseek-r1-0528": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      }
+    },
+    "deepseek-v3-0324": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      }
+    },
+    "gemini-2.5-flash": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 2,
+        "zero_cost_zero_completion": 2
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 20,
+        "zero_cost_zero_completion": 20
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 5,
+        "zero_cost_zero_completion": 5
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 2,
+        "zero_cost_zero_completion": 2
+      }
+    },
+    "gemini-2.5-pro": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 6,
+        "zero_cost_zero_completion": 6
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 3,
+        "zero_cost_zero_completion": 3
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 2,
+        "zero_cost_zero_completion": 2
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 3,
+        "zero_cost_zero_completion": 3
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 48,
+        "zero_cost_zero_completion": 48
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 95,
+        "zero_cost_zero_completion": 95
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 33,
+        "zero_cost_zero_completion": 33
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 10,
+        "zero_cost_zero_completion": 10
+      }
+    },
+    "glm-4.6": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 2,
+        "zero_cost_zero_completion": 2
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 3,
+        "zero_cost_zero_completion": 3
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 6,
+        "zero_cost_zero_completion": 6
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 18,
+        "zero_cost_zero_completion": 18
+      }
+    },
+    "gpt-5": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 4,
+        "zero_cost_zero_completion": 4
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 6,
+        "zero_cost_zero_completion": 6
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 2,
+        "zero_cost_zero_completion": 2
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 3,
+        "zero_cost_zero_completion": 3
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 507,
+        "zero_cost_zero_completion": 3
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 4,
+        "zero_cost_zero_completion": 4
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 2,
+        "zero_cost_zero_completion": 2
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 9,
+        "zero_cost_zero_completion": 4
+      }
+    },
+    "gpt-5-chat": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      }
+    },
+    "intern-s1": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      }
+    },
+    "kimi-k2-0905": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      }
+    },
+    "qwen3-235b-a22b-2507": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 42,
+        "zero_cost_zero_completion": 42
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 4,
+        "zero_cost_zero_completion": 4
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 123,
+        "zero_cost_zero_completion": 118
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 14,
+        "zero_cost_zero_completion": 14
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 14,
+        "zero_cost_zero_completion": 14
+      }
+    },
+    "qwen3-235b-a22b-thinking-2507": {
+      "aime": {
+        "records": 60,
+        "zero_cost": 7,
+        "zero_cost_zero_completion": 7
+      },
+      "arc-agi": {
+        "records": 400,
+        "zero_cost": 232,
+        "zero_cost_zero_completion": 232
+      },
+      "arenahard_coding": {
+        "records": 253,
+        "zero_cost": 20,
+        "zero_cost_zero_completion": 20
+      },
+      "arenahard_creative_writing": {
+        "records": 250,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      },
+      "arenahard_math": {
+        "records": 247,
+        "zero_cost": 39,
+        "zero_cost_zero_completion": 39
+      },
+      "gpqa": {
+        "records": 198,
+        "zero_cost": 0,
+        "zero_cost_zero_completion": 0
+      },
+      "hle": {
+        "records": 2157,
+        "zero_cost": 780,
+        "zero_cost_zero_completion": 780
+      },
+      "livecodebench": {
+        "records": 1055,
+        "zero_cost": 117,
+        "zero_cost_zero_completion": 117
+      },
+      "livemathbench": {
+        "records": 121,
+        "zero_cost": 37,
+        "zero_cost_zero_completion": 37
+      },
+      "mmlupro": {
+        "records": 3000,
+        "zero_cost": 174,
+        "zero_cost_zero_completion": 174
+      },
+      "simpleqa": {
+        "records": 4326,
+        "zero_cost": 1,
+        "zero_cost_zero_completion": 1
+      }
+    }
+  },
+  "negative_token_rows": [
+    {
+      "item_id": "hle/1144",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -56,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "hle/1265",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -48,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "hle/2000",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -25,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "hle/2072",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -54,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "hle/554",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -52,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "simpleqa/1137",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -36,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "simpleqa/2574",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -38,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "simpleqa/2683",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -21,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "simpleqa/3592",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -2,
+      "cost_usd": 0.0
+    },
+    {
+      "item_id": "simpleqa/4113",
+      "model": "gpt-5",
+      "prompt_tokens": 0,
+      "completion_tokens": -17,
+      "cost_usd": 0.0
+    }
+  ]
+}

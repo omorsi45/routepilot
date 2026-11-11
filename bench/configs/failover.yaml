@@ -1,0 +1,54 @@
+# Gateway config for the failover experiment (bench/scripts/failover.py).
+#
+# The script treats this file as a template: it fills in the loopback ports, the SHA-256 of the
+# fake benchmark key (computed at run time), the upstream model name of deployment A (which is
+# where the arm's injected failure lives) and the decision log path, and writes the result under
+# the scratch directory.
+#
+# One model with two deployments, each on its own provider and its own rp-mock process, so the
+# request count of each deployment is the mock's own. Deployment A comes first, so every request
+# starts on A unless A's circuit breaker refuses it; B is the failover target. Nothing else
+# can change the order: the tenant has no limits, no budget and no bulkhead, accounting is off.
+# The decision log is on, because the experiment reads the attempts of every request from it.
+server:
+  listen: "127.0.0.1:{{GATEWAY_PORT}}"
+  max_inflight: 4096
+
+providers:
+  - name: mock-a
+    type: openaicompat
+    base_url: "http://127.0.0.1:{{MOCK_A_PORT}}/v1"
+  - name: mock-b
+    type: openaicompat
+    base_url: "http://127.0.0.1:{{MOCK_B_PORT}}/v1"
+
+models:
+  - id: failover-model
+    rank: 1
+    capabilities: [streaming]
+    input_price_per_mtok: "0.15"
+    output_price_per_mtok: "0.60"
+    deployments:
+      - name: deployment-a
+        provider: mock-a
+        upstream_model: "{{A_UPSTREAM_MODEL}}"
+      - name: deployment-b
+        provider: mock-b
+        upstream_model: bench-model
+
+tenants:
+  - id: failover
+    api_key_sha256: "{{KEY_SHA256}}"
+    allowed_models: ["*"]
+
+quota:
+  backend: memory
+
+reliability:
+  max_attempts: 3
+
+accounting:
+  driver: none
+
+decision_log:
+  path: "{{DECISION_LOG}}"

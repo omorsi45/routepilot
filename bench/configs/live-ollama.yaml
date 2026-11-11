@@ -1,0 +1,81 @@
+# RoutePilot config for the live local experiment: three small Qwen2.5 models
+# served by a local Ollama, reached through RoutePilot itself.
+#
+# bench/scripts/live_collect.py serves this file as it is, apart from the listen port and the
+# decision log path (it writes a copy with a free loopback port); bench/scripts/live_demo.py adds
+# the learned policy, the measured latency profiles and each model's prompt_overhead_tokens.
+# The gateway speaks plaintext HTTP and binds loopback only.
+#
+# The three models were chosen from the speeds measured by `live_collect.py measure`: the fastest
+# (qwen2.5:0.5b), the most accurate-looking larger one (qwen2.5:3b) and one in between
+# (qwen2.5:1.5b), all from one family (see the live_collect report).
+#
+# Prices are an ASSUMPTION, not the price of anything: proportional to the
+# parameter count, 0.02 USD per million input tokens and 0.06 per million output tokens for each
+# billion parameters. Latency is never assumed here: it is measured through the gateway.
+server:
+  listen: "127.0.0.1:18080"
+  default_timeout_ms: 300000
+  max_timeout_ms: 600000
+  shutdown_grace_ms: 5000
+
+providers:
+  - name: ollama
+    type: openaicompat
+    base_url: http://127.0.0.1:11434/v1
+    # A request that hits a model Ollama has to load waits for it; a loaded one answers at once.
+    ttft_timeout_ms: 120000
+    idle_timeout_ms: 120000
+
+models:
+  - id: qwen2.5-0.5b
+    rank: 1
+    # Ollama loads these models with a 4096-token window. The gateway bounds a prompt by its
+    # byte length, which for the longest gpqa prompts is above that, so the catalog allows more;
+    # live_collect checks the token counts the models report against the real window.
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.01"
+    output_price_per_mtok: "0.03"
+    deployments:
+      - name: qwen2.5-0.5b-ollama
+        provider: ollama
+        upstream_model: qwen2.5:0.5b
+  - id: qwen2.5-1.5b
+    rank: 2
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.03"
+    output_price_per_mtok: "0.09"
+    deployments:
+      - name: qwen2.5-1.5b-ollama
+        provider: ollama
+        upstream_model: qwen2.5:1.5b
+  - id: qwen2.5-3b
+    rank: 3
+    context_window: 8192
+    max_output_tokens: 4096
+    capabilities: [streaming]
+    input_price_per_mtok: "0.06"
+    output_price_per_mtok: "0.18"
+    deployments:
+      - name: qwen2.5-3b-ollama
+        provider: ollama
+        upstream_model: qwen2.5:3b
+
+routing:
+  policy: strongest
+
+tenants:
+  # Only the SHA-256 of the key is stored. The key is the fake local value "live-ollama-key-local".
+  - id: live
+    api_key_sha256: cdd9e9c6c7f617d301f3a3a33a435ccc419bad04aa95c9860a5afee30c522983
+    allowed_models: ["*"]
+    default_max_tokens: 384
+
+# Every routing decision, with its measured time to first token and end-to-end time. It holds no
+# prompt text, only a hash prefix. The path is relative to this file and stays out of git.
+decision_log:
+  path: ../../data/derived/live/decisions.jsonl

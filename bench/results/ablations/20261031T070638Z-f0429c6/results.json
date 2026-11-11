@@ -1,0 +1,1540 @@
+{
+  "pool": "flagship",
+  "shipped_artifact": "dea4486d7575",
+  "n_items": {
+    "calib": 1773,
+    "test": 1735
+  },
+  "best_single": "gemini-2.5-pro",
+  "bootstrap": {
+    "n": 1000,
+    "seed": 0,
+    "alpha": 0.05,
+    "method": "percentile"
+  },
+  "target": {
+    "best_single": "gemini-2.5-pro",
+    "best_single_calib_success": 0.5014100394811055,
+    "margin": 0.01,
+    "target": 0.4914100394811055
+  },
+  "policy_config": {
+    "mode": "dual",
+    "default_floor": 0,
+    "epsilon": 0,
+    "ood_action": "conservative",
+    "on_infeasible": "best_effort"
+  },
+  "always_strongest": {
+    "policy": "always_strongest",
+    "replay_policy": "fixed",
+    "fixed_model": "gemini-2.5-pro",
+    "n": 1735,
+    "errors": 0,
+    "success_rate": 0.5273775216138329,
+    "mean_cost_usd": 0.06706422485590778,
+    "cost_per_success_usd": 0.12716549740437158,
+    "success_ci": [
+      0.5048847262247839,
+      0.5515994236311239
+    ],
+    "mean_cost_ci": [
+      0.06291927908681556,
+      0.07127165331412104
+    ],
+    "success_delta_vs_strongest": 0.0,
+    "success_delta_ci": [
+      0.0,
+      0.0
+    ],
+    "cost_reduction_vs_strongest": 0.0,
+    "cost_reduction_ci": [
+      0.0,
+      0.0
+    ],
+    "model_counts": {
+      "gemini-2.5-pro": 1735
+    }
+  },
+  "variants": [
+    {
+      "name": "both-14",
+      "label": "both features, dim 2^14",
+      "group": "dimension",
+      "features": "both",
+      "dim": 16384,
+      "calibrator": "switch",
+      "calibrator_types": {
+        "isotonic": 12
+      },
+      "artifact_version": "6b5f6eb3439c",
+      "trained": true,
+      "training_wall_time_s": 110.95749350000551,
+      "wall_time_source": "this run",
+      "weights_bin_bytes": 1697280,
+      "ood_threshold": 0.9502608981677686,
+      "lambda": {
+        "status": "tuned",
+        "value": 6.266589480219409,
+        "calib_success": 0.4918217710095883,
+        "calib_mean_cost_usd": 0.00460907222786238,
+        "calib_success_at_zero": 0.5617597292724196
+      },
+      "test": {
+        "row": {
+          "policy": "both features, dim 2^14",
+          "replay_policy": "learned",
+          "fixed_model": null,
+          "n": 1735,
+          "errors": 0,
+          "success_rate": 0.48184438040345823,
+          "mean_cost_usd": 0.004988525337175793,
+          "cost_per_success_usd": 0.010352980215311005,
+          "success_ci": [
+            0.45994236311239195,
+            0.50664265129683
+          ],
+          "mean_cost_ci": [
+            0.004330009707889049,
+            0.005690217189229106
+          ],
+          "success_delta_vs_strongest": -0.04553314121037466,
+          "success_delta_ci": [
+            -0.06858789625360229,
+            -0.02247838616714698
+          ],
+          "cost_reduction_vs_strongest": 0.9256157012491535,
+          "cost_reduction_ci": [
+            0.9150076803566372,
+            0.9353748312258399
+          ],
+          "model_counts": {
+            "claude-sonnet-4": 5,
+            "deepseek-r1-0528": 77,
+            "deepseek-v3-0324": 62,
+            "gemini-2.5-flash": 10,
+            "gemini-2.5-pro": 136,
+            "glm-4.6": 33,
+            "gpt-5": 167,
+            "gpt-5-chat": 86,
+            "intern-s1": 48,
+            "kimi-k2-0905": 149,
+            "qwen3-235b-a22b-2507": 928,
+            "qwen3-235b-a22b-thinking-2507": 34
+          }
+        },
+        "vs_shipped": {
+          "n": 1735,
+          "success_delta": 0.0,
+          "success_delta_ci": [
+            -0.011527377521613813,
+            0.011541786743515817
+          ],
+          "cost_reduction": -0.13686418698423353,
+          "cost_reduction_ci": [
+            -0.29155180499365635,
+            -0.00969759371668369
+          ]
+        },
+        "calibration_quality": {
+          "per_model": {
+            "claude-sonnet-4": {
+              "n": 1735,
+              "base_rate": 0.22881844380403457,
+              "mean_p": 0.21653053308556222,
+              "ece_mass": 0.03806265976712786,
+              "ece_width": 0.03122123113333234,
+              "brier": 0.1314755716029139,
+              "log_loss": 0.4234611619695165
+            },
+            "deepseek-r1-0528": {
+              "n": 1735,
+              "base_rate": 0.34812680115273775,
+              "mean_p": 0.34121346918081347,
+              "ece_mass": 0.0411542317589468,
+              "ece_width": 0.035058419468636186,
+              "brier": 0.17902462876092495,
+              "log_loss": 0.5394366064241449
+            },
+            "deepseek-v3-0324": {
+              "n": 1735,
+              "base_rate": 0.2904899135446686,
+              "mean_p": 0.27781687763285945,
+              "ece_mass": 0.04410175845746727,
+              "ece_width": 0.03436086666559573,
+              "brier": 0.15484368697960937,
+              "log_loss": 0.46365568200343193
+            },
+            "gemini-2.5-flash": {
+              "n": 1735,
+              "base_rate": 0.30720461095100865,
+              "mean_p": 0.30201901619336935,
+              "ece_mass": 0.04290817232958334,
+              "ece_width": 0.0361145499244986,
+              "brier": 0.1768075436362345,
+              "log_loss": 0.5637632663413467
+            },
+            "gemini-2.5-pro": {
+              "n": 1735,
+              "base_rate": 0.5273775216138329,
+              "mean_p": 0.5029921209296075,
+              "ece_mass": 0.04998397662819353,
+              "ece_width": 0.05099930238371003,
+              "brier": 0.20988885389600614,
+              "log_loss": 0.6143611211479595
+            },
+            "glm-4.6": {
+              "n": 1735,
+              "base_rate": 0.3331412103746398,
+              "mean_p": 0.3210325012475152,
+              "ece_mass": 0.03394620930172432,
+              "ece_width": 0.025714474441654145,
+              "brier": 0.18636491068802127,
+              "log_loss": 0.567824025376683
+            },
+            "gpt-5": {
+              "n": 1735,
+              "base_rate": 0.515850144092219,
+              "mean_p": 0.5127292790751982,
+              "ece_mass": 0.06131067625047124,
+              "ece_width": 0.04271330419226814,
+              "brier": 0.21341690036860886,
+              "log_loss": 0.6262912886045432
+            },
+            "gpt-5-chat": {
+              "n": 1735,
+              "base_rate": 0.368299711815562,
+              "mean_p": 0.3686098511911943,
+              "ece_mass": 0.04197520805747927,
+              "ece_width": 0.026691761551349363,
+              "brier": 0.18124777455976365,
+              "log_loss": 0.550459628516135
+            },
+            "intern-s1": {
+              "n": 1735,
+              "base_rate": 0.21729106628242076,
+              "mean_p": 0.22633872590706738,
+              "ece_mass": 0.037952820216536926,
+              "ece_width": 0.025612653723731515,
+              "brier": 0.1347073091638002,
+              "log_loss": 0.44785451578886515
+            },
+            "kimi-k2-0905": {
+              "n": 1735,
+              "base_rate": 0.3216138328530259,
+              "mean_p": 0.3188800208098663,
+              "ece_mass": 0.026937038981195576,
+              "ece_width": 0.02834803969947485,
+              "brier": 0.16215716308205264,
+              "log_loss": 0.5046436844149482
+            },
+            "qwen3-235b-a22b-2507": {
+              "n": 1735,
+              "base_rate": 0.45936599423631125,
+              "mean_p": 0.4443263275418357,
+              "ece_mass": 0.03597672647222024,
+              "ece_width": 0.02500609038350443,
+              "brier": 0.1801174142497899,
+              "log_loss": 0.5808282778232262
+            },
+            "qwen3-235b-a22b-thinking-2507": {
+              "n": 1735,
+              "base_rate": 0.4282420749279539,
+              "mean_p": 0.4432936450250436,
+              "ece_mass": 0.04681550927944157,
+              "ece_width": 0.041173906051281156,
+              "brier": 0.17337402357987955,
+              "log_loss": 0.5268018747465112
+            }
+          },
+          "pooled": {
+            "n": 20820,
+            "base_rate": 0.3621517771373679,
+            "mean_p": 0.3563151973183277,
+            "ece_mass": 0.02226093928598541,
+            "ece_width": 0.01577197854721793,
+            "brier": 0.1736188150473004,
+            "log_loss": 0.534115094429776
+          }
+        },
+        "python_go_parity": {
+          "items_compared": 1713,
+          "items_skipped": 22,
+          "max_abs_diff": 4.3021142204224816e-15
+        }
+      }
+    },
+    {
+      "name": "both-16",
+      "label": "both features, dim 2^16 (shipped)",
+      "group": "features",
+      "features": "both",
+      "dim": 65536,
+      "calibrator": "switch",
+      "calibrator_types": {
+        "isotonic": 12
+      },
+      "artifact_version": "dea4486d7575",
+      "trained": false,
+      "training_wall_time_s": 134.07094140000117,
+      "wall_time_source": "bench/results/train/20261028T021252Z-7802bb3",
+      "weights_bin_bytes": 6407616,
+      "ood_threshold": 0.9593155009887073,
+      "lambda": {
+        "status": "tuned",
+        "value": 6.721045792801306,
+        "calib_success": 0.4918217710095883,
+        "calib_mean_cost_usd": 0.004083490888324873,
+        "calib_success_at_zero": 0.560067681895093
+      },
+      "test": {
+        "row": {
+          "policy": "both features, dim 2^16 (shipped)",
+          "replay_policy": "learned",
+          "fixed_model": null,
+          "n": 1735,
+          "errors": 0,
+          "success_rate": 0.48184438040345823,
+          "mean_cost_usd": 0.004387969463976945,
+          "cost_per_success_usd": 0.009106611267942584,
+          "success_ci": [
+            0.45994236311239195,
+            0.5055043227665705
+          ],
+          "mean_cost_ci": [
+            0.0038302528872478383,
+            0.004954338052053314
+          ],
+          "success_delta_vs_strongest": -0.04553314121037466,
+          "success_delta_ci": [
+            -0.06974063400576364,
+            -0.022478386167147035
+          ],
+          "cost_reduction_vs_strongest": 0.9345706377222013,
+          "cost_reduction_ci": [
+            0.925046516862353,
+            0.9431628814675123
+          ],
+          "model_counts": {
+            "claude-sonnet-4": 3,
+            "deepseek-r1-0528": 62,
+            "deepseek-v3-0324": 65,
+            "gemini-2.5-flash": 12,
+            "gemini-2.5-pro": 140,
+            "glm-4.6": 33,
+            "gpt-5": 126,
+            "gpt-5-chat": 97,
+            "intern-s1": 57,
+            "kimi-k2-0905": 150,
+            "qwen3-235b-a22b-2507": 964,
+            "qwen3-235b-a22b-thinking-2507": 26
+          }
+        },
+        "vs_shipped": {
+          "n": 1735,
+          "success_delta": 0.0,
+          "success_delta_ci": [
+            0.0,
+            0.0
+          ],
+          "cost_reduction": 0.0,
+          "cost_reduction_ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "calibration_quality": {
+          "per_model": {
+            "claude-sonnet-4": {
+              "n": 1735,
+              "base_rate": 0.22881844380403457,
+              "mean_p": 0.2158381088126197,
+              "ece_mass": 0.034180017211303815,
+              "ece_width": 0.028910130114159622,
+              "brier": 0.1307364045520313,
+              "log_loss": 0.4220107490001862
+            },
+            "deepseek-r1-0528": {
+              "n": 1735,
+              "base_rate": 0.34812680115273775,
+              "mean_p": 0.34045115160483885,
+              "ece_mass": 0.03430237818428489,
+              "ece_width": 0.01904618343683523,
+              "brier": 0.1781936321414733,
+              "log_loss": 0.5363328464264727
+            },
+            "deepseek-v3-0324": {
+              "n": 1735,
+              "base_rate": 0.2904899135446686,
+              "mean_p": 0.2771702745954816,
+              "ece_mass": 0.046639666843619254,
+              "ece_width": 0.02778989701527431,
+              "brier": 0.15371697083948113,
+              "log_loss": 0.46103520466229536
+            },
+            "gemini-2.5-flash": {
+              "n": 1735,
+              "base_rate": 0.30720461095100865,
+              "mean_p": 0.2998936306471969,
+              "ece_mass": 0.03640603087098725,
+              "ece_width": 0.03521584343117629,
+              "brier": 0.1754801851152009,
+              "log_loss": 0.5539453319647718
+            },
+            "gemini-2.5-pro": {
+              "n": 1735,
+              "base_rate": 0.5273775216138329,
+              "mean_p": 0.5035977929535748,
+              "ece_mass": 0.04985686767591623,
+              "ece_width": 0.03778377573729913,
+              "brier": 0.20700646487103644,
+              "log_loss": 0.6005365242118136
+            },
+            "glm-4.6": {
+              "n": 1735,
+              "base_rate": 0.3331412103746398,
+              "mean_p": 0.3208689574292271,
+              "ece_mass": 0.04902930172386113,
+              "ece_width": 0.035072221044328354,
+              "brier": 0.18656918301673406,
+              "log_loss": 0.5681452845885152
+            },
+            "gpt-5": {
+              "n": 1735,
+              "base_rate": 0.515850144092219,
+              "mean_p": 0.5148205657002043,
+              "ece_mass": 0.05371996354757952,
+              "ece_width": 0.039966292949508375,
+              "brier": 0.21234369322886026,
+              "log_loss": 0.6154083420131005
+            },
+            "gpt-5-chat": {
+              "n": 1735,
+              "base_rate": 0.368299711815562,
+              "mean_p": 0.36919868389291177,
+              "ece_mass": 0.03265729356445061,
+              "ece_width": 0.038461593133418334,
+              "brier": 0.1815565044696362,
+              "log_loss": 0.5455253290227263
+            },
+            "intern-s1": {
+              "n": 1735,
+              "base_rate": 0.21729106628242076,
+              "mean_p": 0.22665593825304284,
+              "ece_mass": 0.026321768051878844,
+              "ece_width": 0.023223844678978568,
+              "brier": 0.13270245224659225,
+              "log_loss": 0.43687405176920124
+            },
+            "kimi-k2-0905": {
+              "n": 1735,
+              "base_rate": 0.3216138328530259,
+              "mean_p": 0.31778478852080594,
+              "ece_mass": 0.03402712815844721,
+              "ece_width": 0.03212236324523352,
+              "brier": 0.1611272416454002,
+              "log_loss": 0.4971124370977924
+            },
+            "qwen3-235b-a22b-2507": {
+              "n": 1735,
+              "base_rate": 0.45936599423631125,
+              "mean_p": 0.4466690391137776,
+              "ece_mass": 0.031854414561452396,
+              "ece_width": 0.027749272095983983,
+              "brier": 0.17927522414469466,
+              "log_loss": 0.5844117135851753
+            },
+            "qwen3-235b-a22b-thinking-2507": {
+              "n": 1735,
+              "base_rate": 0.4282420749279539,
+              "mean_p": 0.44194281131786695,
+              "ece_mass": 0.043405849500783154,
+              "ece_width": 0.03956206916409708,
+              "brier": 0.17289496747530858,
+              "log_loss": 0.5263110517319484
+            }
+          },
+          "pooled": {
+            "n": 20820,
+            "base_rate": 0.3621517771373679,
+            "mean_p": 0.356240978570129,
+            "ece_mass": 0.016035582344666635,
+            "ece_width": 0.015099847782417294,
+            "brier": 0.17263357697887077,
+            "log_loss": 0.5289707388395
+          }
+        },
+        "python_go_parity": {
+          "items_compared": 1713,
+          "items_skipped": 22,
+          "max_abs_diff": 5.6066262743570405e-15
+        }
+      }
+    },
+    {
+      "name": "both-18",
+      "label": "both features, dim 2^18",
+      "group": "dimension",
+      "features": "both",
+      "dim": 262144,
+      "calibrator": "switch",
+      "calibrator_types": {
+        "isotonic": 12
+      },
+      "artifact_version": "1a6da465914d",
+      "trained": true,
+      "training_wall_time_s": 214.38948819999496,
+      "wall_time_source": "this run",
+      "weights_bin_bytes": 25281768,
+      "ood_threshold": 0.9634178536385122,
+      "lambda": {
+        "status": "tuned",
+        "value": 6.031649718352128,
+        "calib_success": 0.4918217710095883,
+        "calib_mean_cost_usd": 0.005008100046531303,
+        "calib_success_at_zero": 0.5679639029892837
+      },
+      "test": {
+        "row": {
+          "policy": "both features, dim 2^18",
+          "replay_policy": "learned",
+          "fixed_model": null,
+          "n": 1735,
+          "errors": 0,
+          "success_rate": 0.48242074927953893,
+          "mean_cost_usd": 0.004896777213256484,
+          "cost_per_success_usd": 0.010150428273596176,
+          "success_ci": [
+            0.45936599423631125,
+            0.5072046109510087
+          ],
+          "mean_cost_ci": [
+            0.004264366229971181,
+            0.005565761583789626
+          ],
+          "success_delta_vs_strongest": -0.04495677233429396,
+          "success_delta_ci": [
+            -0.06858789625360234,
+            -0.022478386167147035
+          ],
+          "cost_reduction_vs_strongest": 0.9269837648347155,
+          "cost_reduction_ci": [
+            0.9169040670267354,
+            0.9366432899679349
+          ],
+          "model_counts": {
+            "claude-sonnet-4": 4,
+            "deepseek-r1-0528": 72,
+            "deepseek-v3-0324": 60,
+            "gemini-2.5-flash": 13,
+            "gemini-2.5-pro": 155,
+            "glm-4.6": 43,
+            "gpt-5": 131,
+            "gpt-5-chat": 87,
+            "intern-s1": 62,
+            "kimi-k2-0905": 139,
+            "qwen3-235b-a22b-2507": 939,
+            "qwen3-235b-a22b-thinking-2507": 30
+          }
+        },
+        "vs_shipped": {
+          "n": 1735,
+          "success_delta": 0.0005763688760807018,
+          "success_delta_ci": [
+            -0.009798270893371763,
+            0.009812680115273822
+          ],
+          "cost_reduction": -0.11595517094104646,
+          "cost_reduction_ci": [
+            -0.2748760506627632,
+            0.008274581795419173
+          ]
+        },
+        "calibration_quality": {
+          "per_model": {
+            "claude-sonnet-4": {
+              "n": 1735,
+              "base_rate": 0.22881844380403457,
+              "mean_p": 0.2162385402513754,
+              "ece_mass": 0.033677722146246564,
+              "ece_width": 0.025885878274314104,
+              "brier": 0.13039278555680486,
+              "log_loss": 0.4206728706329914
+            },
+            "deepseek-r1-0528": {
+              "n": 1735,
+              "base_rate": 0.34812680115273775,
+              "mean_p": 0.3409337075265386,
+              "ece_mass": 0.048158677508874814,
+              "ece_width": 0.0389355615382025,
+              "brier": 0.1781948555377082,
+              "log_loss": 0.5368084357320564
+            },
+            "deepseek-v3-0324": {
+              "n": 1735,
+              "base_rate": 0.2904899135446686,
+              "mean_p": 0.2779405252787004,
+              "ece_mass": 0.029617825524125427,
+              "ece_width": 0.02724391008999589,
+              "brier": 0.15320677031132457,
+              "log_loss": 0.4599919348893066
+            },
+            "gemini-2.5-flash": {
+              "n": 1735,
+              "base_rate": 0.30720461095100865,
+              "mean_p": 0.30195778635989406,
+              "ece_mass": 0.04215655189460945,
+              "ece_width": 0.035748609334285725,
+              "brier": 0.17561393520959995,
+              "log_loss": 0.5606157812178868
+            },
+            "gemini-2.5-pro": {
+              "n": 1735,
+              "base_rate": 0.5273775216138329,
+              "mean_p": 0.5014784399131671,
+              "ece_mass": 0.049044946581611334,
+              "ece_width": 0.04611353621356064,
+              "brier": 0.2082306364810211,
+              "log_loss": 0.603795555020718
+            },
+            "glm-4.6": {
+              "n": 1735,
+              "base_rate": 0.3331412103746398,
+              "mean_p": 0.32084067208024114,
+              "ece_mass": 0.05241763166389564,
+              "ece_width": 0.039868051069693246,
+              "brier": 0.1864204300859039,
+              "log_loss": 0.5679010199348598
+            },
+            "gpt-5": {
+              "n": 1735,
+              "base_rate": 0.515850144092219,
+              "mean_p": 0.5117458237908403,
+              "ece_mass": 0.057771711555674704,
+              "ece_width": 0.04218801904804975,
+              "brier": 0.2108949019478658,
+              "log_loss": 0.6128906326607889
+            },
+            "gpt-5-chat": {
+              "n": 1735,
+              "base_rate": 0.368299711815562,
+              "mean_p": 0.368876953517706,
+              "ece_mass": 0.028895072420613788,
+              "ece_width": 0.029553914001036637,
+              "brier": 0.17997486486579625,
+              "log_loss": 0.5411219203091893
+            },
+            "intern-s1": {
+              "n": 1735,
+              "base_rate": 0.21729106628242076,
+              "mean_p": 0.22612293233164177,
+              "ece_mass": 0.03283449144933546,
+              "ece_width": 0.029768998417345177,
+              "brier": 0.13218384369124897,
+              "log_loss": 0.4416472037990507
+            },
+            "kimi-k2-0905": {
+              "n": 1735,
+              "base_rate": 0.3216138328530259,
+              "mean_p": 0.31792183862733925,
+              "ece_mass": 0.03206980322790339,
+              "ece_width": 0.03777262407089253,
+              "brier": 0.1605473753323487,
+              "log_loss": 0.49486408488958705
+            },
+            "qwen3-235b-a22b-2507": {
+              "n": 1735,
+              "base_rate": 0.45936599423631125,
+              "mean_p": 0.4468727112222649,
+              "ece_mass": 0.030820592306799798,
+              "ece_width": 0.030265666477792084,
+              "brier": 0.1779500795363151,
+              "log_loss": 0.5812349773489424
+            },
+            "qwen3-235b-a22b-thinking-2507": {
+              "n": 1735,
+              "base_rate": 0.4282420749279539,
+              "mean_p": 0.4427227895955351,
+              "ece_mass": 0.0348672425995578,
+              "ece_width": 0.03995891318355016,
+              "brier": 0.17260021499638126,
+              "log_loss": 0.5256663413452384
+            }
+          },
+          "pooled": {
+            "n": 20820,
+            "base_rate": 0.3621517771373679,
+            "mean_p": 0.356137726707937,
+            "ece_mass": 0.01579653107114779,
+            "ece_width": 0.01463467589971405,
+            "brier": 0.17218422446269321,
+            "log_loss": 0.5289342298150513
+          }
+        },
+        "python_go_parity": {
+          "items_compared": 1715,
+          "items_skipped": 20,
+          "max_abs_diff": 3.2557290197132716e-14
+        }
+      }
+    },
+    {
+      "name": "hashed-16",
+      "label": "hashed features only, dim 2^16",
+      "group": "features",
+      "features": "hashed",
+      "dim": 65536,
+      "calibrator": "switch",
+      "calibrator_types": {
+        "isotonic": 12
+      },
+      "artifact_version": "195d38b51957",
+      "trained": true,
+      "training_wall_time_s": 54.47016280000389,
+      "wall_time_source": "this run",
+      "weights_bin_bytes": 6407616,
+      "ood_threshold": 0.9593155009887073,
+      "lambda": {
+        "status": "tuned",
+        "value": 5.096882887301035,
+        "calib_success": 0.4918217710095883,
+        "calib_mean_cost_usd": 0.005965048647772138,
+        "calib_success_at_zero": 0.5634517766497462
+      },
+      "test": {
+        "row": {
+          "policy": "hashed features only, dim 2^16",
+          "replay_policy": "learned",
+          "fixed_model": null,
+          "n": 1735,
+          "errors": 0,
+          "success_rate": 0.4783861671469741,
+          "mean_cost_usd": 0.0059514969380403465,
+          "cost_per_success_usd": 0.012440779743975904,
+          "success_ci": [
+            0.4547550432276657,
+            0.5031700288184437
+          ],
+          "mean_cost_ci": [
+            0.005196920809834294,
+            0.006675139110302593
+          ],
+          "success_delta_vs_strongest": -0.048991354466858816,
+          "success_delta_ci": [
+            -0.07031700288184439,
+            -0.02708933717579254
+          ],
+          "cost_reduction_vs_strongest": 0.9112567549863201,
+          "cost_reduction_ci": [
+            0.899266406131917,
+            0.9226971350639471
+          ],
+          "model_counts": {
+            "claude-sonnet-4": 31,
+            "deepseek-r1-0528": 129,
+            "deepseek-v3-0324": 44,
+            "gemini-2.5-flash": 15,
+            "gemini-2.5-pro": 128,
+            "glm-4.6": 38,
+            "gpt-5": 144,
+            "gpt-5-chat": 90,
+            "intern-s1": 143,
+            "kimi-k2-0905": 98,
+            "qwen3-235b-a22b-2507": 799,
+            "qwen3-235b-a22b-thinking-2507": 76
+          }
+        },
+        "vs_shipped": {
+          "n": 1735,
+          "success_delta": -0.003458213256484155,
+          "success_delta_ci": [
+            -0.01786743515850142,
+            0.010374639769452467
+          ],
+          "cost_reduction": -0.3563214117370659,
+          "cost_reduction_ci": [
+            -0.5706714350598736,
+            -0.16844649499033634
+          ]
+        },
+        "calibration_quality": {
+          "per_model": {
+            "claude-sonnet-4": {
+              "n": 1735,
+              "base_rate": 0.22881844380403457,
+              "mean_p": 0.21873807480042332,
+              "ece_mass": 0.03391565704681761,
+              "ece_width": 0.030631873045357125,
+              "brier": 0.13416140178713293,
+              "log_loss": 0.4367277467418556
+            },
+            "deepseek-r1-0528": {
+              "n": 1735,
+              "base_rate": 0.34812680115273775,
+              "mean_p": 0.34186230069900375,
+              "ece_mass": 0.0314283263951435,
+              "ece_width": 0.032282751701266314,
+              "brier": 0.17981754585319673,
+              "log_loss": 0.5408047377638159
+            },
+            "deepseek-v3-0324": {
+              "n": 1735,
+              "base_rate": 0.2904899135446686,
+              "mean_p": 0.27820103059778784,
+              "ece_mass": 0.03688790990963472,
+              "ece_width": 0.04161522522464719,
+              "brier": 0.1543687215276144,
+              "log_loss": 0.46852803759809153
+            },
+            "gemini-2.5-flash": {
+              "n": 1735,
+              "base_rate": 0.30720461095100865,
+              "mean_p": 0.3023227304486093,
+              "ece_mass": 0.048026679919901324,
+              "ece_width": 0.04108744576624479,
+              "brier": 0.1742586190410599,
+              "log_loss": 0.5323739659240098
+            },
+            "gemini-2.5-pro": {
+              "n": 1735,
+              "base_rate": 0.5273775216138329,
+              "mean_p": 0.5016582023404247,
+              "ece_mass": 0.0575062528750895,
+              "ece_width": 0.045731524721753604,
+              "brier": 0.20689899455274108,
+              "log_loss": 0.6002180124871401
+            },
+            "glm-4.6": {
+              "n": 1735,
+              "base_rate": 0.3331412103746398,
+              "mean_p": 0.3207642601950062,
+              "ece_mass": 0.053746556910956665,
+              "ece_width": 0.025455464062782974,
+              "brier": 0.18539753671013395,
+              "log_loss": 0.556652861077131
+            },
+            "gpt-5": {
+              "n": 1735,
+              "base_rate": 0.515850144092219,
+              "mean_p": 0.5096582314088451,
+              "ece_mass": 0.04355791102296352,
+              "ece_width": 0.03776002676203416,
+              "brier": 0.21050431543794074,
+              "log_loss": 0.6317695766256077
+            },
+            "gpt-5-chat": {
+              "n": 1735,
+              "base_rate": 0.368299711815562,
+              "mean_p": 0.369010140759629,
+              "ece_mass": 0.031077364997124383,
+              "ece_width": 0.018024244702019906,
+              "brier": 0.17792149781733996,
+              "log_loss": 0.531263589392249
+            },
+            "intern-s1": {
+              "n": 1735,
+              "base_rate": 0.21729106628242076,
+              "mean_p": 0.2271977488003701,
+              "ece_mass": 0.035099798843114836,
+              "ece_width": 0.022953926277100644,
+              "brier": 0.13471629309531186,
+              "log_loss": 0.4308121990378997
+            },
+            "kimi-k2-0905": {
+              "n": 1735,
+              "base_rate": 0.3216138328530259,
+              "mean_p": 0.3169576877992081,
+              "ece_mass": 0.047623117443646286,
+              "ece_width": 0.03630081617329573,
+              "brier": 0.16081167598293228,
+              "log_loss": 0.49124054345972695
+            },
+            "qwen3-235b-a22b-2507": {
+              "n": 1735,
+              "base_rate": 0.45936599423631125,
+              "mean_p": 0.4469147834865844,
+              "ece_mass": 0.032412452697197426,
+              "ece_width": 0.027271164535195062,
+              "brier": 0.17821324167567118,
+              "log_loss": 0.5407987608626678
+            },
+            "qwen3-235b-a22b-thinking-2507": {
+              "n": 1735,
+              "base_rate": 0.4282420749279539,
+              "mean_p": 0.4421887975199427,
+              "ece_mass": 0.02397832151414825,
+              "ece_width": 0.028032176529350705,
+              "brier": 0.17346306324662078,
+              "log_loss": 0.5229427456345954
+            }
+          },
+          "pooled": {
+            "n": 20820,
+            "base_rate": 0.3621517771373679,
+            "mean_p": 0.35628949907131957,
+            "ece_mass": 0.014623992636159315,
+            "ece_width": 0.014154205491180964,
+            "brier": 0.17254440889397463,
+            "log_loss": 0.5236777313837325
+          }
+        },
+        "python_go_parity": {
+          "items_compared": 1713,
+          "items_skipped": 22,
+          "max_abs_diff": 4.1300296516055823e-14
+        }
+      }
+    },
+    {
+      "name": "dense-16",
+      "label": "dense features only, dim 2^16",
+      "group": "features",
+      "features": "dense",
+      "dim": 65536,
+      "calibrator": "switch",
+      "calibrator_types": {
+        "isotonic": 12
+      },
+      "artifact_version": "8a6750c31dcd",
+      "trained": true,
+      "training_wall_time_s": 5.104011800001899,
+      "wall_time_source": "this run",
+      "weights_bin_bytes": 6407616,
+      "ood_threshold": 0.9593155009887073,
+      "lambda": {
+        "status": "tuned",
+        "value": 3.3382793844793923,
+        "calib_success": 0.4918217710095883,
+        "calib_mean_cost_usd": 0.011321659107445009,
+        "calib_success_at_zero": 0.5380710659898477
+      },
+      "test": {
+        "row": {
+          "policy": "dense features only, dim 2^16",
+          "replay_policy": "learned",
+          "fixed_model": null,
+          "n": 1735,
+          "errors": 0,
+          "success_rate": 0.48703170028818443,
+          "mean_cost_usd": 0.00955472441498559,
+          "cost_per_success_usd": 0.019618280307692307,
+          "success_ci": [
+            0.46512968299711815,
+            0.5106628242074928
+          ],
+          "mean_cost_ci": [
+            0.008181614311527377,
+            0.011002447664697407
+          ],
+          "success_delta_vs_strongest": -0.04034582132564846,
+          "success_delta_ci": [
+            -0.0639913544668588,
+            -0.01613832853025937
+          ],
+          "cost_reduction_vs_strongest": 0.8575287429994966,
+          "cost_reduction_ci": [
+            0.8355797660803319,
+            0.8781259196682242
+          ],
+          "model_counts": {
+            "claude-sonnet-4": 48,
+            "deepseek-r1-0528": 28,
+            "deepseek-v3-0324": 16,
+            "gemini-2.5-flash": 3,
+            "gemini-2.5-pro": 118,
+            "glm-4.6": 55,
+            "gpt-5": 195,
+            "gpt-5-chat": 16,
+            "intern-s1": 76,
+            "kimi-k2-0905": 104,
+            "qwen3-235b-a22b-2507": 1053,
+            "qwen3-235b-a22b-thinking-2507": 23
+          }
+        },
+        "vs_shipped": {
+          "n": 1735,
+          "success_delta": 0.005187319884726205,
+          "success_delta_ci": [
+            -0.010951008645533111,
+            0.021325648414985576
+          ],
+          "cost_reduction": -1.1774819750741528,
+          "cost_reduction_ci": [
+            -1.5928177247624455,
+            -0.8238636058406386
+          ]
+        },
+        "calibration_quality": {
+          "per_model": {
+            "claude-sonnet-4": {
+              "n": 1735,
+              "base_rate": 0.22881844380403457,
+              "mean_p": 0.2195204592698015,
+              "ece_mass": 0.04250440729422065,
+              "ece_width": 0.03781267348328726,
+              "brier": 0.1483536915902194,
+              "log_loss": 0.47105071147248967
+            },
+            "deepseek-r1-0528": {
+              "n": 1735,
+              "base_rate": 0.34812680115273775,
+              "mean_p": 0.34283329136847346,
+              "ece_mass": 0.04880755791289217,
+              "ece_width": 0.04221189157288457,
+              "brier": 0.19579570661277998,
+              "log_loss": 0.6120790052752716
+            },
+            "deepseek-v3-0324": {
+              "n": 1735,
+              "base_rate": 0.2904899135446686,
+              "mean_p": 0.2775129498825067,
+              "ece_mass": 0.039336162111073304,
+              "ece_width": 0.02781056022613903,
+              "brier": 0.16931359377800992,
+              "log_loss": 0.5436831350757285
+            },
+            "gemini-2.5-flash": {
+              "n": 1735,
+              "base_rate": 0.30720461095100865,
+              "mean_p": 0.2988153535644773,
+              "ece_mass": 0.02987121556144968,
+              "ece_width": 0.031228258848218938,
+              "brier": 0.18670010838266646,
+              "log_loss": 0.5815902387409474
+            },
+            "gemini-2.5-pro": {
+              "n": 1735,
+              "base_rate": 0.5273775216138329,
+              "mean_p": 0.5008472942755867,
+              "ece_mass": 0.057837494125410414,
+              "ece_width": 0.039581235469107245,
+              "brier": 0.22529535578931506,
+              "log_loss": 0.6413217302286546
+            },
+            "glm-4.6": {
+              "n": 1735,
+              "base_rate": 0.3331412103746398,
+              "mean_p": 0.3212752760341314,
+              "ece_mass": 0.05797531833976133,
+              "ece_width": 0.027446610134461463,
+              "brier": 0.19841669875495088,
+              "log_loss": 0.6183759320933568
+            },
+            "gpt-5": {
+              "n": 1735,
+              "base_rate": 0.515850144092219,
+              "mean_p": 0.512520895474888,
+              "ece_mass": 0.04989559057507579,
+              "ece_width": 0.03695039194411178,
+              "brier": 0.2273437632691276,
+              "log_loss": 0.6647885066586091
+            },
+            "gpt-5-chat": {
+              "n": 1735,
+              "base_rate": 0.368299711815562,
+              "mean_p": 0.36875868739396633,
+              "ece_mass": 0.06270770709320574,
+              "ece_width": 0.03810276857330219,
+              "brier": 0.2015622639132043,
+              "log_loss": 0.5915533287071078
+            },
+            "intern-s1": {
+              "n": 1735,
+              "base_rate": 0.21729106628242076,
+              "mean_p": 0.22655090793738922,
+              "ece_mass": 0.054026565297235575,
+              "ece_width": 0.04630876553998794,
+              "brier": 0.1496851101099717,
+              "log_loss": 0.4742998247244292
+            },
+            "kimi-k2-0905": {
+              "n": 1735,
+              "base_rate": 0.3216138328530259,
+              "mean_p": 0.3164829434608188,
+              "ece_mass": 0.038764560340422735,
+              "ece_width": 0.02516085271660182,
+              "brier": 0.18286561841069518,
+              "log_loss": 0.5767879736835814
+            },
+            "qwen3-235b-a22b-2507": {
+              "n": 1735,
+              "base_rate": 0.45936599423631125,
+              "mean_p": 0.4415219947628605,
+              "ece_mass": 0.0629195069578004,
+              "ece_width": 0.024551395060509178,
+              "brier": 0.21080532861600737,
+              "log_loss": 0.6195576690613124
+            },
+            "qwen3-235b-a22b-thinking-2507": {
+              "n": 1735,
+              "base_rate": 0.4282420749279539,
+              "mean_p": 0.4390182221306449,
+              "ece_mass": 0.056661370960215736,
+              "ece_width": 0.037099213797456836,
+              "brier": 0.19745401329184697,
+              "log_loss": 0.5936305120109977
+            }
+          },
+          "pooled": {
+            "n": 20820,
+            "base_rate": 0.3621517771373679,
+            "mean_p": 0.3554715229629621,
+            "ece_mass": 0.018553753319155885,
+            "ece_width": 0.020666617272373705,
+            "brier": 0.19113260437656623,
+            "log_loss": 0.5823932139777072
+          }
+        },
+        "python_go_parity": {
+          "items_compared": 1713,
+          "items_skipped": 22,
+          "max_abs_diff": 1.865174681370263e-14
+        }
+      }
+    },
+    {
+      "name": "platt-16",
+      "label": "every model Platt, dim 2^16",
+      "group": "calibrator",
+      "features": "both",
+      "dim": 65536,
+      "calibrator": "platt",
+      "calibrator_types": {
+        "platt": 12
+      },
+      "artifact_version": "b70d7e117412",
+      "trained": true,
+      "training_wall_time_s": 128.00797610000154,
+      "wall_time_source": "this run",
+      "weights_bin_bytes": 6407616,
+      "ood_threshold": 0.9593155009887073,
+      "lambda": {
+        "status": "tuned",
+        "value": 4.704503226093948,
+        "calib_success": 0.4918217710095883,
+        "calib_mean_cost_usd": 0.007404121593344614,
+        "calib_success_at_zero": 0.5555555555555556
+      },
+      "test": {
+        "row": {
+          "policy": "every model Platt, dim 2^16",
+          "replay_policy": "learned",
+          "fixed_model": null,
+          "n": 1735,
+          "errors": 0,
+          "success_rate": 0.5043227665706052,
+          "mean_cost_usd": 0.007183410736311239,
+          "cost_per_success_usd": 0.014243677288571429,
+          "success_ci": [
+            0.48242074927953893,
+            0.5291066282420749
+          ],
+          "mean_cost_ci": [
+            0.006312424460266572,
+            0.008215854009113835
+          ],
+          "success_delta_vs_strongest": -0.023054755043227737,
+          "success_delta_ci": [
+            -0.04610951008645531,
+            -0.002867435158501393
+          ],
+          "cost_reduction_vs_strongest": 0.8928875901906672,
+          "cost_reduction_ci": [
+            0.8768280429560369,
+            0.9055476159625935
+          ],
+          "model_counts": {
+            "claude-sonnet-4": 1,
+            "deepseek-r1-0528": 80,
+            "deepseek-v3-0324": 17,
+            "gemini-2.5-flash": 2,
+            "gemini-2.5-pro": 168,
+            "glm-4.6": 24,
+            "gpt-5": 267,
+            "gpt-5-chat": 56,
+            "intern-s1": 80,
+            "kimi-k2-0905": 87,
+            "qwen3-235b-a22b-2507": 922,
+            "qwen3-235b-a22b-thinking-2507": 31
+          }
+        },
+        "vs_shipped": {
+          "n": 1735,
+          "success_delta": 0.022478386167146924,
+          "success_delta_ci": [
+            0.009798270893371763,
+            0.034582132564841495
+          ],
+          "cost_reduction": -0.6370694452829451,
+          "cost_reduction_ci": [
+            -0.8554563531920855,
+            -0.4606838384617188
+          ]
+        },
+        "calibration_quality": {
+          "per_model": {
+            "claude-sonnet-4": {
+              "n": 1735,
+              "base_rate": 0.22881844380403457,
+              "mean_p": 0.2170074729873566,
+              "ece_mass": 0.02780092787085525,
+              "ece_width": 0.018549032998066792,
+              "brier": 0.12991652437392012,
+              "log_loss": 0.412353931633381
+            },
+            "deepseek-r1-0528": {
+              "n": 1735,
+              "base_rate": 0.34812680115273775,
+              "mean_p": 0.34224960244056707,
+              "ece_mass": 0.029693538222162766,
+              "ece_width": 0.028379853515816348,
+              "brier": 0.17704796187468977,
+              "log_loss": 0.5334767981965949
+            },
+            "deepseek-v3-0324": {
+              "n": 1735,
+              "base_rate": 0.2904899135446686,
+              "mean_p": 0.2780335704134519,
+              "ece_mass": 0.03037037548230575,
+              "ece_width": 0.034210574547547445,
+              "brier": 0.15272213071853835,
+              "log_loss": 0.4594791626684024
+            },
+            "gemini-2.5-flash": {
+              "n": 1735,
+              "base_rate": 0.30720461095100865,
+              "mean_p": 0.30080608287539046,
+              "ece_mass": 0.050803075552477615,
+              "ece_width": 0.03694477420592353,
+              "brier": 0.1740401148478326,
+              "log_loss": 0.520586657312889
+            },
+            "gemini-2.5-pro": {
+              "n": 1735,
+              "base_rate": 0.5273775216138329,
+              "mean_p": 0.5024681482697799,
+              "ece_mass": 0.03411925725543633,
+              "ece_width": 0.04035792564434217,
+              "brier": 0.2059925185152332,
+              "log_loss": 0.5983320605371841
+            },
+            "glm-4.6": {
+              "n": 1735,
+              "base_rate": 0.3331412103746398,
+              "mean_p": 0.3215482935275174,
+              "ece_mass": 0.035008204252094735,
+              "ece_width": 0.024390558816553054,
+              "brier": 0.18442940355383644,
+              "log_loss": 0.5544523623015174
+            },
+            "gpt-5": {
+              "n": 1735,
+              "base_rate": 0.515850144092219,
+              "mean_p": 0.5123372368808672,
+              "ece_mass": 0.032649542933047115,
+              "ece_width": 0.03503130688396106,
+              "brier": 0.2101946146983533,
+              "log_loss": 0.6087704878687179
+            },
+            "gpt-5-chat": {
+              "n": 1735,
+              "base_rate": 0.368299711815562,
+              "mean_p": 0.3693823397353428,
+              "ece_mass": 0.04612316296651602,
+              "ece_width": 0.03462140626242138,
+              "brier": 0.1796778920533952,
+              "log_loss": 0.5303621320480809
+            },
+            "intern-s1": {
+              "n": 1735,
+              "base_rate": 0.21729106628242076,
+              "mean_p": 0.22755419514167932,
+              "ece_mass": 0.02710086612929897,
+              "ece_width": 0.02113566291916375,
+              "brier": 0.13212215124918908,
+              "log_loss": 0.4226233284023414
+            },
+            "kimi-k2-0905": {
+              "n": 1735,
+              "base_rate": 0.3216138328530259,
+              "mean_p": 0.31772800286245806,
+              "ece_mass": 0.03166305893973388,
+              "ece_width": 0.031698445424167845,
+              "brier": 0.1597738884334374,
+              "log_loss": 0.4824954000368656
+            },
+            "qwen3-235b-a22b-2507": {
+              "n": 1735,
+              "base_rate": 0.45936599423631125,
+              "mean_p": 0.4470403883425847,
+              "ece_mass": 0.031202339271065,
+              "ece_width": 0.030472940087892635,
+              "brier": 0.17844641364202354,
+              "log_loss": 0.5353699652755742
+            },
+            "qwen3-235b-a22b-thinking-2507": {
+              "n": 1735,
+              "base_rate": 0.4282420749279539,
+              "mean_p": 0.44357067521477556,
+              "ece_mass": 0.03375529106536764,
+              "ece_width": 0.03489589272775296,
+              "brier": 0.17212381455885983,
+              "log_loss": 0.5133488837746325
+            }
+          },
+          "pooled": {
+            "n": 20820,
+            "base_rate": 0.3621517771373679,
+            "mean_p": 0.35664383405764755,
+            "ece_mass": 0.011547939307597831,
+            "ece_width": 0.010705691715267425,
+            "brier": 0.17137395237660907,
+            "log_loss": 0.5143042641713484
+          }
+        },
+        "python_go_parity": {
+          "items_compared": 1713,
+          "items_skipped": 22,
+          "max_abs_diff": 4.718447854656915e-16
+        }
+      }
+    },
+    {
+      "name": "isotonic-16",
+      "label": "every model isotonic, dim 2^16",
+      "group": "calibrator",
+      "features": "both",
+      "dim": 65536,
+      "calibrator": "isotonic",
+      "calibrator_types": {
+        "isotonic": 12
+      },
+      "artifact_version": "5a2cbe3e5af1",
+      "trained": true,
+      "training_wall_time_s": 127.9223364999998,
+      "wall_time_source": "this run",
+      "weights_bin_bytes": 6407616,
+      "ood_threshold": 0.9593155009887073,
+      "lambda": {
+        "status": "tuned",
+        "value": 6.721045792801306,
+        "calib_success": 0.4918217710095883,
+        "calib_mean_cost_usd": 0.004083490888324873,
+        "calib_success_at_zero": 0.560067681895093
+      },
+      "test": {
+        "row": {
+          "policy": "every model isotonic, dim 2^16",
+          "replay_policy": "learned",
+          "fixed_model": null,
+          "n": 1735,
+          "errors": 0,
+          "success_rate": 0.48184438040345823,
+          "mean_cost_usd": 0.004387969463976945,
+          "cost_per_success_usd": 0.009106611267942584,
+          "success_ci": [
+            0.45994236311239195,
+            0.5055043227665705
+          ],
+          "mean_cost_ci": [
+            0.0038302528872478383,
+            0.004954338052053314
+          ],
+          "success_delta_vs_strongest": -0.04553314121037466,
+          "success_delta_ci": [
+            -0.06974063400576364,
+            -0.022478386167147035
+          ],
+          "cost_reduction_vs_strongest": 0.9345706377222013,
+          "cost_reduction_ci": [
+            0.925046516862353,
+            0.9431628814675123
+          ],
+          "model_counts": {
+            "claude-sonnet-4": 3,
+            "deepseek-r1-0528": 62,
+            "deepseek-v3-0324": 65,
+            "gemini-2.5-flash": 12,
+            "gemini-2.5-pro": 140,
+            "glm-4.6": 33,
+            "gpt-5": 126,
+            "gpt-5-chat": 97,
+            "intern-s1": 57,
+            "kimi-k2-0905": 150,
+            "qwen3-235b-a22b-2507": 964,
+            "qwen3-235b-a22b-thinking-2507": 26
+          }
+        },
+        "vs_shipped": {
+          "n": 1735,
+          "success_delta": 0.0,
+          "success_delta_ci": [
+            0.0,
+            0.0
+          ],
+          "cost_reduction": 0.0,
+          "cost_reduction_ci": [
+            0.0,
+            0.0
+          ]
+        },
+        "calibration_quality": {
+          "per_model": {
+            "claude-sonnet-4": {
+              "n": 1735,
+              "base_rate": 0.22881844380403457,
+              "mean_p": 0.2158381088126197,
+              "ece_mass": 0.034180017211303815,
+              "ece_width": 0.028910130114159622,
+              "brier": 0.1307364045520313,
+              "log_loss": 0.4220107490001862
+            },
+            "deepseek-r1-0528": {
+              "n": 1735,
+              "base_rate": 0.34812680115273775,
+              "mean_p": 0.34045115160483885,
+              "ece_mass": 0.03430237818428489,
+              "ece_width": 0.01904618343683523,
+              "brier": 0.1781936321414733,
+              "log_loss": 0.5363328464264727
+            },
+            "deepseek-v3-0324": {
+              "n": 1735,
+              "base_rate": 0.2904899135446686,
+              "mean_p": 0.2771702745954816,
+              "ece_mass": 0.046639666843619254,
+              "ece_width": 0.02778989701527431,
+              "brier": 0.15371697083948113,
+              "log_loss": 0.46103520466229536
+            },
+            "gemini-2.5-flash": {
+              "n": 1735,
+              "base_rate": 0.30720461095100865,
+              "mean_p": 0.2998936306471969,
+              "ece_mass": 0.03640603087098725,
+              "ece_width": 0.03521584343117629,
+              "brier": 0.1754801851152009,
+              "log_loss": 0.5539453319647718
+            },
+            "gemini-2.5-pro": {
+              "n": 1735,
+              "base_rate": 0.5273775216138329,
+              "mean_p": 0.5035977929535748,
+              "ece_mass": 0.04985686767591623,
+              "ece_width": 0.03778377573729913,
+              "brier": 0.20700646487103644,
+              "log_loss": 0.6005365242118136
+            },
+            "glm-4.6": {
+              "n": 1735,
+              "base_rate": 0.3331412103746398,
+              "mean_p": 0.3208689574292271,
+              "ece_mass": 0.04902930172386113,
+              "ece_width": 0.035072221044328354,
+              "brier": 0.18656918301673406,
+              "log_loss": 0.5681452845885152
+            },
+            "gpt-5": {
+              "n": 1735,
+              "base_rate": 0.515850144092219,
+              "mean_p": 0.5148205657002043,
+              "ece_mass": 0.05371996354757952,
+              "ece_width": 0.039966292949508375,
+              "brier": 0.21234369322886026,
+              "log_loss": 0.6154083420131005
+            },
+            "gpt-5-chat": {
+              "n": 1735,
+              "base_rate": 0.368299711815562,
+              "mean_p": 0.36919868389291177,
+              "ece_mass": 0.03265729356445061,
+              "ece_width": 0.038461593133418334,
+              "brier": 0.1815565044696362,
+              "log_loss": 0.5455253290227263
+            },
+            "intern-s1": {
+              "n": 1735,
+              "base_rate": 0.21729106628242076,
+              "mean_p": 0.22665593825304284,
+              "ece_mass": 0.026321768051878844,
+              "ece_width": 0.023223844678978568,
+              "brier": 0.13270245224659225,
+              "log_loss": 0.43687405176920124
+            },
+            "kimi-k2-0905": {
+              "n": 1735,
+              "base_rate": 0.3216138328530259,
+              "mean_p": 0.31778478852080594,
+              "ece_mass": 0.03402712815844721,
+              "ece_width": 0.03212236324523352,
+              "brier": 0.1611272416454002,
+              "log_loss": 0.4971124370977924
+            },
+            "qwen3-235b-a22b-2507": {
+              "n": 1735,
+              "base_rate": 0.45936599423631125,
+              "mean_p": 0.4466690391137776,
+              "ece_mass": 0.031854414561452396,
+              "ece_width": 0.027749272095983983,
+              "brier": 0.17927522414469466,
+              "log_loss": 0.5844117135851753
+            },
+            "qwen3-235b-a22b-thinking-2507": {
+              "n": 1735,
+              "base_rate": 0.4282420749279539,
+              "mean_p": 0.44194281131786695,
+              "ece_mass": 0.043405849500783154,
+              "ece_width": 0.03956206916409708,
+              "brier": 0.17289496747530858,
+              "log_loss": 0.5263110517319484
+            }
+          },
+          "pooled": {
+            "n": 20820,
+            "base_rate": 0.3621517771373679,
+            "mean_p": 0.356240978570129,
+            "ece_mass": 0.016035582344666635,
+            "ece_width": 0.015099847782417294,
+            "brier": 0.17263357697887077,
+            "log_loss": 0.5289707388395
+          }
+        },
+        "python_go_parity": {
+          "items_compared": 1713,
+          "items_skipped": 22,
+          "max_abs_diff": 5.6066262743570405e-15
+        }
+      }
+    }
+  ],
+  "statements": [
+    "both features, dim 2^14: test success +0.00 points against the shipped one (no clear difference), mean cost 13.7% dearer (worse); pooled test ECE 0.0223 against 0.0160 for the shipped one (higher).",
+    "both features, dim 2^18: test success +0.06 points against the shipped one (no clear difference), mean cost 11.6% dearer (no clear difference); pooled test ECE 0.0158 against 0.0160 for the shipped one (lower).",
+    "hashed features only, dim 2^16: test success -0.35 points against the shipped one (no clear difference), mean cost 35.6% dearer (worse); pooled test ECE 0.0146 against 0.0160 for the shipped one (lower).",
+    "dense features only, dim 2^16: test success +0.52 points against the shipped one (no clear difference), mean cost 117.7% dearer (worse); pooled test ECE 0.0186 against 0.0160 for the shipped one (higher).",
+    "every model Platt, dim 2^16: test success +2.25 points against the shipped one (better), mean cost 63.7% dearer (worse); pooled test ECE 0.0115 against 0.0160 for the shipped one (lower).",
+    "every model isotonic, dim 2^16: test success +0.00 points against the shipped one (no clear difference), mean cost 0.0% cheaper (no clear difference); pooled test ECE 0.0160 against 0.0160 for the shipped one (equal)."
+  ],
+  "not_run": "A PyTorch MLP on local Ollama embeddings is not run (no PyTorch dependency, and the predictor must stay Go-servable without an embedding model on the request path); ADR 0007 records it as a deferred ablation.",
+  "replays": {
+    "calib": 295,
+    "test": 8
+  },
+  "wall_time_s": 670.7232241999955,
+  "phase_time_s": {
+    "training": 641.3746018999955,
+    "calibration": 18.607350500002212,
+    "test replays": 0.4870835999972769,
+    "test calibration quality": 5.754228500001773
+  },
+  "labels": [
+    "costs are the recorded costs of each model on each item; no latency is measured or simulated in this experiment",
+    "lambda of the dual mode is retuned on the calibration split for each artifact with the same rule as the headline (the largest value whose calibration success reaches Best Single's minus 0.01); the test split is replayed once per artifact",
+    "calibration success is in-sample for the calibrators and lower-bound tables of every artifact (fitted on the same split lambda is tuned on)",
+    "because every operating point is retuned to the same calibration target, test success differs little by construction; the cost, the paired intervals and the pooled test ECE carry the comparison",
+    "better or worse means the paired 95% bootstrap interval against the shipped configuration lies wholly above or below zero; ECE is compared by its point estimate",
+    "pooled test ECE: 15 equal-mass bins over all models' test forecasts, recomputed in Python from the exported weights",
+    "training wall time is one run per artifact on this machine, measured around the whole fit and export; the shipped artifact was not retrained, its time is that of the committed train run",
+    "ablation artifacts are written under bench/scratch/ablations and are not committed"
+  ]
+}

@@ -15,8 +15,14 @@ coverage.*
 /data/raw/
 /data/derived/
 
+# Trained policy artifacts (about 6 MB each) stay local; only the small live-ollama artifact is committed
+/policies/flagship/
+/policies/mixed/
+
 # Python
 .venv/
+# The LiteLLM proxy of the comparison is installed outside the repo; a venv here is ignored too
+/bench/litellm/.venv/
 __pycache__/
 *.pyc
 .pytest_cache/

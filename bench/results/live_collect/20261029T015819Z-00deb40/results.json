@@ -1,0 +1,210 @@
+{
+  "phase": "measure",
+  "prompts_sent": 3,
+  "max_tokens": 256,
+  "ollama_version": "0.34.2",
+  "models": {
+    "qwen2.5:0.5b": {
+      "digest": "a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67",
+      "parameter_size": "494.03M",
+      "quantization": "Q4_K_M",
+      "params_b_nominal": 0.5,
+      "load_s": 2.5062558999998146,
+      "loaded": [
+        {
+          "name": "qwen2.5:0.5b",
+          "size_bytes": 481810185,
+          "size_vram_bytes": 481810185,
+          "context_length": 4096
+        }
+      ],
+      "runs": [
+        {
+          "ttft_ms": 36.53160000249045,
+          "wall_ms": 1296.6894999990473,
+          "prompt_tokens": 70,
+          "completion_tokens": 199,
+          "tokens_per_s": 157.1231668670577,
+          "finish_reason": "stop",
+          "correct": true
+        },
+        {
+          "ttft_ms": 34.14100000372855,
+          "wall_ms": 1407.9593999995268,
+          "prompt_tokens": 79,
+          "completion_tokens": 256,
+          "tokens_per_s": 185.61405204703905,
+          "finish_reason": "length",
+          "correct": false
+        },
+        {
+          "ttft_ms": 39.76359999796841,
+          "wall_ms": 1209.4313999987207,
+          "prompt_tokens": 76,
+          "completion_tokens": 214,
+          "tokens_per_s": 182.1029868479435,
+          "finish_reason": "stop",
+          "correct": true
+        }
+      ],
+      "ttft_ms_mean": 36.81206666806247,
+      "tokens_per_s_mean": 174.94673525401342,
+      "completion_tokens_mean": 223.0,
+      "correct": 2,
+      "worst_case_request_s": 2.2317658589892067
+    },
+    "qwen2.5:1.5b": {
+      "digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+      "parameter_size": "1.5B",
+      "quantization": "Q4_K_M",
+      "params_b_nominal": 1.5,
+      "load_s": 2.6053006000001915,
+      "loaded": [
+        {
+          "name": "qwen2.5:1.5b",
+          "size_bytes": 1166236712,
+          "size_vram_bytes": 1166236712,
+          "context_length": 4096
+        }
+      ],
+      "runs": [
+        {
+          "ttft_ms": 45.500199994421564,
+          "wall_ms": 145.97779999894556,
+          "prompt_tokens": 70,
+          "completion_tokens": 8,
+          "tokens_per_s": 69.66726911953337,
+          "finish_reason": "stop",
+          "correct": true
+        },
+        {
+          "ttft_ms": 67.53680000110762,
+          "wall_ms": 1897.3280999998678,
+          "prompt_tokens": 79,
+          "completion_tokens": 187,
+          "tokens_per_s": 101.65093691292883,
+          "finish_reason": "stop",
+          "correct": true
+        },
+        {
+          "ttft_ms": 38.77980000106618,
+          "wall_ms": 188.97409999772208,
+          "prompt_tokens": 76,
+          "completion_tokens": 19,
+          "tokens_per_s": 119.84476108880811,
+          "finish_reason": "stop",
+          "correct": true
+        }
+      ],
+      "ttft_ms_mean": 50.605599998865124,
+      "tokens_per_s_mean": 97.05432237375676,
+      "completion_tokens_mean": 71.33333333333333,
+      "correct": 3,
+      "worst_case_request_s": 4.0071527233841975
+    },
+    "qwen2.5:3b": {
+      "digest": "357c53fb659c5076de1d65ccb0b397446227b71a42be9d1603d46168015c9e4b",
+      "parameter_size": "3.1B",
+      "quantization": "Q4_K_M",
+      "params_b_nominal": 3.0,
+      "load_s": 3.62995840000076,
+      "loaded": [
+        {
+          "name": "qwen2.5:3b",
+          "size_bytes": 2159374499,
+          "size_vram_bytes": 2159374499,
+          "context_length": 4096
+        }
+      ],
+      "runs": [
+        {
+          "ttft_ms": 61.502599994128104,
+          "wall_ms": 1769.163099997968,
+          "prompt_tokens": 70,
+          "completion_tokens": 118,
+          "tokens_per_s": 68.5147896784735,
+          "finish_reason": "stop",
+          "correct": true
+        },
+        {
+          "ttft_ms": 60.92380000336561,
+          "wall_ms": 1081.705000004149,
+          "prompt_tokens": 79,
+          "completion_tokens": 85,
+          "tokens_per_s": 82.28991678131958,
+          "finish_reason": "stop",
+          "correct": true
+        },
+        {
+          "ttft_ms": 43.06069999438478,
+          "wall_ms": 3124.81139999727,
+          "prompt_tokens": 76,
+          "completion_tokens": 256,
+          "tokens_per_s": 82.74517468261182,
+          "finish_reason": "length",
+          "correct": true
+        }
+      ],
+      "ttft_ms_mean": 55.162366663959496,
+      "tokens_per_s_mean": 77.84996038080163,
+      "completion_tokens_mean": 153.0,
+      "correct": 3,
+      "worst_case_request_s": 4.9877274973547285
+    },
+    "llama3.2:3b": {
+      "digest": "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72",
+      "parameter_size": "3.2B",
+      "quantization": "Q4_K_M",
+      "params_b_nominal": 3.0,
+      "load_s": 4.175542899996799,
+      "loaded": [
+        {
+          "name": "llama3.2:3b",
+          "size_bytes": 2554708622,
+          "size_vram_bytes": 2554708622,
+          "context_length": 4096
+        }
+      ],
+      "runs": [
+        {
+          "ttft_ms": 44.14030000043567,
+          "wall_ms": 2472.8987000053166,
+          "prompt_tokens": 66,
+          "completion_tokens": 177,
+          "tokens_per_s": 72.46500928196329,
+          "finish_reason": "stop",
+          "correct": true
+        },
+        {
+          "ttft_ms": 60.07780000072671,
+          "wall_ms": 430.59760000323877,
+          "prompt_tokens": 70,
+          "completion_tokens": 27,
+          "tokens_per_s": 70.17168853006972,
+          "finish_reason": "stop",
+          "correct": true
+        },
+        {
+          "ttft_ms": 47.669899999164045,
+          "wall_ms": 2351.858000001812,
+          "prompt_tokens": 72,
+          "completion_tokens": 180,
+          "tokens_per_s": 77.68463000038682,
+          "finish_reason": "stop",
+          "correct": true
+        }
+      ],
+      "ttft_ms_mean": 50.62933333344214,
+      "tokens_per_s_mean": 73.44044260413993,
+      "completion_tokens_mean": 128.0,
+      "correct": 3,
+      "worst_case_request_s": 5.279355991066758
+    }
+  },
+  "wall_time_s": 30.88932439999917,
+  "labels": [
+    "speeds and times are measured on this machine by sending requests straight to Ollama, not through RoutePilot",
+    "the three measurement prompts are invented, not dataset items",
+    "no prompt text and no model output is in this report"
+  ]
+}

@@ -1,0 +1,51 @@
+# Gateway config for the quota correctness experiment (bench/scripts/quota_correctness.py).
+#
+# The script treats this file as a template: it fills in the loopback ports, the tenant id, the
+# SHA-256 of the fake test key (computed at run time) and the usage ledger path, and sets the
+# quota backend (memory, or redis with the URL taken from ROUTEPILOT_TEST_REDIS_URL).
+#
+# One tenant has a total budget of 0.05 USD. Its TPM limit and its concurrency limit are set far
+# above anything 64 clients can reach, so the budget is the only limit that can bind. The one
+# model is priced at 1 USD per million input tokens and 2 USD per million output tokens, so the
+# worst case of a request with max_tokens 8 is about 0.00007 USD and with max_tokens 512 about
+# 0.001 USD. Its one deployment is the mock with no directive: the mock caps its answer at each
+# request's max_tokens, and the script starts it with a default length (600 tokens) above every
+# max_tokens a client sends, so each answer has exactly max_tokens completion tokens and a request
+# spends what was reserved for its output. The usage ledger is a SQLite file, so
+# `routepilot reconcile` can read it.
+server:
+  listen: "127.0.0.1:{{GATEWAY_PORT}}"
+  max_inflight: 1024
+
+providers:
+  - name: mock
+    type: openaicompat
+    base_url: "http://127.0.0.1:{{MOCK_PORT}}/v1"
+
+models:
+  - id: quota-model
+    rank: 1
+    capabilities: [streaming]
+    input_price_per_mtok: "1"
+    output_price_per_mtok: "2"
+    deployments:
+      - name: quota-model-mock
+        provider: mock
+        upstream_model: "bench-model"
+
+tenants:
+  - id: "{{TENANT}}"
+    api_key_sha256: "{{KEY_SHA256}}"
+    allowed_models: ["*"]
+    tpm: 60000000
+    tpm_burst: 60000000
+    max_concurrency: 128
+    budget_usd: "0.05"
+    budget_period: total
+
+quota:
+  backend: memory
+
+accounting:
+  driver: sqlite
+  sqlite_path: "{{SQLITE_PATH}}"

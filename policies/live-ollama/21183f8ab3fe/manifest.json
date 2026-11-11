@@ -1,0 +1,863 @@
+{
+ "dense_mean": [
+  6.70796745489196,
+  0.6931471805599453,
+  2.855127603782534,
+  0.03399078547392686,
+  0.06622906075784762,
+  0.003065729146271144,
+  0.06358960976682304,
+  0.0,
+  0.018,
+  1.0,
+  0.0,
+  0.39833987081079436
+ ],
+ "dense_std": [
+  0.46197160030086276,
+  1.0,
+  0.20940069098720454,
+  0.04051203451845247,
+  0.04596086624952392,
+  0.01031963476097412,
+  0.03939408019684496,
+  1.0,
+  0.13295111883696206,
+  1.0,
+  1.0,
+  0.36204102885499906
+ ],
+ "dim": 16384,
+ "feature_spec_version": 1,
+ "format": "routepilot-policy-artifact",
+ "format_version": 1,
+ "golden": [
+  {
+   "messages": [
+    [
+     "user",
+     "What is 17 times 23?"
+    ]
+   ],
+   "models": {
+    "qwen2.5-0.5b": {
+     "e_out": 52.158482167548826,
+     "l": 0.09087405970502127,
+     "p": 0.14610823568374587,
+     "q99": 149.7274580313353
+    },
+    "qwen2.5-1.5b": {
+     "e_out": 38.87427565713793,
+     "l": 0.046854826914600675,
+     "p": 0.00605968956178436,
+     "q99": 105.01266896470818
+    },
+    "qwen2.5-3b": {
+     "e_out": 109.7460791217578,
+     "l": 0.046854826914600675,
+     "p": 0.0007742348931552348,
+     "q99": 217.8080524943449
+    }
+   },
+   "ood_score": 0.8916099344268393
+  },
+  {
+   "messages": [
+    [
+     "user",
+     "Explain what this Python function returns for n = 5:\n```python\ndef f(n):\n    return sum(i * i for i in range(n))\n```\nIs the result a prime number?"
+    ]
+   ],
+   "models": {
+    "qwen2.5-0.5b": {
+     "e_out": 16.42365402357649,
+     "l": 0.09087405970502127,
+     "p": 0.13799073983665608,
+     "q99": 48.40365062180683
+    },
+    "qwen2.5-1.5b": {
+     "e_out": 11.66826286941928,
+     "l": 0.046854826914600675,
+     "p": 0.064148759833137,
+     "q99": 32.680771269214
+    },
+    "qwen2.5-3b": {
+     "e_out": 12.231755648538435,
+     "l": 0.046854826914600675,
+     "p": 0.026274058924228665,
+     "q99": 25.142818847380134
+    }
+   },
+   "ood_score": 0.8282864027887514
+  },
+  {
+   "messages": [
+    [
+     "user",
+     "Evaluate \\frac{1}{x^2 + 1} integrated from 0 to 1 and simplify the result."
+    ]
+   ],
+   "models": {
+    "qwen2.5-0.5b": {
+     "e_out": 75.16442756618929,
+     "l": 0.09087405970502127,
+     "p": 0.1542058191917765,
+     "q99": 214.9593368990435
+    },
+    "qwen2.5-1.5b": {
+     "e_out": 36.88635060531927,
+     "l": 0.046854826914600675,
+     "p": 0.006489926269242444,
+     "q99": 99.72742586067763
+    },
+    "qwen2.5-3b": {
+     "e_out": 130.21967174560928,
+     "l": 0.046854826914600675,
+     "p": 0.0014186777164906825,
+     "q99": 258.25902796104566
+    }
+   },
+   "ood_score": 0.7466336583979816
+  },
+  {
+   "messages": [
+    [
+     "user",
+     "Which planet in the invented Orrery system has the longest year?\nA. Aldoria\nB. Brenth\nC. Corvane\nD. Dessel\nAnswer with a single letter."
+    ]
+   ],
+   "models": {
+    "qwen2.5-0.5b": {
+     "e_out": 19.46366292024337,
+     "l": 0.09087405970502127,
+     "p": 0.13767896374639219,
+     "q99": 57.02340037205393
+    },
+    "qwen2.5-1.5b": {
+     "e_out": 10.86442627568313,
+     "l": 0.046854826914600675,
+     "p": 0.06052962496223652,
+     "q99": 30.543632442010892
+    },
+    "qwen2.5-3b": {
+     "e_out": 21.177693232240564,
+     "l": 0.046854826914600675,
+     "p": 0.020805762729440173,
+     "q99": 42.817875119790024
+    }
+   },
+   "ood_score": 0.7409469014878308
+  },
+  {
+   "messages": [
+    [
+     "user",
+     "The harbor town of Veldmoor keeps a small archive of weather diaries written by its ferry captains over many generations. Each captain noted the wind, the tide and the colour of the evening sky, and most entries were no longer than a single line. When the archivist IlsabetOrne began to copy them into ledgers, she found that the captains had quietly agreed on a shorthand for fog. A circle meant mist that lifted by noon, two circles meant a grey day, and a circle crossed by a bar meant that the lamps stayed lit until supper. The shorthand spread to the pilots, then to the net menders, and finally to the children who drew it in chalk on the quay stones. By the time the ledgers were bound, nobody in Veldmoor remembered who had started the habit, only that it made the mornings easier to read. Visitors sometimes asked whether the diaries were accurate, and Ilsabet would answer that they were kind rather than exact. A diary that records a bad morning gently is worth more to a sailor than one that records it precisely and says nothing about what to do next. The harbor town of Veldmoor keeps a small archive of weather diaries written by its ferry captains over many generations. Each captain noted the wind, the tide and the colour of the evening sky, and most entries were no longer than a single line. When the archivist IlsabetOrne began to copy them into ledgers, she found that the captains had quietly agreed on a shorthand for fog. A circle meant mist that lifted by noon, two circles meant a grey day, and a circle crossed by a bar meant that the lamps stayed lit until supper. The shorthand spread to the pilots, then to the net menders, and finally to the children who drew it in chalk on the quay stones. By the time the ledgers were bound, nobody in Veldmoor remembered who had started the habit, only that it made the mornings easier to read. Visitors sometimes asked whether the diaries were accurate, and Ilsabet would answer that they were kind rather than exact. A diary that records a bad morning gently is worth more to a sailor than one that records it precisely and says nothing about what to do next. The harbor town of Veldmoor keeps a small archive of weather diaries written by its ferry captains over many generations. Each captain noted the wind, the tide and the colour of the evening sky, and most entries were no longer than a single line. When the archivist IlsabetOrne began to copy them into ledgers, she found that the captains had quietly agreed on a shorthand for fog. A circle meant mist that lifted by noon, two circles meant a grey day, and a circle crossed by a bar meant that the lamps stayed lit until supper. The shorthand spread to the pilots, then to the net menders, and finally to the children who drew it in chalk on the quay stones. By the time the ledgers were bound, nobody in Veldmoor remembered who had started the habit, only that it made the mornings easier to read. Visitors sometimes asked whether the diaries were accurate, and Ilsabet would answer that they were kind rather than exact. A diary that records a bad morning gently is worth more to a sailor than one that records it precisely and says nothing about what to do next."
+    ]
+   ],
+   "models": {
+    "qwen2.5-0.5b": {
+     "e_out": 21.971860947400078,
+     "l": 0.09087405970502127,
+     "p": 0.1423939155982458,
+     "q99": 64.13523459788757
+    },
+    "qwen2.5-1.5b": {
+     "e_out": 23.804917168134033,
+     "l": 0.046854826914600675,
+     "p": 0.010898995091607973,
+     "q99": 64.94816906653115
+    },
+    "qwen2.5-3b": {
+     "e_out": 17.64461367181498,
+     "l": 0.046854826914600675,
+     "p": 0.0032282412130001875,
+     "q99": 35.83734574976724
+    }
+   },
+   "ood_score": 0.7360087596994936
+  },
+  {
+   "messages": [
+    [
+     "system",
+     "You are a careful assistant. Answer in one sentence."
+    ],
+    [
+     "user",
+     "Why do ships float?"
+    ]
+   ],
+   "models": {
+    "qwen2.5-0.5b": {
+     "e_out": 32.14446730409158,
+     "l": 0.09087405970502127,
+     "p": 0.1421823265217275,
+     "q99": 92.97900581138408
+    },
+    "qwen2.5-1.5b": {
+     "e_out": 21.749944432804828,
+     "l": 0.046854826914600675,
+     "p": 0.02187086718327709,
+     "q99": 59.484668081706175
+    },
+    "qwen2.5-3b": {
+     "e_out": 48.078797763550725,
+     "l": 0.046854826914600675,
+     "p": 0.005184259909370742,
+     "q99": 95.96809352139428
+    }
+   },
+   "ood_score": 0.8506700586647499
+  },
+  {
+   "messages": [
+    [
+     "user",
+     "Quelle est la capitale de l'\u00c9gypte ? \u041e\u0431\u044a\u044f\u0441\u043d\u0438\u0442\u0435, \u043f\u043e\u0447\u0435\u043c\u0443 \u043d\u0435\u0431\u043e \u0433\u043e\u043b\u0443\u0431\u043e\u0435. \u65e5\u672c\u8a9e\u306e\u6587\u7ae0\u3082\u542b\u307e\u308c\u3066\u3044\u307e\u3059\u3002 \ud83d\ude42"
+    ]
+   ],
+   "models": {
+    "qwen2.5-0.5b": {
+     "e_out": 24.562344623709297,
+     "l": 0.06805557358038451,
+     "p": 0.12373088869192383,
+     "q99": 71.48038449082631
+    },
+    "qwen2.5-1.5b": {
+     "e_out": 28.864940859337246,
+     "l": 0.1663259556132117,
+     "p": 0.9992389620048686,
+     "q99": 78.40111856062634
+    },
+    "qwen2.5-3b": {
+     "e_out": 4.096123532932904,
+     "l": 0.046854826914600675,
+     "p": 0.14579772919742529,
+     "q99": 9.068734481206342
+    }
+   },
+   "ood_score": 0.9951938067432745
+  },
+  {
+   "messages": [
+    [
+     "user",
+     "Photosynthesis"
+    ]
+   ],
+   "models": {
+    "qwen2.5-0.5b": {
+     "e_out": 59.56696105699585,
+     "l": 0.09087405970502127,
+     "p": 0.14484373924775212,
+     "q99": 170.73372354820214
+    },
+    "qwen2.5-1.5b": {
+     "e_out": 34.290472903476406,
+     "l": 0.046854826914600675,
+     "p": 0.015367972038178886,
+     "q99": 92.82583532535033
+    },
+    "qwen2.5-3b": {
+     "e_out": 115.71455122335738,
+     "l": 0.046854826914600675,
+     "p": 0.0009758346167893655,
+     "q99": 229.6003413706132
+    }
+   },
+   "ood_score": 1.0
+  }
+ ],
+ "models": [
+  {
+   "calibrator": {
+    "a": -0.02289829851603542,
+    "b": -1.919815727158347,
+    "type": "platt"
+   },
+   "id": "qwen2.5-0.5b",
+   "lcb": {
+    "lower": [
+     0.06805557358038451,
+     0.09087405970502127,
+     0.09087405970502127,
+     0.09087405970502127,
+     0.09087405970502127
+    ],
+    "n": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ],
+    "pooled_lcb": 0.09014414488002155,
+    "pooled_rate": 0.13333333333333333,
+    "upper": [
+     0.1319989084589019,
+     0.13247491825393432,
+     0.13294112250182144,
+     0.13426634075152794,
+     1.0
+    ]
+   },
+   "length": {
+    "bias": 2.019805302104337,
+    "in_ratio": 0.3091451064754952,
+    "residual_quantiles": {
+     "0.5": 0.01274382813767927,
+     "0.9": 0.28079504540023154,
+     "0.95": 0.36435572146115075,
+     "0.99": 1.0874056792856848
+    },
+    "smear": 1.0462476202576974,
+    "weights": {
+     "dtype": "f32",
+     "len": 16396,
+     "offset": 65584
+    }
+   },
+   "quality": {
+    "bias": -1.4121883273282771,
+    "weights": {
+     "dtype": "f32",
+     "len": 16396,
+     "offset": 0
+    }
+   }
+  },
+  {
+   "calibrator": {
+    "a": 1.628104330234533,
+    "b": 0.6969088327070755,
+    "type": "platt"
+   },
+   "id": "qwen2.5-1.5b",
+   "lcb": {
+    "lower": [
+     0.046854826914600675,
+     0.046854826914600675,
+     0.046854826914600675,
+     0.1663259556132117,
+     0.1663259556132117
+    ],
+    "n": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ],
+    "pooled_lcb": 0.1301983359452476,
+    "pooled_rate": 0.18,
+    "upper": [
+     0.10981519590701237,
+     0.13844255761266203,
+     0.18677013579733012,
+     0.2595158261525383,
+     1.0
+    ]
+   },
+   "length": {
+    "bias": 1.5178080500235198,
+    "in_ratio": 0.3091451064754952,
+    "residual_quantiles": {
+     "0.5": -0.06859736600418831,
+     "0.9": 0.3905533999650664,
+     "0.95": 0.540684029036071,
+     "0.99": 1.018854659649765
+    },
+    "smear": 1.0418807045139424,
+    "weights": {
+     "dtype": "f32",
+     "len": 16396,
+     "offset": 196752
+    }
+   },
+   "quality": {
+    "bias": -1.029969837468336,
+    "weights": {
+     "dtype": "f32",
+     "len": 16396,
+     "offset": 131168
+    }
+   }
+  },
+  {
+   "calibrator": {
+    "a": 0.5282711143201098,
+    "b": -0.47572870271738177,
+    "type": "platt"
+   },
+   "id": "qwen2.5-3b",
+   "lcb": {
+    "lower": [
+     0.046854826914600675,
+     0.046854826914600675,
+     0.1149868955697387,
+     0.1663259556132117,
+     0.2210594498460135
+    ],
+    "n": [
+     30,
+     30,
+     30,
+     30,
+     30
+    ],
+    "pooled_lcb": 0.1775613221353614,
+    "pooled_rate": 0.23333333333333334,
+    "upper": [
+     0.13782059467150215,
+     0.21276278287316303,
+     0.2606813068931046,
+     0.3082820291499116,
+     1.0
+    ]
+   },
+   "length": {
+    "bias": 1.4708857235793804,
+    "in_ratio": 0.3091451064754952,
+    "residual_quantiles": {
+     "0.5": -0.037308806843382,
+     "0.9": 0.3980618962092297,
+     "0.95": 0.5592152411006721,
+     "0.99": 0.7134433721375006
+    },
+    "smear": 1.0330220180857896,
+    "weights": {
+     "dtype": "f32",
+     "len": 16396,
+     "offset": 327920
+    }
+   },
+   "quality": {
+    "bias": -1.0089773000724231,
+    "weights": {
+     "dtype": "f32",
+     "len": 16396,
+     "offset": 262336
+    }
+   }
+  }
+ ],
+ "ood": {
+  "centroids": [
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 239,
+     "offset": 393504
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 239,
+     "offset": 394460
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 395416
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 397464
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 215,
+     "offset": 399512
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 215,
+     "offset": 400372
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 401232
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 403280
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 405328
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 407376
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 207,
+     "offset": 409424
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 207,
+     "offset": 410252
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 411080
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 413128
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 456,
+     "offset": 415176
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 456,
+     "offset": 417000
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 418824
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 420872
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 139,
+     "offset": 422920
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 139,
+     "offset": 423476
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 424032
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 426080
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 428128
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 430176
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 432224
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 434272
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 453,
+     "offset": 436320
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 453,
+     "offset": 438132
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 439944
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 441992
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 444040
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 446088
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 448136
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 450184
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 251,
+     "offset": 452232
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 251,
+     "offset": 453236
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 232,
+     "offset": 454240
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 232,
+     "offset": 455168
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 456096
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 458144
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 460192
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 462240
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 165,
+     "offset": 464288
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 165,
+     "offset": 464948
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 465608
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 467656
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 469704
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 471752
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 210,
+     "offset": 473800
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 210,
+     "offset": 474640
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 293,
+     "offset": 475480
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 293,
+     "offset": 476652
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 477824
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 479872
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 481920
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 483968
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 512,
+     "offset": 486016
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 512,
+     "offset": 488064
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 437,
+     "offset": 490112
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 437,
+     "offset": 491860
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 271,
+     "offset": 493608
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 271,
+     "offset": 494692
+    }
+   },
+   {
+    "idx": {
+     "dtype": "i32",
+     "len": 196,
+     "offset": 495776
+    },
+    "val": {
+     "dtype": "f32",
+     "len": 196,
+     "offset": 496560
+    }
+   }
+  ],
+  "k": 32,
+  "threshold": 0.5253077024668034
+ },
+ "training": {
+  "calibrated_on": [
+   "calib"
+  ],
+  "created_at": "2026-10-29T04:30:21Z",
+  "cv": {
+   "qwen2.5-0.5b": {
+    "C": 1.0,
+    "alpha": 0.1
+   },
+   "qwen2.5-1.5b": {
+    "C": 0.1,
+    "alpha": 0.1
+   },
+   "qwen2.5-3b": {
+    "C": 10.0,
+    "alpha": 0.1
+   }
+  },
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "git_sha": "6ecd7f2db58b40143df196dfe117523e69a744f7",
+  "pool": "live-ollama",
+  "split_salt": "routepilot-split-v1",
+  "trained_on": [
+   "train"
+  ]
+ },
+ "version": "21183f8ab3fe"
+}

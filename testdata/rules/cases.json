@@ -1,0 +1,218 @@
+{
+  "comment": "Parity cases for the static rules baseline. A case's message text is text + 'x' * pad + tail. prompt_bytes is the total message bytes the rules see; it equals the UTF-8 length of the text except in the two 'long' cases, which set it directly. expect is the name of the first matching rule, or null.",
+  "rules": [
+    {
+      "name": "code",
+      "when": {
+        "contains_any": [
+          "```",
+          "def ",
+          "class ",
+          "#include",
+          "function ",
+          "import ",
+          "public static"
+        ]
+      }
+    },
+    {
+      "name": "math",
+      "when": {
+        "contains_any": [
+          "\\frac",
+          "$$",
+          "\\(",
+          "\\sqrt",
+          "\\sum",
+          "integer",
+          "equation"
+        ]
+      }
+    },
+    {
+      "name": "choices",
+      "when": {
+        "contains_any": [
+          "(a)",
+          "a) ",
+          "a. ",
+          "options:"
+        ]
+      }
+    },
+    {
+      "name": "long",
+      "when": {
+        "min_prompt_bytes": 4000
+      }
+    }
+  ],
+  "cases": [
+    {
+      "note": "code: fenced block",
+      "text": "Fix this:\n```\nx = 1\n```",
+      "prompt_bytes": 23,
+      "expect": "code"
+    },
+    {
+      "note": "code: def",
+      "text": "def add(a, b): return a + b",
+      "prompt_bytes": 27,
+      "expect": "code"
+    },
+    {
+      "note": "code: #include",
+      "text": "#include <stdio.h>\nint main() { return 0; }",
+      "prompt_bytes": 43,
+      "expect": "code"
+    },
+    {
+      "note": "code: import",
+      "text": "import numpy as np",
+      "prompt_bytes": 18,
+      "expect": "code"
+    },
+    {
+      "note": "code: public static",
+      "text": "public static void main(String[] args)",
+      "prompt_bytes": 38,
+      "expect": "code"
+    },
+    {
+      "note": "code: keyword match ignores case",
+      "text": "CLASS Foo: PASS",
+      "prompt_bytes": 15,
+      "expect": "code"
+    },
+    {
+      "note": "math: frac",
+      "text": "Compute \\frac{1}{2} plus one",
+      "prompt_bytes": 28,
+      "expect": "math"
+    },
+    {
+      "note": "math: display dollars",
+      "text": "Evaluate $$x^2$$ at three",
+      "prompt_bytes": 25,
+      "expect": "math"
+    },
+    {
+      "note": "math: keyword word",
+      "text": "Solve the equation 2x = 4",
+      "prompt_bytes": 25,
+      "expect": "math"
+    },
+    {
+      "note": "choices: (a)",
+      "text": "Which is right? (A) cat (B) dog",
+      "prompt_bytes": 31,
+      "expect": "choices"
+    },
+    {
+      "note": "choices: options:",
+      "text": "Options: red, green, blue",
+      "prompt_bytes": 25,
+      "expect": "choices"
+    },
+    {
+      "note": "choices: a.",
+      "text": "A. red\nB. blue",
+      "prompt_bytes": 14,
+      "expect": "choices"
+    },
+    {
+      "note": "choices: a)",
+      "text": "a) one b) two",
+      "prompt_bytes": 13,
+      "expect": "choices"
+    },
+    {
+      "note": "first match wins: code before math",
+      "text": "def f(): # solve the equation",
+      "prompt_bytes": 29,
+      "expect": "code"
+    },
+    {
+      "note": "long: exactly 4000 bytes",
+      "text": "hello",
+      "prompt_bytes": 4000,
+      "expect": "long"
+    },
+    {
+      "note": "long: 3999 bytes is not long",
+      "text": "hello",
+      "prompt_bytes": 3999,
+      "expect": null
+    },
+    {
+      "note": "long never beats an earlier rule",
+      "text": "import os",
+      "prompt_bytes": 5000,
+      "expect": "code"
+    },
+    {
+      "note": "no rule matches",
+      "text": "Tell me a joke about cats",
+      "prompt_bytes": 25,
+      "expect": null
+    },
+    {
+      "note": "non-ASCII text with a keyword",
+      "text": "R\u00e9sum\u00e9: \u65e5\u672c\u8a9e\u306e\u30c6\u30ad\u30b9\u30c8 integer overflow",
+      "prompt_bytes": 51,
+      "expect": "math"
+    },
+    {
+      "note": "non-ASCII text without a keyword",
+      "text": "\u65e5\u672c\u8a9e\u306e\u30c6\u30ad\u30b9\u30c8\u3001\u6570\u5f0f\u306a\u3057",
+      "prompt_bytes": 39,
+      "expect": null
+    },
+    {
+      "note": "lowercase maps U+0130 to i like Go",
+      "text": "\u0130NTEGER division",
+      "prompt_bytes": 17,
+      "expect": "math"
+    },
+    {
+      "note": "keyword past the 32768 byte cut",
+      "text": "",
+      "pad": 33000,
+      "tail": " def x()",
+      "prompt_bytes": 33008,
+      "expect": "long"
+    },
+    {
+      "note": "keyword ending exactly at the cut",
+      "text": "",
+      "pad": 32764,
+      "tail": "def ",
+      "prompt_bytes": 32768,
+      "expect": "code"
+    },
+    {
+      "note": "keyword cut one byte short",
+      "text": "",
+      "pad": 32765,
+      "tail": "def ",
+      "prompt_bytes": 32769,
+      "expect": "long"
+    },
+    {
+      "note": "cut inside a 2-byte rune",
+      "text": "",
+      "pad": 32767,
+      "tail": "\u00e9def ",
+      "prompt_bytes": 32773,
+      "expect": "long"
+    },
+    {
+      "note": "cut inside a 3-byte rune",
+      "text": "",
+      "pad": 32766,
+      "tail": "\u65e5def ",
+      "prompt_bytes": 32773,
+      "expect": "long"
+    }
+  ]
+}

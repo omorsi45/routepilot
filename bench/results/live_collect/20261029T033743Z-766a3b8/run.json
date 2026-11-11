@@ -1,0 +1,36 @@
+{
+  "run_id": "20261029T033743Z-766a3b8",
+  "experiment": "live_collect",
+  "git_sha": "766a3b8987bdb379f82c5369d456462b7fce2164",
+  "git_dirty": false,
+  "policy_version": null,
+  "dataset_sha256": "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1",
+  "seeds": {
+    "sample": 0
+  },
+  "machine": {
+    "cpu": "AMD Ryzen 9 7900X 12-Core Processor (24 threads)",
+    "ram_gb": 31.2,
+    "os": "Windows-11-10.0.26300-SP0"
+  },
+  "go_version": "go1.27.2",
+  "python_version": "3.14.7",
+  "started_at": "2026-10-29T03:37:43Z",
+  "ended_at": "2026-10-29T03:43:35Z",
+  "command": [
+    "python",
+    "bench/scripts/live_collect.py",
+    "collect",
+    "--protocol",
+    "answer-only",
+    "--budget-minutes",
+    "30"
+  ],
+  "measurement": {
+    "protocol": {
+      "name": "answer-only",
+      "system_message": "Reply with only the letter of the correct option.",
+      "max_tokens": 16
+    }
+  }
+}

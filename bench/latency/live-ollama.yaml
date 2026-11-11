@@ -1,0 +1,30 @@
+# Latency profiles of the live local experiment, measured through RoutePilot.
+# Medians and spreads (standard deviation of the logarithm) of the time to first token
+# and of the time per output token, from the train and calibration requests of
+# live_collect.py, as the gateway's decision log recorded them.
+# Not simulated and not assumed.
+profiles:
+- model: qwen2.5-0.5b
+  ttft_median_ms: 35.0
+  ttft_sigma: 0.219859
+  tpot_median_ms: 5.0
+  tpot_sigma: 0.174061
+  source: measured
+  retrieved: '2026-10-29'
+  note: measured through RoutePilot on AMD Ryzen 9 7900X 12-Core Processor (24 threads) and AMD Radeon RX 9060 XT, 2026-10-29
+- model: qwen2.5-1.5b
+  ttft_median_ms: 64.0
+  ttft_sigma: 0.264745
+  tpot_median_ms: 5.5
+  tpot_sigma: 0.254962
+  source: measured
+  retrieved: '2026-10-29'
+  note: measured through RoutePilot on AMD Ryzen 9 7900X 12-Core Processor (24 threads) and AMD Radeon RX 9060 XT, 2026-10-29
+- model: qwen2.5-3b
+  ttft_median_ms: 81.0
+  ttft_sigma: 0.301759
+  tpot_median_ms: 6.0
+  tpot_sigma: 0.277181
+  source: measured
+  retrieved: '2026-10-29'
+  note: measured through RoutePilot on AMD Ryzen 9 7900X 12-Core Processor (24 threads) and AMD Radeon RX 9060 XT, 2026-10-29

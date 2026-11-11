@@ -1,0 +1,237 @@
+// Package provider defines the upstream provider interface, the error model
+// shared by every adapter, and the HTTP transport adapters should use.
+package provider
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/omorsi45/routepilot/internal/openai"
+)
+
+// maxErrorBodyBytes bounds how much of an upstream error body is read.
+const maxErrorBodyBytes = 64 << 10
+
+// maxErrorMessageBytes caps the upstream error.message kept in Error.Message.
+const maxErrorMessageBytes = 512
+
+// Provider is one upstream model provider. The caller passes req.Model already
+// set to the upstream model and req.RoutePilot nil.
+type Provider interface {
+	// Complete performs a non-streaming completion.
+	Complete(ctx context.Context, req *openai.ChatCompletionRequest) (*openai.ChatCompletion, error)
+	// Stream starts a streaming completion. It returns only after a 2xx status
+	// and response headers; any earlier failure is returned from Stream itself.
+	Stream(ctx context.Context, req *openai.ChatCompletionRequest) (Stream, error)
+}
+
+// Stream is a live streaming completion.
+type Stream interface {
+	// Recv returns the next chunk, or io.EOF after a clean end of stream.
+	Recv() (*openai.ChatCompletionChunk, error)
+	// Close releases the underlying connection. It is safe to call repeatedly.
+	Close() error
+}
+
+// Kind classifies a provider failure.
+type Kind string
+
+// Failure kinds.
+const (
+	KindConnect  Kind = "connect"
+	KindTimeout  Kind = "timeout"
+	KindHTTP     Kind = "http"
+	KindProtocol Kind = "protocol"
+	KindCanceled Kind = "canceled"
+)
+
+// Error is a classified provider failure. Message never carries raw request or
+// response bodies, but for HTTP errors it can include a bounded excerpt of the
+// upstream's own error.message, which is upstream-controlled text.
+type Error struct {
+	Kind       Kind
+	Status     int
+	Retryable  bool
+	RetryAfter time.Duration
+	// Responded is set when the upstream had already answered with a 2xx status when the
+	// failure happened and its body or stream could not be read to the end (it was cut,
+	// timed out or reset). The provider ran the request and may have billed it, unlike a
+	// failure before any response.
+	Responded bool
+	Message   string
+	Err       error
+}
+
+// Error implements the error interface.
+func (e *Error) Error() string {
+	s := fmt.Sprintf("provider %s: %s", e.Kind, e.Message)
+	if e.Status != 0 {
+		s += fmt.Sprintf(" (status %d)", e.Status)
+	}
+	return s
+}
+
+// Unwrap returns the underlying cause, if any.
+func (e *Error) Unwrap() error { return e.Err }
+
+// RetryableStatus reports whether an upstream HTTP status is worth retrying on
+// another provider or attempt.
+func RetryableStatus(status int) bool {
+	switch status {
+	case 401, 403, 408, 409, 429, 500, 502, 503, 504:
+		return true
+	}
+	return false
+}
+
+// ParseRetryAfter parses a Retry-After header value, either delta-seconds or an
+// HTTP-date relative to now. Invalid, empty, negative or past values give 0.
+func ParseRetryAfter(v string, now time.Time) time.Duration {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0
+	}
+	if isDigits(v) {
+		// RFC 9110 delta-seconds is digits only (no sign). Values that would
+		// overflow time.Duration are treated as invalid.
+		secs, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || secs > math.MaxInt64/int64(time.Second) {
+			return 0
+		}
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(v); err == nil {
+		if d := t.Sub(now); d > 0 {
+			return d
+		}
+	}
+	return 0
+}
+
+func isDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// truncateUTF8 cuts s to at most max bytes without splitting a UTF-8 rune.
+func truncateUTF8(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
+}
+
+// TruncateMessage trims s and caps it at 512 bytes on a rune boundary. Adapters
+// use it for upstream-controlled text that ends up in Error.Message.
+func TruncateMessage(s string) string {
+	return truncateUTF8(strings.TrimSpace(s), maxErrorMessageBytes)
+}
+
+// NewTransport returns an HTTP transport tuned for many concurrent requests to
+// a few upstream hosts. It starts from a clone of http.DefaultTransport so the
+// proxy, dial timeout and TLS handshake timeout defaults are kept.
+func NewTransport() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConnsPerHost = 256
+	t.IdleConnTimeout = 90 * time.Second
+	t.ForceAttemptHTTP2 = true
+	return t
+}
+
+// ClientWithoutRedirects returns a shallow copy of c that never follows
+// redirects, so a 3xx answer surfaces as an HTTP error instead of re-sending
+// the request body and credential headers to another host. A nil c
+// selects a client built on NewTransport. The caller's client is not modified.
+func ClientWithoutRedirects(c *http.Client) *http.Client {
+	if c == nil {
+		c = &http.Client{Transport: NewTransport()}
+	}
+	cp := *c
+	cp.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &cp
+}
+
+// ErrorFromResponse builds a KindHTTP error from a non-2xx response. It reads at
+// most 64 KiB of the body, closes it, and uses error.message from an
+// OpenAI-shaped JSON body (capped at 512 bytes on a rune boundary), otherwise
+// http.StatusText. The raw body never reaches Message beyond that excerpt.
+func ErrorFromResponse(resp *http.Response, now time.Time) *Error {
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
+	_ = resp.Body.Close()
+
+	var env struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	msg := ""
+	if json.Unmarshal(body, &env) == nil {
+		msg = TruncateMessage(env.Error.Message)
+	}
+	if msg == "" {
+		msg = http.StatusText(resp.StatusCode)
+	}
+	if msg == "" {
+		msg = "upstream error"
+	}
+	return &Error{
+		Kind:       KindHTTP,
+		Status:     resp.StatusCode,
+		Retryable:  RetryableStatus(resp.StatusCode),
+		RetryAfter: ParseRetryAfter(resp.Header.Get("Retry-After"), now),
+		Message:    msg,
+	}
+}
+
+// ClassifyReadError is ClassifyTransportError for a failure while the body or stream of a
+// 2xx response is being read. The upstream has answered by then, so the error is marked
+// Responded: it is not the dial or reset before any response that a connect failure is
+// otherwise taken to be.
+func ClassifyReadError(ctx context.Context, err error) *Error {
+	perr := ClassifyTransportError(ctx, err)
+	perr.Responded = true
+	return perr
+}
+
+// ClassifyTransportError maps a transport-level failure to a provider Error.
+// Cancellation is not retryable; a deadline is a retryable timeout; anything
+// else is a retryable connect failure.
+func ClassifyTransportError(ctx context.Context, err error) *Error {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return &Error{Kind: KindCanceled, Message: "request canceled", Err: err}
+	case errors.Is(err, context.DeadlineExceeded):
+		return &Error{Kind: KindTimeout, Retryable: true, Message: "request timed out", Err: err}
+	}
+	switch ctx.Err() {
+	case context.Canceled:
+		return &Error{Kind: KindCanceled, Message: "request canceled", Err: err}
+	case context.DeadlineExceeded:
+		return &Error{Kind: KindTimeout, Retryable: true, Message: "request timed out", Err: err}
+	}
+	// Drop the request URL that net/http wraps around the cause.
+	cause := err
+	var ue *url.Error
+	if errors.As(err, &ue) && ue.Err != nil {
+		cause = ue.Err
+	}
+	return &Error{Kind: KindConnect, Retryable: true, Message: "connection failed: " + cause.Error(), Err: err}
+}

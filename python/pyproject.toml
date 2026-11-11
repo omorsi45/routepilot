@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools==82.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "routepilot-train"
+version = "0.1.0"
+description = "Offline training and evaluation pipeline for RoutePilot"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = [
+    "numpy==2.5.4",
+    "scipy==1.18.1",
+    "pandas==3.1.0",
+    "pyarrow==26.0.0",
+    "scikit-learn==1.9.1",
+    "matplotlib==3.11.2",
+    "pyyaml==6.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.3",
+]
+
+[tool.setuptools.packages.find]
+include = ["routepilot_train*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["routepilot_train"]
