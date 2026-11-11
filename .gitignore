@@ -35,10 +35,6 @@ __pycache__/
 # Isolated worktrees
 /.worktrees/
 
-# Local-only working artifacts
-/.superpowers/
-/docs/superpowers/
-
 # OS and editor noise
 .DS_Store
 .idea/

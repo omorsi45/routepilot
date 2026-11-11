@@ -2,8 +2,6 @@
 # go.sum, cmd and internal; the rest is excluded so it is never sent to the daemon.
 .git
 .worktrees
-.superpowers
-docs/superpowers
 bin/
 .venv/
 .ruff_cache/
